@@ -99,3 +99,20 @@ CORS_ALLOWED_ORIGINS = os.getenv(
 CELERY_BROKER_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 CELERY_TIMEZONE = 'Asia/Bangkok'
+
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'scrape-every-6-hours': {
+        'task': 'apps.scraper.tasks.scrape_all_vtubers',
+        'schedule': crontab(minute=0, hour='*/6'),
+    },
+    'monthly-ranking': {
+        'task': 'apps.rankings.tasks.calculate_monthly_rankings',
+        'schedule': crontab(minute=0, hour=2, day_of_month=1),
+    },
+    'alltime-ranking': {
+        'task': 'apps.rankings.tasks.calculate_alltime_rankings',
+        'schedule': crontab(minute=0, hour=3, day_of_week=0),
+    },
+}
