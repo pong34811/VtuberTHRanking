@@ -4,6 +4,7 @@ export default function PeriodSelector({ value, onChange, choices }) {
       {choices.map((choice) => (
         <button
           key={choice.value}
+          aria-pressed={value === choice.value}
           onClick={() => onChange(choice.value)}
           className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
             value === choice.value

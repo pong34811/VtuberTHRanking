@@ -1,27 +1,38 @@
-import { Link } from 'react-router-dom'
-import RankBadge from './RankBadge'
-import ChangeIndicator from './ChangeIndicator'
-
+import { Link } from "react-router-dom";
+import ChangeIndicator from "./ChangeIndicator";
+import { useState } from "react";
 export default function VTuberCard({ vtuber, rank, score, rankChange, isNew }) {
+  const [failed, setFailed] = useState(false);
   return (
-    <Link
-      to={`/profile/${vtuber.slug}`}
-      className="flex items-center gap-4 p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition-colors"
-    >
-      <RankBadge rank={rank} />
-      <div className="w-10 h-10 rounded-full bg-[var(--color-accent)]/20 flex items-center justify-center text-lg font-bold text-[var(--color-accent)]">
-        {vtuber.name.charAt(0)}
-      </div>
+    <Link to={`/profile/${vtuber.slug}`} className="ranking-row">
+      {typeof rank === "number" && (
+        <span className="w-8 shrink-0 text-sm text-[var(--color-muted)] font-semibold">
+          {String(rank).padStart(2, "0")}
+        </span>
+      )}
+      {vtuber.avatar && !failed ? (
+        <img
+          className="avatar"
+          src={vtuber.avatar}
+          alt=""
+          loading="lazy"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="avatar">{vtuber.name.charAt(0)}</span>
+      )}
       <div className="flex-1 min-w-0">
         <p className="font-medium truncate">{vtuber.name}</p>
-        <p className="text-xs text-[var(--color-muted)]">
-          {vtuber.category} • {vtuber.affiliation}
+        <p className="text-xs text-[var(--color-muted)] truncate">
+          {vtuber.category} · {vtuber.affiliation}
         </p>
       </div>
-      <div className="text-right">
-        <p className="font-semibold">{score?.toLocaleString()}</p>
-        <ChangeIndicator change={rankChange} isNew={isNew} />
-      </div>
+      {score != null && (
+        <div className="ranking-score">
+          <p className="font-semibold">{score.toLocaleString("th-TH")}</p>
+          <ChangeIndicator change={rankChange} isNew={isNew} />
+        </div>
+      )}
     </Link>
-  )
+  );
 }

@@ -12,23 +12,24 @@
 | Frontend | React 19 + Vite 8 + Tailwind 4 |
 | Charts | Recharts 3 |
 
-## เริ่มต้น (Docker)
+## เริ่มต้น (Local Development)
 
 ```bash
-# สร้างไฟล์ .env
-cp .env.example .env
+# ติดตั้ง dependencies
+cd backend && pip install -r requirements.txt
+cd ../frontend && npm install
 
-# Start services ทั้งหมด
-docker compose up -d
+# สร้างไฟล์ .env (Backend)
+cd ../backend
+cp ../.env.example .env
 
-# Migrate database
-docker compose exec backend python manage.py migrate
+# รัน Backend (Terminal 1)
+python manage.py migrate
+python manage.py runserver
 
-# สร้าง superuser (optional)
-docker compose exec backend python manage.py createsuperuser
-
-# Seed ข้อมูลตัวอย่าง
-docker compose exec backend python manage.py seed_vtubers
+# รัน Frontend (Terminal 2)
+cd ../frontend
+npm run dev
 ```
 
 ## URL หลัก
@@ -75,7 +76,6 @@ ranking_vtuberthai/
 │       ├── api/              # Axios client
 │       ├── components/       # Shared components
 │       └── pages/            # Home, Profile, Compare, Search
-├── docs/
-│   └── superpowers/plans/    # Implementation plans
-└── docker-compose.yml
+└── docs/
+    └── superpowers/plans/    # Implementation plans
 ```

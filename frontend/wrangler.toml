@@ -1,0 +1,15 @@
+# Wrangler config for Cloudflare Pages (with Functions)
+name = "vtuberthai-ranking"
+compatibility_date = "2026-09-15"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "dist"
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "vtuberthai-db"
+database_id = "9585907e-612d-4cc3-84b4-f75a41690989"
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"
