@@ -6,39 +6,34 @@
 
 | ส่วน | เทคโนโลยี |
 |------|-----------|
-| Backend | Django 5.x + DRF |
-| Task Queue | Celery + Redis |
-| Database | PostgreSQL |
 | Frontend | React 19 + Vite 8 + Tailwind 4 |
+| API | Cloudflare Pages Functions (Hono) |
+| Database | Cloudflare D1 (SQLite) |
+| Auto-sync | Worker `vtuberthai-updater` (cron ทุกชั่วโมง) |
 | Charts | Recharts 3 |
 
 ## เริ่มต้น (Local Development)
 
 ```bash
-# ติดตั้ง dependencies
-cd backend && pip install -r requirements.txt
-cd ../frontend && npm install
+cd frontend && npm install
+npm run dev          # http://localhost:5173 (เรียก API production ผ่าน proxy)
+```
 
-# สร้างไฟล์ .env (Backend)
-cd ../backend
-cp ../.env.example .env
+## Deploy
 
-# รัน Backend (Terminal 1)
-python manage.py migrate
-python manage.py runserver
-
-# รัน Frontend (Terminal 2)
-cd ../frontend
-npm run dev
+```bash
+cd frontend
+npm run build
+npx wrangler pages deploy dist --project-name vtuberthai-ranking --branch main
 ```
 
 ## URL หลัก
 
 | หน้า | URL |
 |------|-----|
-| Frontend | http://localhost:5173 |
-| Backend API | http://localhost:8000/api/v1/ |
-| Admin | http://localhost:8000/admin/ |
+| Frontend | https://vtuberthai-ranking.pages.dev |
+| Admin | https://vtuberthai-ranking.pages.dev/admin |
+| API | https://vtuberthai-ranking.pages.dev/api/v1/ |
 
 ## API Endpoints
 
@@ -50,32 +45,20 @@ npm run dev
 | `/api/v1/vtubers/{slug}/history/` | GET | ประวัติสถิติสำหรับกราฟ |
 | `/api/v1/compare/` | POST | เปรียบเทียบ VTuber 2-3 คน |
 | `/api/v1/summary/` | GET | สรุปข้อมูลสำหรับหน้าหลัก |
-
-## การพัฒนาต่อ (Phase 2)
-
-- ระบบสมาชิก + โหวต Favorite
-- แจ้งเตือนเมื่ออันดับเปลี่ยน
-- รวมข่าวสาร VTuber Thai
-- Hall of Fame (อันดับ 1 ของแต่ละเดือน)
-- Export ข้อมูล CSV
-- รองรับหลายภาษา (ไทย/อังกฤษ)
+| `/api/v1/auth/*` | POST/GET | login/logout/me (session cookie) |
+| `/api/v1/admin/*` | GET/POST/PUT | จัดการช่อง, อันดับ, รายงาน, ผู้ใช้ (ต้อง login) |
 
 ## โครงสร้างโปรเจกต์
 
 ```
-ranking_vtuberthai/
-├── backend/
-│   ├── apps/
-│   │   ├── vtubers/          # Models, API, Admin
-│   │   ├── scraper/          # Celery scraping tasks
-│   │   └── rankings/         # Celery ranking calculator
-│   ├── config/               # Django settings
-│   └── manage.py
+VtuberTHRanking/
 ├── frontend/
+│   ├── functions/api/[[path]].js  # Pages Functions API (Hono)
+│   ├── server/                    # auth.js, admin.js, password.js, admin-domain.js
+│   ├── migrations/                # D1 schema
 │   └── src/
-│       ├── api/              # Axios client
-│       ├── components/       # Shared components
-│       └── pages/            # Home, Profile, Compare, Search
-└── docs/
-    └── superpowers/plans/    # Implementation plans
+│       ├── admin/                 # หน้า /admin (channels, rankings, users, …)
+│       └── pages/                 # Home, Profile, Compare, Search
+└── worker/
+    └── updater.js                 # cron ดึงสถิติ YouTube ตามรอบใน settings
 ```
