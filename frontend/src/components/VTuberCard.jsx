@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import ChangeIndicator from "./ChangeIndicator";
 import { useState } from "react";
-export default function VTuberCard({ vtuber, rank, score, rankChange, isNew }) {
+export default function VTuberCard({ vtuber, rank, score, rankChange, isNew, videoCount }) {
   const [failed, setFailed] = useState(false);
   return (
     <Link to={`/profile/${vtuber.slug}`} className="ranking-row">
@@ -26,6 +26,11 @@ export default function VTuberCard({ vtuber, rank, score, rankChange, isNew }) {
         <p className="text-xs text-[var(--color-muted)] truncate">
           {vtuber.category} · {vtuber.affiliation}
         </p>
+        {videoCount != null && (
+          <p className="text-xs text-[var(--color-muted)]">
+            {videoCount.toLocaleString("th-TH")} คลิป
+          </p>
+        )}
       </div>
       {score != null && (
         <div className="ranking-score">

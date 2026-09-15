@@ -11,6 +11,9 @@ node_modules/
 dist/
 .vite/
 
+# Wrangler
+.wrangler/
+
 # Django
 *.log
 *.pot

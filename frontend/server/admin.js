@@ -96,7 +96,7 @@ app.get('/settings', c => list(c, `SELECT * FROM settings WHERE setting_key IN (
 app.put('/settings', async c => {
   manager(c); const data = await body(c, settingsKeys);
   data.site_name = str(data.site_name, 'site_name', 100, true);
-  choice(data.site_status, ['active','maintenance'], 'site_status'); month(data.current_ranking_period); choice(data.ranking_update_frequency, ['manual','monthly'], 'ranking_update_frequency');
+  choice(data.site_status, ['active','maintenance'], 'site_status'); month(data.current_ranking_period); choice(data.ranking_update_frequency, ['manual','hourly','daily','weekly','monthly'], 'ranking_update_frequency');
   await c.env.DB.batch([...settingsKeys.map(key => stmt(c, "INSERT INTO settings (setting_key,setting_value,updated_at) VALUES (?,?,datetime('now')) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_at=excluded.updated_at", key, data[key])), audit(c, 'update', 'settings', 'site', data)]);
   return c.json({ ok: true });
 });
@@ -106,7 +106,7 @@ function userData(data) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('Invalid email');
   return { display_name: displayName, email, role: choice(data.role, ['manager','staff'], 'role'), status: choice(data.status, ['active','inactive'], 'status') };
 }
-async function passwordHash(password) { const error = validatePassword(password); if (error) fail(typeof error === 'string' ? error : 'Invalid password'); return hashPassword(password); }
+async function passwordHash(password) { validatePassword(password); return hashPassword(password); }
 app.get('/users', c => { manager(c); return list(c, `SELECT ${userFields} FROM users ORDER BY username`); });
 app.post('/users', async c => {
   manager(c); const data = await body(c, ['username','display_name','email','role','status','password']); const fields = userData(data);
@@ -128,5 +128,45 @@ app.put('/users/:id', async c => {
     audit(c, 'update', 'user', id, { role: fields.role, status: fields.status, password_changed: changingPassword, sessions_revoked: revoke }),
   ]);
   return c.json({ ok: true, id });
+});
+// ponytail: ดึงข้อมูลช่องจาก YouTube API ฝั่งเซิร์ฟเวอร์ (คีย์ไม่หลุดไป frontend)
+app.post('/youtube/import', async c => {
+  const key = c.env.YOUTUBE_API_KEY;
+  if (!key) fail('ยังไม่ได้ตั้งค่า YOUTUBE_API_KEY บนเซิร์ฟเวอร์', 500);
+  const { input } = await body(c, ['input']);
+  const ref = str(input, 'ช่อง YouTube', 200, true);
+  const idMatch = ref.match(/(UC[\w-]{22})/);
+  const handleMatch = ref.match(/@([\w.-]{3,})/);
+  const query = idMatch ? `id=${idMatch[1]}` : handleMatch ? `forHandle=${encodeURIComponent(handleMatch[1])}` : fail('ใส่ channel ID, @handle หรือลิงก์ YouTube', 400);
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&${query}&key=${encodeURIComponent(key)}`, { headers: { Referer: new URL(c.req.url).origin } });
+  if (!res.ok) fail(`ดึงข้อมูลจาก YouTube ไม่สำเร็จ (${res.status})`, 502);
+  const item = (await res.json()).items?.[0];
+  if (!item) fail('ไม่พบช่องนี้บน YouTube', 404);
+  const stats = item.statistics || {};
+  const followers = Number(stats.subscriberCount || 0), views = Number(stats.viewCount || 0), videos = Number(stats.videoCount || 0);
+  const thumbs = item.snippet?.thumbnails || {};
+  const name = item.snippet?.title || 'Unknown';
+  const avatar = thumbs.medium?.url || thumbs.default?.url || '';
+  const youtubeUrl = `https://www.youtube.com/channel/${item.id}`;
+  const now = new Date().toISOString();
+  const existing = await stmt(c, 'SELECT id FROM vtubers WHERE youtube_url=? OR channel_url=?', youtubeUrl, youtubeUrl).first();
+  if (existing) {
+    await c.env.DB.batch([
+      stmt(c, 'UPDATE vtubers SET name=?,avatar=?,youtube_url=?,channel_url=?,updated_at=datetime(?) WHERE id=?', name, avatar, youtubeUrl, youtubeUrl, now, existing.id),
+      stmt(c, 'INSERT INTO stats_snapshots (vtuber_id,followers,total_views,video_count,avg_views,recorded_at) VALUES (?,?,?,?,0,?)', existing.id, followers, views, videos, now),
+      audit(c, 'youtube.import', 'vtuber', existing.id, { followers }),
+    ]);
+    return c.json({ ok: true, id: existing.id, name, followers, total_views: views, video_count: videos, updated: true });
+  }
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'channel';
+  let slug = base, n = 1;
+  while (await stmt(c, 'SELECT id FROM vtubers WHERE slug=?', slug).first()) { n += 1; if (n > 9) fail('Slug ซ้ำเกินไป'); slug = `${base}-${n}`; }
+  const inserted = await stmt(c, "INSERT INTO vtubers (name,slug,bio,avatar,channel_url,platform,category,affiliation,is_active,youtube_url,created_at,updated_at) VALUES (?,?,?,?,?,?,'other','indie',1,?,datetime('now'),datetime('now'))", name, slug, (item.snippet?.description || '').slice(0, 2000), avatar, youtubeUrl, 'youtube', youtubeUrl).run();
+  const id = inserted.meta.last_row_id;
+  await c.env.DB.batch([
+    stmt(c, 'INSERT INTO stats_snapshots (vtuber_id,followers,total_views,video_count,avg_views,recorded_at) VALUES (?,?,?,?,0,?)', id, followers, views, videos, now),
+    audit(c, 'youtube.import', 'vtuber', id, { slug, followers }),
+  ]);
+  return c.json({ ok: true, id, name, slug, followers, total_views: views, video_count: videos }, 201);
 });
 export default app;

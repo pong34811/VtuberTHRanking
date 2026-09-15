@@ -1,9 +1,13 @@
 import { pbkdf2Sync, randomBytes, timingSafeEqual } from 'node:crypto';
 
-const ITERATIONS = 600000;
+// ponytail: 600000 iterations exceeds Cloudflare Workers' pbkdf2 limit (100000),
+// which made every login/setup call 500. Lowered to 100000 — still slow enough to
+// resist offline brute force, and matches the Workers runtime ceiling.
+const ITERATIONS = 100000;
 export function validatePassword(password) {
-  if (typeof password !== 'string' || password.length < 15 || password.length > 128) {
-    throw new Error('รหัสผ่านต้องยาว 15–128 ตัวอักษร');
+  // ponytail: ง่ายสุดแค่ username+password ยาว >=4 ก็พอ
+  if (typeof password !== 'string' || password.length < 4 || password.length > 128) {
+    throw new Error('รหัสผ่านต้องยาว 4–128 ตัวอักษร');
   }
   return password;
 }

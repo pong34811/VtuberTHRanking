@@ -66,7 +66,7 @@ api.get('/rankings/', async (c) => {
   ).bind(...params).first();
   const total = countResult?.total || 0;
 
-  const query = `SELECT r.rank, r.score, r.rank_change, v.id, v.name, v.slug, v.avatar, v.category as vtuber_category, v.affiliation
+  const query = `SELECT r.rank, r.score, r.rank_change, r.video_count, v.id, v.name, v.slug, v.avatar, v.category as vtuber_category, v.affiliation
     FROM rankings r JOIN vtubers v ON r.vtuber_id = v.id ${whereClause} ORDER BY r.rank ASC LIMIT ? OFFSET ?`;
 
   const { results } = await db.prepare(query).bind(...params, limit, offset).all();
@@ -79,7 +79,7 @@ api.get('/rankings/', async (c) => {
     previous: offset > 0 ? `/api/v1/rankings/?period=${period}&category=${category}&offset=${Math.max(0, offset - limit)}` : null,
     results: results.map(row => ({
       rank: row.rank,
-      vtuber: { id: row.id, name: row.name, slug: row.slug, avatar: row.avatar, category: row.vtuber_category, affiliation: row.affiliation },
+      vtuber: { id: row.id, name: row.name, slug: row.slug, avatar: row.avatar, category: row.vtuber_category, affiliation: row.affiliation, video_count: row.video_count },
       score: row.score, rank_change: row.rank_change,
     })),
   });

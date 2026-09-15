@@ -23,5 +23,10 @@ export function useSubmit(action, onSuccess) {
   return { busy, error, setError, submit }
 }
 
-export const fmtDate = value => value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—'
+// ponytail: D1 เก็บ datetime('now') เป็น UTC แบบไม่มีโซน ต้องเติม Z ก่อน parse แล้วแสดงเป็น Asia/Bangkok เสมอ
+export const fmtDate = value => {
+  if (!value) return '—'
+  const iso = typeof value === 'string' && /^\d{4}-\d{2}-\d{2} /.test(value) ? value.replace(' ', 'T') + 'Z' : value
+  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(new Date(iso))
+}
 export const fmtNumber = value => new Intl.NumberFormat('th-TH').format(Number(value || 0))

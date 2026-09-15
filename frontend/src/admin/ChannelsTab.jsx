@@ -6,12 +6,19 @@ const blank = { name:'',slug:'',bio:'',avatar:'',agency_name:'',country:'Thailan
 const fields = [['name','ชื่อช่อง'],['slug','Slug'],['agency_name','สังกัด'],['country','ประเทศ'],['debut_date','วันเดบิวต์','date'],['avatar','URL รูปโปรไฟล์','url'],['banner_url','URL แบนเนอร์','url'],['youtube_url','YouTube URL','url'],['twitch_url','Twitch URL','url'],['x_url','X URL','url'],['channel_url','Channel URL','url'],['platform','แพลตฟอร์ม'],['category','ประเภทคอนเทนต์'],['affiliation','Affiliation']]
 
 export default function ChannelsTab({ csrfToken }) {
-  const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[editing,setEditing]=useState(null),[snapshots,setSnapshots]=useState(null)
+  const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[editing,setEditing]=useState(null),[snapshots,setSnapshots]=useState(null),[ytOpen,setYtOpen]=useState(false)
   const load=()=>{setLoading(true);adminApi('/vtubers').then(d=>setRows(d.results||[])).catch(e=>setError(e.message)).finally(()=>setLoading(false))}
   useEffect(load,[])
-  return <><Card title="ช่อง VTuber" actions={<button className="primary" onClick={()=>setEditing({...blank})}>เพิ่มช่อง</button>}><Notice>{error}</Notice>{loading?<Loading/>:rows.length?<div className="admin-table-wrap"><table><thead><tr><th>ช่อง</th><th>สังกัด</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><strong>{row.name}</strong><small>{row.slug}</small></td><td>{row.agency_name||row.affiliation||'—'}</td><td><span className={`pill ${row.is_active?'active':''}`}>{row.is_active?'ใช้งาน':'ปิดใช้งาน'}</span></td><td className="actions"><button onClick={()=>setSnapshots(row)}>สถิติ</button><button onClick={()=>setEditing({...blank,...row,is_active:Boolean(row.is_active)})}>แก้ไข</button></td></tr>)}</tbody></table></div>:<Empty>ยังไม่มีช่อง VTuber</Empty>}</Card>
+  return <><Card title="ช่อง VTuber" actions={<><button onClick={()=>setYtOpen(true)}>ดึงจาก YouTube</button><button className="primary" onClick={()=>setEditing({...blank})}>เพิ่มช่อง</button></>}><Notice>{error}</Notice>{loading?<Loading/>:rows.length?<div className="admin-table-wrap"><table><thead><tr><th>ช่อง</th><th>สังกัด</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td><strong>{row.name}</strong><small>{row.slug}</small></td><td>{row.agency_name||row.affiliation||'—'}</td><td><span className={`pill ${row.is_active?'active':''}`}>{row.is_active?'ใช้งาน':'ปิดใช้งาน'}</span></td><td className="actions"><button onClick={()=>setSnapshots(row)}>สถิติ</button><button onClick={()=>setEditing({...blank,...row,is_active:Boolean(row.is_active)})}>แก้ไข</button></td></tr>)}</tbody></table></div>:<Empty>ยังไม่มีช่อง VTuber</Empty>}</Card>
   {editing&&<ChannelForm value={editing} csrfToken={csrfToken} onClose={()=>setEditing(null)} onSaved={()=>{setEditing(null);load()}}/>}
+  {ytOpen&&<YouTubeImport csrfToken={csrfToken} onClose={()=>setYtOpen(false)} onSaved={()=>{setYtOpen(false);load()}}/>}
   {snapshots&&<Snapshots channel={snapshots} csrfToken={csrfToken} onClose={()=>setSnapshots(null)}/>}</>
+}
+
+function YouTubeImport({csrfToken,onClose,onSaved}){
+  const [input,setInput]=useState('')
+  const save=useSubmit(()=>adminApi('/youtube/import',{method:'POST',csrfToken,body:{input}}),onSaved)
+  return <Modal title="ดึงข้อมูลจาก YouTube" onClose={onClose}><form onSubmit={save.submit}><Notice>{save.error}</Notice><Field label="Channel ID / @handle / ลิงก์" wide><input required placeholder="เช่น @muu_ch หรือ https://www.youtube.com/@muu_ch" value={input} onChange={e=>setInput(e.target.value)}/></Field><div className="form-actions"><button type="button" className="ghost" onClick={onClose}>ยกเลิก</button><Button className="primary" busy={save.busy}>ดึงข้อมูล</Button></div></form></Modal>
 }
 
 function ChannelForm({value,csrfToken,onClose,onSaved}){

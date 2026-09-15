@@ -78,11 +78,12 @@ auth.post('/setup', async c => {
   if (!await setupRequired(c)) return c.json({message:'ระบบมีผู้ดูแลแล้ว'},409);
   let body;
   try { body=await jsonBody(c); } catch { return c.json({message:'ข้อมูลไม่ถูกต้อง'},400); }
-  if (!c.env.ADMIN_SETUP_TOKEN || !equal(body.setupToken,c.env.ADMIN_SETUP_TOKEN)) return c.json({message:'รหัสตั้งค่าไม่ถูกต้อง'},403);
-  const {username,display_name,email,password}=body;
-  if (typeof username!=='string' || !/^[a-zA-Z0-9_.-]{3,40}$/.test(username) || typeof display_name!=='string' || !display_name.trim() || display_name.length>100 || typeof email!=='string' || email.length>254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.json({message:'ตรวจสอบชื่อผู้ใช้ ชื่อแสดงผล และอีเมล'},400);
+  // ponytail: ง่ายสุด — ถ้าไม่ได้ตั้ง ADMIN_SETUP_TOKEN ก็ข้ามการตรวจ token ไปเลย เหลือแค่ username+password
+  if (c.env.ADMIN_SETUP_TOKEN && !equal(body.setupToken,c.env.ADMIN_SETUP_TOKEN)) return c.json({message:'รหัสตั้งค่าไม่ถูกต้อง'},403);
+  const {username,password}=body;
+  if (typeof username!=='string' || !/^[a-zA-Z0-9_.-]{3,40}$/.test(username)) return c.json({message:'ชื่อผู้ใช้ไม่ถูกต้อง'},400);
   try { validatePassword(password); } catch(err) { return c.json({message:err.message},400); }
-  const user={id:crypto.randomUUID(),username:username.toLowerCase(),display_name:display_name.trim(),email:email.trim().toLowerCase(),role:'manager',status:'active'};
+  const user={id:crypto.randomUUID(),username:username.toLowerCase(),display_name:username,email:`${username}@admin.local`,role:'manager',status:'active'};
   const hash=await hashPassword(password);
   try {
     await c.env.DB.batch([

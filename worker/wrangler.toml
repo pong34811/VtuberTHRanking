@@ -1,0 +1,11 @@
+name = "vtuberthai-updater"
+main = "updater.js"
+compatibility_date = "2026-09-15"
+
+[triggers]
+crons = ["0 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "vtuberthai-db"
+database_id = "9585907e-612d-4cc3-84b4-f75a41690989"

@@ -86,21 +86,20 @@ describe('Admin routes require auth', () => {
 describe('Password validation', () => {
   it('rejects short passwords', async () => {
     const { validatePassword } = await import('../server/password.js');
-    expect(() => validatePassword('short')).toThrow();
-    expect(() => validatePassword('a'.repeat(14))).toThrow();
+    expect(() => validatePassword('abc')).toThrow();
   });
 
-  it('accepts 15+ char passwords', async () => {
+  it('accepts 4+ char passwords (incl. admin)', async () => {
     const { validatePassword } = await import('../server/password.js');
-    expect(() => validatePassword('a'.repeat(15))).not.toThrow();
+    expect(() => validatePassword('admin')).not.toThrow();
   });
 
   it('hash and verify password round-trip', async () => {
     const { hashPassword, verifyPassword } = await import('../server/password.js');
-    const hash = await hashPassword('validpassword12345');
+    const hash = await hashPassword('admin');
     expect(typeof hash).toBe('string');
     expect(hash.startsWith('pbkdf2-sha256$')).toBe(true);
-    const valid = await verifyPassword('validpassword12345', hash);
+    const valid = await verifyPassword('admin', hash);
     expect(valid).toBe(true);
     const invalid = await verifyPassword('wrongpassword123', hash);
     expect(invalid).toBe(false);

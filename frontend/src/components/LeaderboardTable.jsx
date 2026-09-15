@@ -16,6 +16,7 @@ export default function LeaderboardTable({ rankings, loading }) {
           score={item.score}
           rankChange={item.rank_change}
           isNew={item.rank_change === 'NEW'}
+          videoCount={item.vtuber.video_count}
         />
       ))}
     </div>
