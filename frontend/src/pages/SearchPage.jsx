@@ -12,6 +12,7 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const hasFilters = Boolean(query || category || affiliation);
 
   useEffect(() => {
     let active = true;
@@ -37,24 +38,28 @@ export default function SearchPage() {
   }, [query, category, affiliation, retry]);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">ค้นหา VTuber</h1>
-
-      <p className="page-intro">ค้นพบช่องใหม่ หรือค้นหาช่องที่คุณติดตาม</p>
-      <div className="flex flex-col sm:flex-row gap-3">
-        <input
-          aria-label="ค้นหาจากชื่อ"
+    <div>
+      <p className="eyebrow">DISCOVER CHANNELS</p>
+      <h1 className="text-3xl font-semibold">ค้นหา VTuber</h1>
+      <p className="page-intro">ค้นหาจากชื่อ แล้วกรองประเภทเนื้อหาหรือสังกัดได้ทันที</p>
+      <section className="filter-panel" aria-label="ตัวกรองการค้นหา">
+        <div className="search-field">
+          <label htmlFor="vtuber-search">ชื่อช่อง</label>
+          <input
+          id="vtuber-search"
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="ค้นหาจากชื่อ..."
-          className="flex-1 bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]"
-        />
-        <select
-          aria-label="ประเภทเนื้อหา"
+          className="control-input"
+          />
+        </div>
+        <div className="filter-field">
+          <label htmlFor="category-filter">ประเภทเนื้อหา</label>
+          <select id="category-filter"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
+          className="control-input"
         >
           <option value="">ทุกประเภท</option>
           <option value="gaming">Gaming</option>
@@ -63,40 +68,35 @@ export default function SearchPage() {
           <option value="art">Art</option>
           <option value="asmr">ASMR</option>
           <option value="education">Education</option>
-        </select>
-        <select
-          aria-label="สังกัด"
+          </select>
+        </div>
+        <div className="filter-field">
+          <label htmlFor="affiliation-filter">สังกัด</label>
+          <select id="affiliation-filter"
           value={affiliation}
           onChange={(e) => setAffiliation(e.target.value)}
-          className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
+          className="control-input"
         >
           <option value="">ทุกสังกัด</option>
           <option value="indie">Indie</option>
           <option value="agency">Agency</option>
-        </select>
-      </div>
+          </select>
+        </div>
+        {hasFilters && <button className="clear-button" onClick={() => { setQuery(""); setCategory(""); setAffiliation(""); }}>ล้างตัวกรอง</button>}
+      </section>
 
       {loading ? (
         <LoadingSpinner />
       ) : error ? (
         <Feedback error={error} retry={() => setRetry((x) => x + 1)} />
       ) : (
-        <div className="ranking-list">
-          {results.map((v) => (
-            <VTuberCard
-              key={v.id}
-              vtuber={v}
-              rank="-"
-              score={null}
-              rankChange={null}
-            />
-          ))}
-          {results.length === 0 && (
-            <p className="text-center text-[var(--color-muted)] py-8">
-              ไม่พบข้อมูล
-            </p>
-          )}
-        </div>
+        <section aria-live="polite">
+          <div className="result-heading"><h2>ผลการค้นหา</h2><span>{results.length.toLocaleString("th-TH")} ช่อง</span></div>
+          <div className="ranking-list">
+            {results.map((v) => <VTuberCard key={v.id} vtuber={v} rank="-" score={null} rankChange={null} />)}
+            {results.length === 0 && <div className="empty-state"><strong>ไม่พบช่องที่ตรงกับตัวกรอง</strong><span>ลองใช้คำค้นที่สั้นลง หรือล้างตัวกรองบางรายการ</span>{hasFilters && <button className="secondary-button" onClick={() => { setQuery(""); setCategory(""); setAffiliation(""); }}>แสดงทุกช่อง</button>}</div>}
+          </div>
+        </section>
       )}
     </div>
   );

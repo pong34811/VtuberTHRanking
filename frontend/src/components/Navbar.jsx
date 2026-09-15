@@ -13,12 +13,13 @@ export default function Navbar() {
         </Link>
         <nav aria-label="เมนูหลัก">
           {[
-            ["/", "อันดับ"],
-            ["/search", "ค้นหา"],
-            ["/compare", "เปรียบเทียบ"],
-          ].map(([to, label]) => (
+            ["/", "อันดับ", "01"],
+            ["/search", "ค้นหา", "02"],
+            ["/compare", "เปรียบเทียบ", "03"],
+          ].map(([to, label, index]) => (
             <NavLink key={to} to={to} end={to === "/"}>
-              {label}
+              <span className="nav-index" aria-hidden="true">{index}</span>
+              <span>{label}</span>
             </NavLink>
           ))}
         </nav>

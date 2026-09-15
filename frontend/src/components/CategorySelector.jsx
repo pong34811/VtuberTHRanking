@@ -1,6 +1,6 @@
 export default function CategorySelector({ value, onChange, choices }) {
   return (
-    <div className="flex gap-1 bg-[var(--color-card)] rounded-lg p-1">
+    <div className="flex gap-1 bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-1">
       {choices.map((choice) => (
         <button
           key={choice.value}

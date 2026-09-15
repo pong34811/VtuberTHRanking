@@ -41,7 +41,13 @@ export default function HomePage() {
     <div>
       <p className="eyebrow">THAI VTUBER DIRECTORY</p>
       <h1 className="text-3xl font-semibold">อันดับ VTuber ไทย</h1>
-      <p className="page-intro">ติดตามช่องที่คุณชอบ ผ่านสถิติจาก YouTube</p>
+      <p className="page-intro">สำรวจช่อง VTuber ไทยจากสถิติ YouTube ที่เรียงและเปรียบเทียบได้ง่าย</p>
+      {summary && (
+        <div className="summary-strip" aria-label="สรุปข้อมูล">
+          <p><strong>{summary.total_vtubers?.toLocaleString("th-TH")}</strong><span>ช่องในรายการ</span></p>
+          <p><strong>{new Date(summary.latest_update).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</strong><span>อัปเดตล่าสุด</span></p>
+        </div>
+      )}
       <div className="ranking-toolbar">
         <div role="group" aria-label="ช่วงเวลา">
           <label>ช่วงเวลา</label>
@@ -70,19 +76,6 @@ export default function HomePage() {
             }
           />
         </div>
-        <div className="ranking-meta">
-          {summary && (
-            <>
-              <p>
-                {summary.total_vtubers?.toLocaleString("th-TH")} ช่องในรายการ
-              </p>
-              <p>
-                อัปเดต{" "}
-                {new Date(summary.latest_update).toLocaleDateString("th-TH")}
-              </p>
-            </>
-          )}
-        </div>
       </div>
       {loading ? (
         <LoadingSpinner />
@@ -90,7 +83,7 @@ export default function HomePage() {
         <Feedback error={error} retry={() => setRetry((x) => x + 1)} />
       ) : (
         <>
-          <div className="flex justify-between text-xs text-[var(--color-muted)] px-5 mb-3">
+          <div className="list-heading">
             <span>อันดับ / ช่อง</span>
             <span>
               {category === "followers" ? "ผู้ติดตาม" : "ยอดวิว"} ·

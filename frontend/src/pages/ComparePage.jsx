@@ -22,6 +22,7 @@ export default function ComparePage() {
   const [error, setError] = useState("");
   const [listError, setListError] = useState("");
   const [retry, setRetry] = useState(0);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -79,24 +80,43 @@ export default function ComparePage() {
   const chartData = [...points.values()].sort((a, b) =>
     a.date.localeCompare(b.date),
   );
+  const visibleVtubers = vtubers.filter((v) => v.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const selectedVtubers = selected.map((id) => vtubers.find((v) => v.id === id)).filter(Boolean);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">เปรียบเทียบ VTuber</h1>
-
+    <div>
+      <p className="eyebrow">COMPARE PERFORMANCE</p>
+      <h1 className="text-3xl font-semibold">เปรียบเทียบ VTuber</h1>
       <p className="page-intro">
         เลือก 2–3 ช่อง เพื่อดูแนวโน้มย้อนหลัง 6 เดือน
       </p>
-      <div className="flex gap-2 items-center">
+      <section className="compare-workspace" aria-label="เลือกช่องสำหรับเปรียบเทียบ">
+        <div className="compare-step"><span>1</span><div><strong>เลือกช่อง</strong><small>เลือกได้สูงสุด 3 ช่อง</small></div></div>
+        <label className="search-field" htmlFor="compare-search"><span>ค้นหารายชื่อ</span><input id="compare-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="พิมพ์ชื่อ VTuber..." className="control-input" /></label>
+        <div className="selected-summary" aria-live="polite">
+          <span className="selection-count">เลือกแล้ว {selected.length}/3</span>
+          {selectedVtubers.map((v) => <button key={v.id} onClick={() => toggle(v.id)} aria-label={`นำ ${v.name} ออกจากรายการ`}>{v.name}<span aria-hidden="true">×</span></button>)}
+          {!selected.length && <small>ยังไม่ได้เลือกช่อง</small>}
+        </div>
+        <div className="channel-picker">
+          {visibleVtubers.map((v) => (
+            <button key={v.id} aria-pressed={selected.includes(v.id)} disabled={loading || (selected.length === 3 && !selected.includes(v.id))} onClick={() => toggle(v.id)}>
+              <span className="picker-avatar" aria-hidden="true">{v.name.charAt(0)}</span><span>{v.name}</span><span className="picker-check" aria-hidden="true">{selected.includes(v.id) ? "✓" : "+"}</span>
+            </button>
+          ))}
+          {!visibleVtubers.length && <p className="empty-inline">ไม่พบรายชื่อที่ค้นหา</p>}
+        </div>
+        <div className="compare-action">
+          <div className="compare-step"><span>2</span><div><strong>เลือกสถิติแล้วดูผล</strong><small>กราฟจะแสดงข้อมูลย้อนหลัง 6 เดือน</small></div></div>
         <select
-          aria-label="สถิติที่เปรียบเทียบ"
+          aria-label="เลือกสถิติที่เปรียบเทียบ"
           disabled={loading}
           value={category}
           onChange={(e) => {
             setCategory(e.target.value);
             setCompareData(null);
           }}
-          className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm"
+          className="control-input"
         >
           <option value="followers">ผู้ติดตาม</option>
           <option value="views">ยอดวิว</option>
@@ -105,31 +125,12 @@ export default function ComparePage() {
         <button
           onClick={handleCompare}
           disabled={selected.length < 2 || loading}
-          className="px-4 py-2 bg-[var(--color-accent)] text-white rounded-lg text-sm font-medium disabled:opacity-50"
+          className="primary-button"
         >
-          เปรียบเทียบ ({selected.length}/3)
+          {selected.length < 2 ? `เลือกอีก ${2 - selected.length} ช่อง` : "แสดงกราฟเปรียบเทียบ"}
         </button>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {vtubers.map((v) => (
-          <button
-            key={v.id}
-            aria-pressed={selected.includes(v.id)}
-            disabled={
-              loading || (selected.length === 3 && !selected.includes(v.id))
-            }
-            onClick={() => toggle(v.id)}
-            className={`disabled:opacity-40 px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-              selected.includes(v.id)
-                ? "bg-[var(--color-accent)] border-[var(--color-accent)] text-white"
-                : "border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)]"
-            }`}
-          >
-            {v.name}
-          </button>
-        ))}
-      </div>
+        </div>
+      </section>
 
       {listError && (
         <Feedback error={listError} retry={() => setRetry((x) => x + 1)} />
@@ -140,7 +141,7 @@ export default function ComparePage() {
         <Feedback>ยังไม่มีข้อมูลย้อนหลังสำหรับช่องที่เลือก</Feedback>
       )}
       {compareData && chartData.length > 0 && (
-        <div className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
+        <section className="chart-panel" aria-label="กราฟเปรียบเทียบ">
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
@@ -177,7 +178,7 @@ export default function ComparePage() {
               </LineChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </section>
       )}
     </div>
   );
