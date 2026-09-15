@@ -3,7 +3,7 @@ import VTuberCard from './VTuberCard'
 export default function LeaderboardTable({ rankings, loading }) {
   if (loading) return null
   if (!rankings?.length) {
-    return <p className="text-center text-[var(--color-muted)] py-8">ไม่มีข้อมูล</p>
+    return <p className="text-center text-[var(--muted-foreground)] py-8">ไม่มีข้อมูล</p>
   }
 
   return (

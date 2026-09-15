@@ -151,10 +151,10 @@ export default function ComparePage() {
                 />
                 <XAxis
                   dataKey="date"
-                  stroke="var(--color-muted)"
+                  stroke="var(--muted-foreground)"
                   fontSize={12}
                 />
-                <YAxis stroke="var(--color-muted)" fontSize={12} />
+                <YAxis stroke="var(--muted-foreground)" fontSize={12} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "var(--color-card)",

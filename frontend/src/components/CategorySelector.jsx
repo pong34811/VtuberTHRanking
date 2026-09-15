@@ -8,8 +8,8 @@ export default function CategorySelector({ value, onChange, choices }) {
           onClick={() => onChange(choice.value)}
           className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
             value === choice.value
-              ? 'bg-[var(--color-accent)] text-white'
-              : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+              ? 'bg-[var(--primary)] text-white'
+              : 'text-[var(--muted-foreground)] hover:text-[var(--color-text)]'
           }`}
         >
           {choice.label}

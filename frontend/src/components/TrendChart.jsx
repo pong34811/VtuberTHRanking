@@ -3,9 +3,9 @@ import {
   Tooltip, ResponsiveContainer,
 } from 'recharts'
 
-export default function TrendChart({ data, dataKey, color = 'var(--color-accent)' }) {
+export default function TrendChart({ data, dataKey, color = 'var(--primary)' }) {
   if (!data?.length) {
-    return <p className="text-center text-[var(--color-muted)] py-8">ไม่มีข้อมูลกราฟ</p>
+    return <p className="text-center text-[var(--muted-foreground)] py-8">ไม่มีข้อมูลกราฟ</p>
   }
 
   const formatted = data.map((d) => ({
@@ -20,12 +20,12 @@ export default function TrendChart({ data, dataKey, color = 'var(--color-accent)
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
           <XAxis
             dataKey="date"
-            stroke="var(--color-muted)"
+            stroke="var(--muted-foreground)"
             fontSize={12}
             tickFormatter={(v) => v.slice(5)}
           />
           <YAxis
-            stroke="var(--color-muted)"
+            stroke="var(--muted-foreground)"
             fontSize={12}
             tickFormatter={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}K` : v}
           />

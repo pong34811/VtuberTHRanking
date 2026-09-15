@@ -6,7 +6,7 @@ export default function VTuberCard({ vtuber, rank, score, rankChange, isNew, vid
   return (
     <Link to={`/profile/${vtuber.slug}`} className="ranking-row">
       {typeof rank === "number" && (
-        <span className="w-8 shrink-0 text-sm text-[var(--color-muted)] font-semibold">
+        <span className="w-8 shrink-0 text-sm text-[var(--muted-foreground)] font-semibold">
           {String(rank).padStart(2, "0")}
         </span>
       )}
@@ -23,11 +23,11 @@ export default function VTuberCard({ vtuber, rank, score, rankChange, isNew, vid
       )}
       <div className="flex-1 min-w-0">
         <p className="font-medium truncate">{vtuber.name}</p>
-        <p className="text-xs text-[var(--color-muted)] truncate">
+        <p className="text-xs text-[var(--muted-foreground)] truncate">
           {vtuber.category} · {vtuber.affiliation}
         </p>
         {videoCount != null && (
-          <p className="text-xs text-[var(--color-muted)]">
+          <p className="text-xs text-[var(--muted-foreground)]">
             {videoCount.toLocaleString("th-TH")} คลิป
           </p>
         )}

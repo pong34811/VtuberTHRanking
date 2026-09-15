@@ -9,7 +9,7 @@ export default function Layout() {
       <main id="main-content" className="flex-1 container mx-auto px-4 py-6 max-w-6xl">
         <Outlet />
       </main>
-      <footer className="border-t border-[var(--color-border)] py-4 text-center text-sm text-[var(--color-muted)]">
+      <footer className="border-t border-[var(--color-border)] py-4 text-center text-sm text-[var(--muted-foreground)]">
         Ranking VTuber Thai &copy; {new Date().getFullYear()}
       </footer>
     </div>

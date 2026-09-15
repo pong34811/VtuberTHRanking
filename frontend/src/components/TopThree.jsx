@@ -25,7 +25,7 @@ export default function TopThree({ rankings }) {
             <p className="text-sm font-medium text-center max-w-[100px] truncate">
               {item.vtuber.name}
             </p>
-            <p className="text-xs text-[var(--color-muted)]">
+            <p className="text-xs text-[var(--muted-foreground)]">
               {item.score?.toLocaleString()}
             </p>
             <div className="mt-2 w-full bg-[var(--color-card)] rounded-t-lg h-16 flex items-center justify-center">
