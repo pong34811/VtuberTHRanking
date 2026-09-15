@@ -7,7 +7,7 @@ export default function LeaderboardTable({ rankings, loading }) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="ranking-list">
       {rankings.map((item) => (
         <VTuberCard
           key={item.vtuber.id}
