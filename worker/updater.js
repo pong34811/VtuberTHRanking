@@ -1,7 +1,7 @@
 // ponytail: worker ตัวเล็กดึงสถิติ YouTube ทุกช่องตามรอบใน settings (ranking_update_frequency)
 const INTERVALS = { manual: 0, hourly: 3600, daily: 86400, weekly: 604800, monthly: 2592000 };
 
-async function updateAll(env, force = false) {
+export async function updateAll(env, force = false) {
   const freq = (await env.DB.prepare("SELECT setting_value FROM settings WHERE setting_key='ranking_update_frequency'").first())?.setting_value || 'manual';
   if (freq === 'manual' || !INTERVALS[freq]) return { ok: true, skipped: 'manual', freq };
   const last = await env.DB.prepare('SELECT MAX(recorded_at) AS last_run FROM stats_snapshots').first();
