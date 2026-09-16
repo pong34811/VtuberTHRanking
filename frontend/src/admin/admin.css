@@ -677,6 +677,16 @@ label.check {
 }
 
 /* Sheet-based editor: one readable content column with persistent actions. */
+[data-slot="sheet-content"].admin-wide-sheet {
+  width: 100vw;
+  max-width: 100vw;
+}
+@media (min-width: 1024px) {
+  [data-slot="sheet-content"].admin-wide-sheet {
+    width: min(1280px, 82vw);
+    max-width: none;
+  }
+}
 .channel-form-preview {
   position: static;
   margin: 0;

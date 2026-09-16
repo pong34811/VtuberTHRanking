@@ -25,7 +25,7 @@ export function Dialog({
     return (
       <Sheet open={open} onOpenChange={(next) => !next && onClose?.()}>
         <SheetContent
-          className="w-full gap-0 p-0 sm:max-w-[min(1200px,96vw)]"
+          className="admin-wide-sheet gap-0 p-0"
           side="right"
         >
           <SheetHeader className="border-b px-6 py-5">
