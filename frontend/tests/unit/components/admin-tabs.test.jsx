@@ -13,6 +13,7 @@ import { Snapshots } from '@/admin/channels/Snapshots.jsx';
 import { UserForm } from '@/admin/tabs/UsersTab.jsx';
 import ChannelsTab from '@/admin/ChannelsTab.jsx';
 import RankingsTab from '@/admin/RankingsTab.jsx';
+import AgenciesTab from '@/admin/AgenciesTab.jsx';
 
 function mockFetch(body = { results: [] }) {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => body }));
@@ -88,6 +89,20 @@ it('shows the channel editor fields', async () => {
   expect(await screen.findByText('หมายเหตุ')).toBeInTheDocument();
 });
 
+it('shows agencies in the channel editor when affiliation is selected', async () => {
+  mockFetch({ results: [{ id: 4, name: 'PIXELA' }] });
+  render(<ChannelForm value={{ ...blank }} csrfToken="token" onClose={() => {}} onSaved={() => {}} />);
+  fireEvent.change(screen.getByLabelText('ประเภทสังกัด'), { target: { value: 'agency' } });
+  expect(await screen.findByRole('option', { name: 'PIXELA' })).toBeInTheDocument();
+});
+
+it('shows the agencies management page', async () => {
+  mockFetch({ results: [{ id: 4, name: 'PIXELA', description: 'Agency', image_url: '', contact: 'https://example.com', channel_count: 2 }] });
+  render(<AgenciesTab csrfToken="token" />);
+  expect(await screen.findByText('PIXELA')).toBeInTheDocument();
+  expect(screen.getByText('เพิ่มข้อมูลจาก YouTube')).toBeInTheDocument();
+});
+
 it('shows the YouTube import prompt', async () => {
   mockFetch();
 
@@ -144,8 +159,8 @@ it('submits only channel contract fields when editing', async () => {
 
   fireEvent.submit(container.querySelector('form'));
 
-  await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-  const sent = JSON.parse(fetchMock.mock.calls[0][1].body);
+  await waitFor(() => expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'PUT')).toBe(true));
+  const sent = JSON.parse(fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT')[1].body);
   expect(sent).not.toHaveProperty('id');
   expect(sent).not.toHaveProperty('created_at');
   expect(Object.keys(sent).sort()).toEqual([...channelFields].sort());

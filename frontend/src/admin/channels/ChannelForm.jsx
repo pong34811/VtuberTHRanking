@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { adminApi } from "../api";
 import { platforms, categories, affiliations, channelFields } from "./options";
 import { useSubmit } from "../ui";
@@ -9,7 +9,14 @@ import { Avatar } from "../components/ui/feedback";
 
 export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
   const [form, setForm] = useState(value),
+    [agencies, setAgencies] = useState([]),
+    [agencyError, setAgencyError] = useState(""),
     isEdit = Boolean(value.id);
+  useEffect(() => {
+    adminApi("/agencies")
+      .then((data) => setAgencies(data.results || []))
+      .catch((error) => setAgencyError(error.message));
+  }, []);
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
   // API ปฏิเสธ key นอก channel contract (เช่น id, created_at) ส่งเฉพาะฟิลด์ที่แก้ไขได้
   const payload = Object.fromEntries(
@@ -27,6 +34,7 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
   return (
     <form onSubmit={submit} className="channel-form">
       <Alert>{error}</Alert>
+      <Alert>{agencyError}</Alert>
       <div className="channel-form-preview">
         <Avatar src={form.avatar} name={form.name} className="h-14 w-14" />
         <div>
@@ -46,13 +54,6 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
         </Field>
         <Field label="Slug" hint="ใช้ตัวอักษร a-z ตัวเลข และขีดกลาง">
           <Input required value={form.slug ?? ""} onChange={set("slug")} />
-        </Field>
-        <Field label="สังกัด">
-          <Input
-            value={form.agency_name ?? ""}
-            onChange={set("agency_name")}
-            placeholder="เช่น PIXELA หรือ Indie"
-          />
         </Field>
         <Field label="ประเทศ">
           <Input value={form.country ?? ""} onChange={set("country")} />
@@ -98,7 +99,7 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
         <Field label="ประเภทสังกัด">
           <Select
             value={form.affiliation ?? "indie"}
-            onChange={set("affiliation")}
+            onChange={(e) => setForm({ ...form, affiliation: e.target.value, agency_id: e.target.value === "indie" ? null : form.agency_id })}
           >
             {affiliations.map(([v, l]) => (
               <option key={v} value={v}>
@@ -107,6 +108,20 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
             ))}
           </Select>
         </Field>
+        {form.affiliation === "agency" && (
+          <Field label="ชื่อสังกัด" hint="เลือกจากรายการสังกัดในระบบ">
+            <Select
+              required
+              value={form.agency_id ?? ""}
+              onChange={(e) => setForm({ ...form, agency_id: Number(e.target.value) || null })}
+            >
+              <option value="">เลือกสังกัด</option>
+              {agencies.map((agency) => (
+                <option key={agency.id} value={agency.id}>{agency.name}</option>
+              ))}
+            </Select>
+          </Field>
+        )}
         <Field label="YouTube URL">
           <Input
             type="url"

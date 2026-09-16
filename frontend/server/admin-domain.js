@@ -63,7 +63,7 @@ export function url(value, field) {
   catch { fail(`Invalid ${field}`); }
   return text;
 }
-export const channelFields = ['name','slug','bio','avatar','agency_name','country','debut_date','banner_url','youtube_url','twitch_url','x_url','category','affiliation','is_active','channel_url','platform','notes'];
+export const channelFields = ['name','slug','bio','avatar','agency_name','agency_id','country','debut_date','banner_url','youtube_url','twitch_url','x_url','category','affiliation','is_active','channel_url','platform','notes'];
 export function channel(data) {
   const result = {};
   for (const field of ['name','slug']) result[field] = str(data[field], field, 100, true);
@@ -77,6 +77,14 @@ export function channel(data) {
   for (const field of ['avatar','banner_url','youtube_url','twitch_url','x_url','channel_url']) result[field] = url(data[field], field);
   result.category = choice(data.category ?? 'other', ['gaming','singing','chatting','art','asmr','education','other'], 'category');
   result.affiliation = choice(data.affiliation ?? 'indie', ['indie','agency'], 'affiliation');
+  const agencyId = data.agency_id ?? null;
+  if (result.affiliation === 'agency') {
+    if (!Number.isSafeInteger(agencyId) || agencyId < 1) fail('กรุณาเลือกสังกัดในระบบ');
+    result.agency_id = agencyId;
+  } else {
+    result.agency_id = null;
+    result.agency_name = '';
+  }
   result.platform = choice(data.platform ?? 'youtube', ['youtube','twitch','bilibili','other'], 'platform');
   if (![true,false,0,1].includes(data.is_active ?? true)) fail('Invalid is_active');
   result.is_active = Number(data.is_active ?? true);

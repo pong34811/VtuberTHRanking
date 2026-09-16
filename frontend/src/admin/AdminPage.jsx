@@ -9,6 +9,7 @@ import {
 import { authApi } from "./api";
 import AuthScreen from "./AuthScreen";
 import ChannelsTab from "./ChannelsTab";
+import AgenciesTab from "./AgenciesTab";
 import RankingsTab from "./RankingsTab";
 import { AuditTab } from "./tabs/AuditTab";
 import { CategoriesTab } from "./tabs/CategoriesTab";
@@ -20,6 +21,7 @@ import "./admin.css";
 
 const baseTabs = [
   ["channels", "จัดการช่อง", "CH"],
+  ["agencies", "สังกัด", "AG"],
   ["rankings", "จัดอันดับ", "RK"],
   ["categories", "หมวดหมู่", "CT"],
   ["reports", "รายงาน", "RP"],
@@ -129,6 +131,7 @@ export default function AdminPage() {
         <Routes>
           <Route index element={<Navigate to="channels" replace />} />
           <Route path="channels" element={<ChannelsTab {...props} />} />
+          <Route path="agencies" element={<AgenciesTab {...props} />} />
           <Route path="rankings" element={<RankingsTab {...props} />} />
           <Route path="categories" element={<CategoriesTab {...props} />} />
           <Route path="reports" element={<ReportsTab {...props} />} />

@@ -125,6 +125,55 @@ describe('admin channels CRUD', () => {
   });
 });
 
+describe('admin agencies CRUD', () => {
+  it('lists agencies with channel counts', async () => {
+    const agencies = [{ id: 2, name: 'PIXELA', channel_count: 3 }];
+    const { response } = await authedRequest('/agencies', { responses: [{ results: agencies }] });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ results: agencies });
+  });
+
+  it('creates an agency', async () => {
+    const { response, calls } = await authedRequest('/agencies', {
+      responses: [{ meta: { last_row_id: 2 } }, {}],
+      init: post({ name: 'PIXELA', description: 'VTuber agency', image_url: 'https://example.com/logo.png', contact: 'https://example.com' }),
+    });
+    expect(response.status).toBe(201);
+    expect(calls.some(call => call.sql.includes('INSERT INTO agencies'))).toBe(true);
+  });
+
+  it('rejects deletion while channels use an agency', async () => {
+    const { response } = await authedRequest('/agencies/2', {
+      responses: [{ id: 2 }, { total: 1 }],
+      init: { method: 'DELETE' },
+    });
+    expect(response.status).toBe(409);
+  });
+
+  it('rejects a channel with a missing agency', async () => {
+    const { response } = await authedRequest('/vtubers', {
+      responses: [null],
+      init: post({ name: 'Aiko', slug: 'aiko', affiliation: 'agency', agency_id: 999 }),
+    });
+    expect(response.status).toBe(400);
+  });
+
+  it('imports an agency from its official YouTube channel', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ items: [{ id: 'UC' + 'a'.repeat(22), snippet: { title: 'PIXELA', description: 'Agency', thumbnails: { high: { url: 'https://example.com/p.png' } } } }] }),
+    }));
+    const { response, calls } = await authedRequest('/agencies/youtube/import', {
+      env: { YOUTUBE_API_KEY: 'test-key' },
+      responses: [null, { meta: { last_row_id: 2 } }, {}],
+      init: post({ input: '@pixela' }),
+    });
+    expect(response.status).toBe(201);
+    expect(calls.find(call => call.sql.includes('INSERT INTO agencies')).values.slice(0, 4))
+      .toEqual(['PIXELA', 'Agency', 'https://example.com/p.png', `https://www.youtube.com/channel/UC${'a'.repeat(22)}`]);
+  });
+});
+
 describe('admin channel snapshots', () => {
   const snapshot = { followers: 100, total_views: 1000, video_count: 10, recorded_at: '2026-09-01T00:00:00.000Z' };
 

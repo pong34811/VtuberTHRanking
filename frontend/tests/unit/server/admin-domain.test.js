@@ -193,7 +193,12 @@ describe('channel validation', () => {
   });
 
   it('accepts a documented affiliation enum', () => {
-    expect(channel({ ...valid, affiliation: 'agency' }).affiliation).toBe('agency');
+    expect(channel({ ...valid, affiliation: 'agency', agency_id: 3 })).toMatchObject({ affiliation: 'agency', agency_id: 3 });
+  });
+
+  it('requires an agency selection for affiliated channels', () => {
+    expect(() => channel({ ...valid, affiliation: 'agency' })).toThrow('กรุณาเลือกสังกัดในระบบ');
+    expect(channel({ ...valid, affiliation: 'indie', agency_id: 3 })).toMatchObject({ affiliation: 'indie', agency_id: null, agency_name: '' });
   });
 
   it('accepts a documented platform enum', () => {

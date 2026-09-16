@@ -34,6 +34,6 @@ INSERT INTO rankings_new SELECT * FROM rankings;
 DROP TABLE rankings;
 ALTER TABLE rankings_new RENAME TO rankings;
 CREATE UNIQUE INDEX rankings_alltime_unique ON rankings(period,category,vtuber_id) WHERE month IS NULL;
-CREATE INDEX snapshots_latest ON stats_snapshots(vtuber_id,recorded_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS snapshots_latest ON stats_snapshots(vtuber_id,recorded_at DESC,id DESC);
 COMMIT;
 PRAGMA foreign_keys=ON;

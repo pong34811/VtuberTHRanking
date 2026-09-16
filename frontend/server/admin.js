@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { hashPassword, validatePassword } from './password.js';
-import { fail, choice, str, month, selection, nextMonthBoundary, previousMonth, competitionRanks, csvCell, body, channel, channelFields } from './admin-domain.js';
+import { fail, choice, str, url, month, selection, nextMonthBoundary, previousMonth, competitionRanks, csvCell, body, channel, channelFields } from './admin-domain.js';
 
 const app = new Hono();
 const userFields = 'id,username,display_name,email,role,status,created_at,updated_at,last_login_at';
@@ -20,8 +20,14 @@ app.onError((error, c) => {
 });
 
 app.get('/vtubers', c => list(c, 'SELECT * FROM vtubers ORDER BY name,id LIMIT 2000'));
+async function channelAgency(c, data) {
+  if (data.affiliation !== 'agency') return data;
+  const agency = await stmt(c, 'SELECT name FROM agencies WHERE id=?', data.agency_id).first();
+  if (!agency) fail('ไม่พบสังกัดที่เลือก', 400);
+  return { ...data, agency_name: agency.name };
+}
 app.post('/vtubers', async c => {
-  const data = channel(await body(c, channelFields)); const fields = Object.keys(data);
+  const data = await channelAgency(c, channel(await body(c, channelFields))); const fields = Object.keys(data);
   const result = await c.env.DB.batch([
     stmt(c, `INSERT INTO vtubers (${fields.join(',')},created_at,updated_at) VALUES (${fields.map(() => '?').join(',')},datetime('now'),datetime('now'))`, ...Object.values(data)),
     stmt(c, 'INSERT INTO audit_logs (id,user_id,action,target_type,target_id,details) VALUES (?,?,?, ?,CAST(last_insert_rowid() AS TEXT),?)', crypto.randomUUID(), c.get('user').id, 'create', 'vtuber', JSON.stringify({ slug: data.slug })),
@@ -30,9 +36,43 @@ app.post('/vtubers', async c => {
 });
 app.put('/vtubers/:id', async c => {
   const id = numericId(c); await exists(c, 'vtubers', id);
-  const data = channel(await body(c, channelFields));
+  const data = await channelAgency(c, channel(await body(c, channelFields)));
   await c.env.DB.batch([stmt(c, `UPDATE vtubers SET ${Object.keys(data).map(key => `${key}=?`).join(',')},updated_at=datetime('now') WHERE id=?`, ...Object.values(data), id), audit(c, 'update', 'vtuber', id, { fields: Object.keys(data) })]);
   return c.json({ ok: true, id });
+});
+
+const agencyFields = ['name','description','image_url','contact'];
+function agencyData(data) {
+  return {
+    name: str(data.name, 'name', 100, true),
+    description: str(data.description ?? '', 'description', 5000),
+    image_url: url(data.image_url, 'image_url'),
+    contact: str(data.contact ?? '', 'contact', 2000),
+  };
+}
+app.get('/agencies', c => list(c, 'SELECT a.*, (SELECT COUNT(*) FROM vtubers v WHERE v.agency_id=a.id) AS channel_count FROM agencies a ORDER BY a.name,id LIMIT 2000'));
+app.post('/agencies', async c => {
+  const data = agencyData(await body(c, agencyFields));
+  const result = await stmt(c, 'INSERT INTO agencies (name,description,image_url,contact) VALUES (?,?,?,?)', ...Object.values(data)).run();
+  await audit(c, 'create', 'agency', result.meta.last_row_id, { name: data.name }).run();
+  return c.json({ ok: true, id: result.meta.last_row_id }, 201);
+});
+app.put('/agencies/:id', async c => {
+  const id = numericId(c); await exists(c, 'agencies', id);
+  const data = agencyData(await body(c, agencyFields));
+  await c.env.DB.batch([
+    stmt(c, "UPDATE agencies SET name=?,description=?,image_url=?,contact=?,updated_at=datetime('now') WHERE id=?", ...Object.values(data), id),
+    stmt(c, 'UPDATE vtubers SET agency_name=?,updated_at=datetime(\'now\') WHERE agency_id=?', data.name, id),
+    audit(c, 'update', 'agency', id),
+  ]);
+  return c.json({ ok: true, id });
+});
+app.delete('/agencies/:id', async c => {
+  const id = numericId(c); await exists(c, 'agencies', id);
+  const used = await stmt(c, 'SELECT COUNT(*) AS total FROM vtubers WHERE agency_id=?', id).first();
+  if (used?.total) fail('สังกัดนี้มีช่องใช้งานอยู่ กรุณาย้ายช่องก่อนลบ', 409);
+  await c.env.DB.batch([stmt(c, 'DELETE FROM agencies WHERE id=?', id), audit(c, 'delete', 'agency', id)]);
+  return c.json({ ok: true });
 });
 app.get('/vtubers/:id/snapshots', async c => { const id = numericId(c); await exists(c, 'vtubers', id); return list(c, 'SELECT * FROM stats_snapshots WHERE vtuber_id=? ORDER BY julianday(recorded_at) DESC,id DESC LIMIT 500', id); });
 app.post('/vtubers/:id/snapshots', async c => {
@@ -129,11 +169,10 @@ app.put('/users/:id', async c => {
   ]);
   return c.json({ ok: true, id });
 });
-// ponytail: ดึงข้อมูลช่องจาก YouTube API ฝั่งเซิร์ฟเวอร์ (คีย์ไม่หลุดไป frontend)
-app.post('/youtube/import', async c => {
+// ดึงข้อมูลจาก YouTube API ฝั่งเซิร์ฟเวอร์ เพื่อไม่ส่งคีย์ให้เบราว์เซอร์
+async function youtubeChannel(c, input) {
   const key = c.env.YOUTUBE_API_KEY;
   if (!key) fail('ยังไม่ได้ตั้งค่า YOUTUBE_API_KEY บนเซิร์ฟเวอร์', 500);
-  const { input } = await body(c, ['input']);
   const ref = str(input, 'ช่อง YouTube', 200, true);
   const idMatch = ref.match(/(UC[\w-]{22})/);
   const handleMatch = ref.match(/@([\w.-]{3,})/);
@@ -142,6 +181,26 @@ app.post('/youtube/import', async c => {
   if (!res.ok) fail(`ดึงข้อมูลจาก YouTube ไม่สำเร็จ (${res.status})`, 502);
   const item = (await res.json()).items?.[0];
   if (!item) fail('ไม่พบช่องนี้บน YouTube', 404);
+  return item;
+}
+app.post('/agencies/youtube/import', async c => {
+  const { input } = await body(c, ['input']);
+  const item = await youtubeChannel(c, input);
+  const youtubeUrl = `https://www.youtube.com/channel/${item.id}`;
+  if (await stmt(c, 'SELECT id FROM agencies WHERE youtube_channel_id=?', item.id).first()) fail('สังกัดนี้มีในระบบแล้ว', 409);
+  const data = agencyData({
+    name: item.snippet?.title || 'Unknown',
+    description: item.snippet?.description || '',
+    image_url: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '',
+    contact: youtubeUrl,
+  });
+  const result = await stmt(c, 'INSERT INTO agencies (name,description,image_url,contact,youtube_channel_id) VALUES (?,?,?,?,?)', ...Object.values(data), item.id).run();
+  await audit(c, 'youtube.import', 'agency', result.meta.last_row_id, { youtube_channel_id: item.id }).run();
+  return c.json({ ok: true, id: result.meta.last_row_id }, 201);
+});
+app.post('/youtube/import', async c => {
+  const { input } = await body(c, ['input']);
+  const item = await youtubeChannel(c, input);
   const stats = item.statistics || {};
   const followers = Number(stats.subscriberCount || 0), views = Number(stats.viewCount || 0), videos = Number(stats.videoCount || 0);
   const thumbs = item.snippet?.thumbnails || {};

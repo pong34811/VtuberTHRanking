@@ -154,7 +154,7 @@ export default function ChannelsTab({ csrfToken }) {
                         </div>
                       </TD>
                       <TD className="whitespace-nowrap">
-                        {row.agency_name || row.affiliation || "—"}
+                        {row.affiliation === "indie" ? "อิสระ" : row.agency_name || "ยังไม่เลือกสังกัด"}
                       </TD>
                       <TD className="whitespace-nowrap text-muted-foreground">
                         {platforms.find(

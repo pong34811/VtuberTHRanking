@@ -4,6 +4,7 @@ export const blank = {
   bio: "",
   avatar: "",
   agency_name: "",
+  agency_id: null,
   country: "Thailand",
   debut_date: "",
   banner_url: "",
@@ -33,8 +34,8 @@ export const categories = [
   ["other", "อื่นๆ"],
 ];
 export const affiliations = [
-  ["indie", "Indie"],
-  ["agency", "Agency"],
+  ["indie", "อิสระ"],
+  ["agency", "สังกัด"],
 ];
 // ฟิลด์ที่ API ยอมรับสำหรับ POST/PUT /vtubers (ตรงกับ channelFields ฝั่ง server)
 export const channelFields = Object.keys(blank);
