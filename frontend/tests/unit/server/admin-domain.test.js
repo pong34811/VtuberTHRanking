@@ -65,6 +65,30 @@ describe('competitionRanks', () => {
     ]);
   });
 
+  it('gives tied view counts the same competition rank', () => {
+    expect(competitionRanks([
+      { vtuber_id: 2, total_views: 100 },
+      { vtuber_id: 1, total_views: 100 },
+      { vtuber_id: 3, total_views: 50 },
+    ], 'views')).toMatchObject([
+      { vtuber_id: 1, rank: 1 },
+      { vtuber_id: 2, rank: 1 },
+      { vtuber_id: 3, rank: 3 },
+    ]);
+  });
+
+  it('gives tied video counts the same competition rank', () => {
+    expect(competitionRanks([
+      { vtuber_id: 2, video_count: 10 },
+      { vtuber_id: 1, video_count: 10 },
+      { vtuber_id: 3, video_count: 5 },
+    ], 'videos')).toMatchObject([
+      { vtuber_id: 1, rank: 1 },
+      { vtuber_id: 2, rank: 1 },
+      { vtuber_id: 3, rank: 3 },
+    ]);
+  });
+
   it('calculates rank change from the previous ranking', () => {
     expect(competitionRanks([
       { vtuber_id: 1, followers: 200 },
@@ -103,6 +127,10 @@ describe('ranking period helpers', () => {
   it('accepts a supplied monthly selection', () => {
     expect(selection({ period: 'monthly', month: '2026-09', category: 'views' }))
       .toEqual({ period: 'monthly', category: 'views', month: '2026-09-01' });
+  });
+
+  it('rejects an invalid supplied monthly month', () => {
+    expect(() => selection({ period: 'monthly', month: '2026-13' })).toThrow('Invalid month (YYYY-MM)');
   });
 
   it('accepts all-time selection without a month', () => {
@@ -160,12 +188,31 @@ describe('channel validation', () => {
     expect(() => channel({ ...valid, channel_url: 'https://user:pass@example.com' })).toThrow('Invalid channel_url');
   });
 
-  it('accepts the documented enums and an active state of zero', () => {
-    expect(channel({ ...valid, category: 'art', affiliation: 'agency', platform: 'twitch', is_active: 0 }))
-      .toMatchObject({ category: 'art', affiliation: 'agency', platform: 'twitch', is_active: 0 });
+  it('accepts a documented category enum', () => {
+    expect(channel({ ...valid, category: 'art' }).category).toBe('art');
   });
 
-  it('rejects an invalid enum', () => {
+  it('accepts a documented affiliation enum', () => {
+    expect(channel({ ...valid, affiliation: 'agency' }).affiliation).toBe('agency');
+  });
+
+  it('accepts a documented platform enum', () => {
+    expect(channel({ ...valid, platform: 'twitch' }).platform).toBe('twitch');
+  });
+
+  it('accepts an inactive state of zero', () => {
+    expect(channel({ ...valid, is_active: 0 }).is_active).toBe(0);
+  });
+
+  it('rejects an invalid category enum', () => {
+    expect(() => channel({ ...valid, category: 'dance' })).toThrow('Invalid category');
+  });
+
+  it('rejects an invalid affiliation enum', () => {
+    expect(() => channel({ ...valid, affiliation: 'collective' })).toThrow('Invalid affiliation');
+  });
+
+  it('rejects an invalid platform enum', () => {
     expect(() => channel({ ...valid, platform: 'kick' })).toThrow('Invalid platform');
   });
 
