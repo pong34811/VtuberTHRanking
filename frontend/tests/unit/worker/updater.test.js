@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createD1Stub } from '../../helpers/d1.js';
 import { updateAll } from '../../../../worker/updater.js';
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('updateAll', () => {
   it('skips updates when the ranking frequency is manual', async () => {
