@@ -1,0 +1,30 @@
+{
+  "results": [
+    {
+      "id": 1,
+      "name": "Aiko",
+      "slug": "aiko",
+      "bio": "",
+      "avatar": null,
+      "agency_name": "Indie",
+      "country": "Thailand",
+      "category": "gaming",
+      "affiliation": "indie",
+      "platform": "youtube",
+      "is_active": 1
+    },
+    {
+      "id": 2,
+      "name": "Biko",
+      "slug": "biko",
+      "bio": "",
+      "avatar": null,
+      "agency_name": "Indie",
+      "country": "Thailand",
+      "category": "singing",
+      "affiliation": "indie",
+      "platform": "youtube",
+      "is_active": 0
+    }
+  ]
+}

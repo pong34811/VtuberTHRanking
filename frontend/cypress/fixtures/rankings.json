@@ -1,0 +1,39 @@
+{
+  "period": "monthly",
+  "category": "followers",
+  "month": "2026-09",
+  "total": 2,
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "rank": 1,
+      "vtuber": {
+        "id": 1,
+        "name": "Aiko",
+        "slug": "aiko",
+        "avatar": null,
+        "category": "gaming",
+        "affiliation": "indie",
+        "video_count": 120
+      },
+      "score": 95000,
+      "rank_change": 2
+    },
+    {
+      "rank": 2,
+      "vtuber": {
+        "id": 2,
+        "name": "Biko",
+        "slug": "biko",
+        "avatar": null,
+        "category": "singing",
+        "affiliation": "indie",
+        "video_count": 80
+      },
+      "score": 88000,
+      "rank_change": -1
+    }
+  ]
+}

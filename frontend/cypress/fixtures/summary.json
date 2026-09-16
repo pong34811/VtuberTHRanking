@@ -1,0 +1,15 @@
+{
+  "total_vtubers": 2,
+  "total_followers_all": 183000,
+  "top_gainer": null,
+  "latest_update": "2026-09-16T00:00:00.000Z",
+  "period_choices": [
+    { "value": "monthly", "label": "รายเดือน" },
+    { "value": "alltime", "label": "ทั้งหมด" }
+  ],
+  "category_choices": [
+    { "value": "followers", "label": "ผู้ติดตาม" },
+    { "value": "views", "label": "ยอดวิว" },
+    { "value": "videos", "label": "จำนวนคลิป" }
+  ]
+}

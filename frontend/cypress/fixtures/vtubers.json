@@ -1,0 +1,21 @@
+{
+  "count": 2,
+  "results": [
+    {
+      "id": 1,
+      "name": "Aiko",
+      "slug": "aiko",
+      "avatar": null,
+      "category": "gaming",
+      "affiliation": "indie"
+    },
+    {
+      "id": 2,
+      "name": "Biko",
+      "slug": "biko",
+      "avatar": null,
+      "category": "singing",
+      "affiliation": "indie"
+    }
+  ]
+}
