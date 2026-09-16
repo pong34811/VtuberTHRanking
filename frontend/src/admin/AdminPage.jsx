@@ -10,13 +10,11 @@ import { authApi } from "./api";
 import AuthScreen from "./AuthScreen";
 import ChannelsTab from "./ChannelsTab";
 import RankingsTab from "./RankingsTab";
-import {
-  AuditTab,
-  CategoriesTab,
-  ReportsTab,
-  SettingsTab,
-  UsersTab,
-} from "./ManagementTabs";
+import { AuditTab } from "./tabs/AuditTab";
+import { CategoriesTab } from "./tabs/CategoriesTab";
+import { ReportsTab } from "./tabs/ReportsTab";
+import { SettingsTab } from "./tabs/SettingsTab";
+import { UsersTab } from "./tabs/UsersTab";
 import { Button, Field, Modal, Notice, useSubmit } from "./ui";
 import "./admin.css";
 

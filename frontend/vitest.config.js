@@ -1,4 +1,9 @@
+import path from 'node:path';
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+
+const absoluteGlob = pattern => path.resolve(import.meta.dirname, pattern).replaceAll('\\', '/');
+const srcDir = path.resolve(import.meta.dirname, './src');
 
 export default defineConfig({
   test: {
@@ -8,8 +13,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['server/**/*.js', 'src/**/*.{js,jsx}', '../worker/**/*.js'],
-      exclude: ['src/main.jsx', 'src/components/ui/**'],
+      allowExternal: true,
+      include: [
+        absoluteGlob('server/**/*.js'),
+        absoluteGlob('src/**/*.{js,jsx}'),
+        absoluteGlob('../worker/**/*.js'),
+      ],
+      exclude: [absoluteGlob('src/main.jsx'), absoluteGlob('src/components/ui/**')],
     },
     projects: [
       {
@@ -23,6 +33,15 @@ export default defineConfig({
       },
       {
         extends: true,
+        esbuild: {
+          jsx: 'automatic',
+        },
+        plugins: [react({ jsxRuntime: 'automatic' })],
+        resolve: {
+          alias: {
+            '@': srcDir,
+          },
+        },
         test: {
           name: 'components',
           environment: 'jsdom',
