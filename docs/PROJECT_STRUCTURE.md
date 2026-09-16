@@ -191,7 +191,7 @@ worker/updater.js
 - มี Vitest configuration ที่แบ่งเป็นโปรเจกต์ `node` และ `components` โดยโปรเจกต์ `components` พร้อมสำหรับชุดทดสอบ React ที่จะเพิ่มภายหลัง
 - มี Vitest 5 test files และ 59 tests ที่ผ่านทั้งหมด: unit 53 tests (`server` และ `worker`) และ integration 6 tests (`auth` และ `admin-api`)
 - ชุดปัจจุบันทดสอบ authentication บางกรณี การบังคับ login, password, admin domain helpers และ updater worker บางส่วน
-- ยังไม่มี automated test สำหรับ public API, updater worker, API client, React pages และ user journeys
+- ยังไม่มี automated test สำหรับ public API, updater worker ในส่วนที่ยังไม่ครอบคลุม, API client, React pages และ user journeys
 - ต้องใช้ Node.js `>=20.19.0` ตามข้อกำหนดของ Vite และ Vitest
 - `npm run test:coverage` สร้างรายงาน coverage ได้แล้ว แต่ยังไม่กำหนด threshold จนกว่าจะมี backend และ frontend suites ครบถ้วน
 - baseline ปัจจุบันจาก coverage คือ statements 7.31%, branches 61.63%, functions 29.72% และ lines 7.31%
@@ -274,13 +274,15 @@ Cypress รับผิดชอบการทดสอบ user journey ผ่�
 | Public home | เปิดเว็บ โหลดอันดับ เปลี่ยนช่วงเวลาและหมวด |
 | Search | ค้นหา กรอง เปิดโปรไฟล์ และจัดการผลลัพธ์ว่าง |
 | Profile | แสดงข้อมูลล่าสุด อันดับ และประวัติกราฟ |
-| Compare | เลือก VTuber 2 ถึง 5 คน เปรียบเทียบ และตรวจ validation |
+| Compare | เลือก VTuber 2 ถึง 3 คน เปรียบเทียบ และตรวจ validation |
 | Authentication | setup, login, session restore, logout และ unauthorized state |
 | Channels | สร้าง แก้ไข ดู snapshot และ import YouTube |
 | Rankings | เลือกเงื่อนไข คำนวณอันดับ และตรวจผลลัพธ์ |
 | Reports | สร้างรายการและดาวน์โหลด CSV |
 | Settings | โหลดและบันทึกค่าระบบ |
 | Users | สร้างและแก้ไขผู้ใช้ รวมข้อจำกัดสิทธิ์ manager |
+
+หมายเหตุ: UI ปัจจุบันจำกัดการเปรียบเทียบไว้ที่ 2–3 คน ขณะที่ API รองรับได้ถึง 5 คน ความแตกต่างนี้เป็นประเด็น product decision ที่ต้องกำหนดก่อนขยาย E2E journey หรือปรับ UI/API ให้สอดคล้องกัน
 
 ## 7 หลักการจัดเก็บ Cypress
 
