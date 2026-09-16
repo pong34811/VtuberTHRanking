@@ -19,6 +19,19 @@ cd frontend && npm install
 npm run dev          # http://localhost:5173 (เรียก API production ผ่าน proxy)
 ```
 
+ต้องใช้ Node.js `>=20.19.0` สำหรับ Vite และ Vitest
+
+คำสั่งตรวจสอบชุดทดสอบ (รันจากโฟลเดอร์ `frontend/`):
+
+```bash
+npm test                 # Vitest ทั้งหมด
+npm run test:unit        # unit tests
+npm run test:integration # integration tests
+npm run test:coverage    # ทดสอบพร้อมรายงาน coverage
+```
+
+ปัจจุบันมี Vitest 59 tests ผ่านทั้งหมด (53 unit และ 6 integration) และยังไม่มี coverage threshold บังคับ
+
 ## Deploy
 
 ```bash
@@ -49,6 +62,8 @@ npx wrangler pages deploy dist --project-name vtuberthai-ranking --branch main
 | `/api/v1/admin/*` | GET/POST/PUT | จัดการช่อง, อันดับ, รายงาน, ผู้ใช้ (ต้อง login) |
 
 ## โครงสร้างโปรเจกต์
+
+ดูภาพรวมสถาปัตยกรรม โครงสร้างไฟล์ การไหลของข้อมูล และแผนจัดเก็บ Vitest/Cypress ฉบับเต็มได้ที่ [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md)
 
 ```
 VtuberTHRanking/
