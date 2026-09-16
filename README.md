@@ -31,7 +31,7 @@ npm run test:coverage    # ทดสอบพร้อมรายงาน cove
 npm run test:e2e         # Cypress E2E (ต้องรัน dev server ก่อน)
 ```
 
-ปัจจุบันมี Vitest 113 tests ผ่านทั้งหมด (66 unit รวม React component smoke tests และ 47 integration) และ Cypress 9 E2E tests ผ่านทั้งหมด (public: home, search; admin: login, channels) โดย stub API ทั้งหมด ยังไม่มี coverage threshold บังคับ
+ปัจจุบันมี Vitest 116 tests ผ่านทั้งหมด (69 unit รวม React component smoke tests และ 47 integration) และ Cypress 9 E2E tests ผ่านทั้งหมด (public: home, search; admin: login, channels) โดย stub API ทั้งหมด ยังไม่มี coverage threshold บังคับ
 
 ## Deploy
 

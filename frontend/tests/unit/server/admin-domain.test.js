@@ -204,6 +204,18 @@ describe('channel validation', () => {
     expect(channel({ ...valid, is_active: 0 }).is_active).toBe(0);
   });
 
+  it('defaults internal notes to an empty string', () => {
+    expect(channel(valid).notes).toBe('');
+  });
+
+  it('accepts internal notes for a disable reason', () => {
+    expect(channel({ ...valid, notes: 'หยุดอัปเดตชั่วคราว' }).notes).toBe('หยุดอัปเดตชั่วคราว');
+  });
+
+  it('rejects notes longer than 2000 characters', () => {
+    expect(() => channel({ ...valid, notes: 'x'.repeat(2001) })).toThrow();
+  });
+
   it('rejects an invalid category enum', () => {
     expect(() => channel({ ...valid, category: 'dance' })).toThrow('Invalid category');
   });

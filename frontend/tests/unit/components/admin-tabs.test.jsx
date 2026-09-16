@@ -67,6 +67,7 @@ it('shows the channel editor fields', async () => {
   render(<ChannelForm value={{ ...blank }} csrfToken="token" onClose={() => {}} onSaved={() => {}} />);
 
   expect(await screen.findByText('ชื่อช่อง')).toBeInTheDocument();
+  expect(await screen.findByText('หมายเหตุ')).toBeInTheDocument();
 });
 
 it('shows the YouTube import prompt', async () => {

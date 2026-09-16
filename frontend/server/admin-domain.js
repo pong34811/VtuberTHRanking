@@ -63,12 +63,13 @@ export function url(value, field) {
   catch { fail(`Invalid ${field}`); }
   return text;
 }
-export const channelFields = ['name','slug','bio','avatar','agency_name','country','debut_date','banner_url','youtube_url','twitch_url','x_url','category','affiliation','is_active','channel_url','platform'];
+export const channelFields = ['name','slug','bio','avatar','agency_name','country','debut_date','banner_url','youtube_url','twitch_url','x_url','category','affiliation','is_active','channel_url','platform','notes'];
 export function channel(data) {
   const result = {};
   for (const field of ['name','slug']) result[field] = str(data[field], field, 100, true);
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(result.slug)) fail('Slug must use lowercase letters, numbers and hyphens');
   result.bio = str(data.bio ?? '', 'bio', 5000);
+  result.notes = str(data.notes ?? '', 'notes', 2000);
   result.agency_name = str(data.agency_name ?? '', 'agency_name', 100);
   result.country = str(data.country ?? 'Thailand', 'country', 100, true);
   result.debut_date = str(data.debut_date ?? '', 'debut_date', 10);

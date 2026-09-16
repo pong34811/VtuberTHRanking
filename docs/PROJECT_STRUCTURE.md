@@ -201,13 +201,13 @@ worker/updater.js
 
 - มี Cypress 16 พร้อม configuration, fixtures, custom commands และ E2E specs สำหรับ public/admin journeys
 - มี Vitest configuration ที่แบ่งเป็นโปรเจกต์ `node` และ `components` โดยโปรเจกต์ `components` รองรับ automatic JSX transform และ alias `@` เช่นเดียวกับ application
-- มี Vitest 8 test files และ 113 tests ที่ผ่านทั้งหมด: unit 66 tests (`server`, `worker` และ React component) และ integration 47 tests (`auth`, `admin-api` และ `public-api`)
+- มี Vitest 8 test files และ 116 tests ที่ผ่านทั้งหมด: unit 69 tests (`server`, `worker` และ React component) และ integration 47 tests (`auth`, `admin-api` และ `public-api`)
 - มี Cypress 4 specs และ 9 E2E tests ผ่าน headless ทั้งหมด (public: home, search; admin: login, channels) โดย stub API ผ่าน `cy.intercept` ไม่พึ่ง production backend — รันด้วย `npm run test:e2e` ขณะ dev server ทำงานที่ `http://localhost:5173`
 - ชุดปัจจุบันทดสอบ authentication บางกรณี การบังคับ login, password, admin domain helpers, updater worker บางส่วน, การแสดงผล `RankBadge`, public API (`rankings`, `vtubers`, `compare` และ `summary`), admin channels CRUD/snapshots, YouTube import ทุก branch และ admin tabs/channels (smoke tests)
 - ยังไม่มี automated test สำหรับ updater worker ในส่วนที่ยังไม่ครอบคลุม, API client และ React pages อื่น
 - ต้องใช้ Node.js `^20.19.0 || >=22.12.0` ตามข้อกำหนดของ Vite และ Vitest โดย `.nvmrc` กำหนดเวอร์ชัน 20.19.0
 - `npm run test:coverage` สร้างรายงาน coverage ได้แล้ว แต่ยังไม่กำหนด threshold จนกว่าจะมี backend และ frontend suites ครบถ้วน
-- baseline ปัจจุบันจาก coverage คือ statements 49.72%, branches 67.98%, functions 45.91% และ lines 49.72% โดยรายงานรวม `server/public.js` ที่ statements/lines 99.21% และ `worker/updater.js` ที่ statements/lines 89.18%
+- baseline ปัจจุบันจาก coverage คือ statements 49.89%, branches 68.38%, functions 45.91% และ lines 49.89% โดยรายงานรวม `server/public.js` ที่ statements/lines 99.21% และ `worker/updater.js` ที่ statements/lines 89.18%
 
 ## 6 โครงสร้างการทดสอบเป้าหมาย
 

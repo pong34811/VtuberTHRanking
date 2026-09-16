@@ -128,7 +128,7 @@ describe('public vtuber detail', () => {
   });
 
   it('returns ranks and latest stats for a known slug', async () => {
-    const vtuber = { id: 3, name: 'Aiko', slug: 'aiko', is_active: 1 };
+    const vtuber = { id: 3, name: 'Aiko', slug: 'aiko', is_active: 1, notes: 'internal reason' };
     const stats = { followers: 1000, total_views: 5000, avg_views: 100, recorded_at: '2026-09-01T00:00:00.000Z' };
     const { response } = await publicRequest('/vtubers/aiko/', [
       vtuber,
@@ -137,7 +137,10 @@ describe('public vtuber detail', () => {
     ]);
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ...vtuber, current_rank: { monthly_followers: 2 }, latest_stats: stats });
+    await expect(response.json()).resolves.toEqual({
+      id: 3, name: 'Aiko', slug: 'aiko', is_active: 1,
+      current_rank: { monthly_followers: 2 }, latest_stats: stats,
+    });
   });
 });
 

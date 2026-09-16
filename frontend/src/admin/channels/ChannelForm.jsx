@@ -170,6 +170,14 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
         checked={!!form.is_active}
         onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
       />
+      <Field label="หมายเหตุ" hint="บันทึกภายใน เช่น สาเหตุที่ปิดใช้งานช่อง" wide>
+        <Textarea
+          rows={2}
+          value={form.notes || ""}
+          onChange={set("notes")}
+          placeholder="เช่น หยุดอัปเดตชั่วคราวตามคำขอของเจ้าของช่อง"
+        />
+      </Field>
       <FormActions className="channel-form-actions">
         <Button type="button" variant="ghost" onClick={onClose}>
           ยกเลิก

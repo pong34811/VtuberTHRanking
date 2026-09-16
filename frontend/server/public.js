@@ -86,7 +86,8 @@ api.get('/vtubers/:slug/', async (c) => {
   const currentRank = {};
   for (const r of rankResults) currentRank[`${r.period}_${r.category}`] = r.rank;
   const latestStats = await db.prepare(`SELECT followers, total_views, avg_views, recorded_at FROM stats_snapshots WHERE vtuber_id = ? ORDER BY recorded_at DESC LIMIT 1`).bind(vtuber.id).first();
-  return c.json({ ...vtuber, current_rank: currentRank, latest_stats: latestStats || null });
+  const { notes: _internalNotes, ...publicVtuber } = vtuber;
+  return c.json({ ...publicVtuber, current_rank: currentRank, latest_stats: latestStats || null });
 });
 
 api.get('/vtubers/:slug/history/', async (c) => {

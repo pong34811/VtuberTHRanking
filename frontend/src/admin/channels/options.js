@@ -15,6 +15,7 @@ export const blank = {
   channel_url: "",
   platform: "youtube",
   is_active: true,
+  notes: "",
 };
 export const platforms = [
   ["youtube", "YouTube"],
