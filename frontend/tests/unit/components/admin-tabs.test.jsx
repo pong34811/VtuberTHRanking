@@ -12,6 +12,7 @@ import { YouTubeImport } from '@/admin/channels/YouTubeImport.jsx';
 import { Snapshots } from '@/admin/channels/Snapshots.jsx';
 import { UserForm } from '@/admin/tabs/UsersTab.jsx';
 import ChannelsTab from '@/admin/ChannelsTab.jsx';
+import RankingsTab from '@/admin/RankingsTab.jsx';
 
 function mockFetch(body = { results: [] }) {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => body }));
@@ -19,6 +20,23 @@ function mockFetch(body = { results: [] }) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+it('shows every ranking metric in the all view', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url) => {
+    const category = new URL(String(url), 'http://localhost').searchParams.get('category');
+    return {
+      ok: true,
+      json: async () => ({ results: [{ id: category, rank: 1, name: category, subscriber_count: 10, total_views: 20, video_count: 30 }] }),
+    };
+  }));
+
+  render(<RankingsTab csrfToken="token" isManager={false} />);
+
+  expect(await screen.findByText('followers')).toBeInTheDocument();
+  expect(screen.getByText('views')).toBeInTheDocument();
+  expect(screen.getByText('videos')).toBeInTheDocument();
+  expect(fetch).toHaveBeenCalledTimes(3);
 });
 
 it('shows the categories console while entries load', async () => {

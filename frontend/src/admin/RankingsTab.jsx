@@ -11,32 +11,47 @@ import {
   useSubmit,
 } from "./ui";
 
+const metrics = [
+  { value: "followers", label: "ผู้ติดตาม" },
+  { value: "views", label: "ยอดดู" },
+  { value: "videos", label: "จำนวนคลิป" },
+];
+
 export default function RankingsTab({ csrfToken, isManager }) {
   const now = new Date(),
     [filters, setFilters] = useState({
       period: "monthly",
       month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
-      category: "followers",
+      category: "all",
     }),
-    [rows, setRows] = useState([]),
+    [rows, setRows] = useState({}),
     [loading, setLoading] = useState(false),
     [error, setError] = useState("");
   const load = () => {
     setLoading(true);
     setError("");
-    adminApi(`/rankings?${new URLSearchParams(filters)}`)
-      .then((d) => setRows(d.results || []))
+    const selected = filters.category === "all" ? metrics : metrics.filter((metric) => metric.value === filters.category);
+    Promise.all(selected.map(async (metric) => {
+      const params = new URLSearchParams({ ...filters, category: metric.value });
+      const data = await adminApi(`/rankings?${params}`);
+      return [metric.value, data.results || []];
+    }))
+      .then((results) => setRows(Object.fromEntries(results)))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   };
   useEffect(load, [filters.period, filters.month, filters.category]);
   const calc = useSubmit(
-    () =>
-      adminApi("/rankings/calculate", {
-        method: "POST",
-        body: filters,
-        csrfToken,
-      }),
+    async () => {
+      const selected = filters.category === "all" ? metrics : metrics.filter((metric) => metric.value === filters.category);
+      for (const metric of selected) {
+        await adminApi("/rankings/calculate", {
+          method: "POST",
+          body: { ...filters, category: metric.value },
+          csrfToken,
+        });
+      }
+    },
     load,
   );
   return (
@@ -69,9 +84,8 @@ export default function RankingsTab({ csrfToken, isManager }) {
               setFilters({ ...filters, category: e.target.value })
             }
           >
-            <option value="followers">ผู้ติดตาม</option>
-            <option value="views">ยอดดู</option>
-            <option value="videos">จำนวนคลิป</option>
+            <option value="all">ทั้งหมด</option>
+            {metrics.map((metric) => <option key={metric.value} value={metric.value}>{metric.label}</option>)}
           </select>
         </Field>
         {isManager && (
@@ -81,9 +95,10 @@ export default function RankingsTab({ csrfToken, isManager }) {
         )}
       </div>
       <Notice>{error || calc.error}</Notice>
-      {loading ? (
-        <Loading />
-      ) : rows.length ? (
+      {loading ? <Loading /> : metrics.filter((metric) => filters.category === "all" || metric.value === filters.category).map((metric) => (
+        <section className="ranking-metric-section" key={metric.value} aria-label={`อันดับตาม${metric.label}`}>
+          {filters.category === "all" && <h3>{metric.label}</h3>}
+          {rows[metric.value]?.length ? (
         <div className="admin-table-wrap">
           <table>
             <thead>
@@ -95,7 +110,7 @@ export default function RankingsTab({ csrfToken, isManager }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
+              {rows[metric.value].map((r, i) => (
                 <tr key={r.id || `${r.vtuber_id}-${i}`}>
                   <td>
                     <strong>#{r.rank}</strong>
@@ -103,9 +118,9 @@ export default function RankingsTab({ csrfToken, isManager }) {
                   <td>{r.name || r.vtuber_name}</td>
                   <td>
                     {fmtNumber(
-                      filters.category === "followers"
+                      metric.value === "followers"
                         ? (r.subscriber_count ?? r.followers)
-                        : filters.category === "videos"
+                        : metric.value === "videos"
                           ? (r.video_count ?? 0)
                           : r.total_views,
                     )}
@@ -120,9 +135,9 @@ export default function RankingsTab({ csrfToken, isManager }) {
             </tbody>
           </table>
         </div>
-      ) : (
-        <Empty>ยังไม่มีอันดับสำหรับช่วงเวลานี้</Empty>
-      )}
+          ) : <Empty>ยังไม่มีอันดับสำหรับตัวชี้วัดนี้ในช่วงเวลาที่เลือก</Empty>}
+        </section>
+      ))}
     </Card>
   );
 }
