@@ -6,13 +6,13 @@
 
 **Architecture:** คง Cloudflare Pages Functions และ React application ไว้ใน `frontend` ตามเดิม แต่แยก tests ตามชนิดและ source responsibility ก่อนเริ่มแยก production modules การแก้ production code ในระยะนี้จำกัดเฉพาะการ export `updateAll` เพื่อทดสอบ worker behavior โดยตรง
 
-**Tech Stack:** Node.js 20.19 ขึ้นไป, React 19, Vite 8, Vitest 3, Hono, Cloudflare Workers และ D1
+**Tech Stack:** Node.js `^20.19.0 || >=22.12.0`, React 19, Vite 8, Vitest 3, Hono, Cloudflare Workers และ D1
 
 **Spec:** `docs/PROJECT_STRUCTURE.md`
 
 ## Global Constraints
 
-- ใช้ Node.js 20.19 ขึ้นไปตาม runtime floor ของ Vite 8
+- ใช้ Node.js `^20.19.0 || >=22.12.0` ตาม runtime contract ของ Vite 8 โดย `.nvmrc` ใช้ 20.19.0
 - ห้ามเชื่อมต่อ production D1 หรือ YouTube API จาก automated tests
 - Tests ต้องตรวจ observable behavior ไม่ตรวจ implementation detail
 - ทุก production behavior ที่เปลี่ยนต้องผ่านวงจร failing test, minimal implementation และ passing test
@@ -57,7 +57,7 @@ Add to `frontend/package.json`:
 
 ```json
 "engines": {
-  "node": ">=20.19.0"
+  "node": "^20.19.0 || >=22.12.0"
 }
 ```
 
@@ -83,22 +83,51 @@ Replace the test scripts with:
 Update `frontend/vitest.config.js` so files under `tests/unit/components` use jsdom and all server, worker and integration tests use Node. Load `tests/setup/node.js` for stable Web API globals without changing application modules.
 
 ```js
+import path from 'node:path';
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+
+const absoluteGlob = pattern => path.resolve(import.meta.dirname, pattern).replaceAll('\\', '/');
+const srcDir = path.resolve(import.meta.dirname, './src');
 
 export default defineConfig({
   test: {
     globals: true,
-    environment: 'node',
-    include: ['tests/**/*.{test,spec}.{js,jsx}'],
-    environmentMatchGlobs: [['tests/unit/components/**', 'jsdom']],
     setupFiles: ['./tests/setup/node.js'],
     pool: 'forks',
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['server/**/*.js', 'src/**/*.{js,jsx}', '../worker/**/*.js'],
-      exclude: ['src/main.jsx', 'src/components/ui/**'],
+      allowExternal: true,
+      include: [
+        absoluteGlob('server/**/*.js'),
+        absoluteGlob('src/**/*.{js,jsx}'),
+        absoluteGlob('../worker/**/*.js'),
+      ],
+      exclude: [absoluteGlob('src/main.jsx'), absoluteGlob('src/components/ui/**')],
     },
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['tests/**/*.{test,spec}.{js,jsx}'],
+          exclude: ['tests/unit/components/**/*.{test,spec}.{js,jsx}'],
+        },
+      },
+      {
+        extends: true,
+        esbuild: { jsx: 'automatic' },
+        plugins: [react({ jsxRuntime: 'automatic' })],
+        resolve: { alias: { '@': srcDir } },
+        test: {
+          name: 'components',
+          environment: 'jsdom',
+          include: ['tests/unit/components/**/*.{test,spec}.{js,jsx}'],
+        },
+      },
+    ],
   },
 });
 ```
@@ -111,7 +140,7 @@ import '@testing-library/jest-dom/vitest';
 
 - [ ] **Step 5: Verify with the supported runtime**
 
-Run from `frontend` under Node 20.19 or newer:
+Run from `frontend` under Node.js `^20.19.0 || >=22.12.0`:
 
 ```powershell
 npm test
@@ -298,7 +327,7 @@ npm run test:coverage
 npm run build
 ```
 
-Expected: all commands exit 0 under Node 20.19 or newer. Record test counts and coverage as baseline measurements; do not introduce a coverage threshold until backend and frontend suites exist.
+Expected: all commands exit 0 under Node.js `^20.19.0 || >=22.12.0`. Record test counts and coverage as baseline measurements; do not introduce a coverage threshold until backend and frontend suites exist.
 
 - [ ] **Step 2: Update project documentation**
 
@@ -328,4 +357,3 @@ After this plan passes, create and execute these independently reviewable plans 
 1. `backend-route-decomposition` — extract public and admin route modules behind characterization tests
 2. `frontend-feature-decomposition` — split large admin screens and consolidate duplicated UI wrappers
 3. `cypress-e2e` — add isolated test environment, Cypress configuration, fixtures, commands and public/admin journeys
-

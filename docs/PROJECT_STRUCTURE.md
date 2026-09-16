@@ -54,7 +54,7 @@ VtuberTHRanking/
 ├── frontend/
 │   ├── functions/
 │   │   └── api/
-│   │       └── [[path]].js          # จุดรับ Pages Functions และ public API
+│   │       └── [[path]].js          # จุดรับ Pages Functions (mount auth/admin/public routers)
 │   ├── migrations/
 │   │   ├── 0001_existing_schema.sql # ตารางหลักของระบบ
 │   │   ├── 0002_admin.sql           # ตารางและฟิลด์สำหรับระบบ admin
@@ -63,15 +63,27 @@ VtuberTHRanking/
 │   │   ├── admin-domain.js          # validation และกฎธุรกิจของ admin
 │   │   ├── admin.js                 # admin routes และ database operations
 │   │   ├── auth.js                  # setup, login, logout และ session
-│   │   └── password.js              # validate, hash และ verify password
+│   │   ├── password.js              # validate, hash และ verify password
+│   │   └── public.js                # public API routes (rankings, vtubers, compare, summary)
 │   ├── src/
 │   │   ├── admin/
 │   │   │   ├── components/ui/       # UI primitives เฉพาะส่วน admin
 │   │   │   ├── AdminPage.jsx        # layout และ routing ของ admin
 │   │   │   ├── AuthScreen.jsx       # หน้า setup และ login
-│   │   │   ├── ChannelsTab.jsx      # จัดการช่องและ snapshots
-│   │   │   ├── ManagementTabs.jsx   # reports, settings, users และ audit logs
+│   │   │   ├── ChannelsTab.jsx      # console รายการช่อง (shell)
 │   │   │   ├── RankingsTab.jsx      # คำนวณและดูอันดับ
+│   │   │   ├── channels/            # feature modules ของ console ช่อง
+│   │   │   │   ├── ChannelForm.jsx  # ฟอร์มเพิ่ม/แก้ไขช่อง
+│   │   │   │   ├── Snapshots.jsx    # ประวัติและบันทึกสถิติ
+│   │   │   │   ├── YouTubeImport.jsx # นำเข้าช่องจาก YouTube
+│   │   │   │   └── options.js       # ค่าเริ่มต้นและตัวเลือกฟิลด์ช่อง
+│   │   │   ├── tabs/                # feature modules ของ management tabs
+│   │   │   │   ├── AuditTab.jsx     # ประวัติการทำงาน
+│   │   │   │   ├── CategoriesTab.jsx # จัดการหมวดหมู่
+│   │   │   │   ├── ReportsTab.jsx   # สร้าง/ดาวน์โหลดรายงาน
+│   │   │   │   ├── SettingsTab.jsx  # ตั้งค่าเว็บไซต์
+│   │   │   │   ├── UsersTab.jsx     # จัดการผู้ใช้
+│   │   │   │   └── useList.js       # shared hook โหลดรายการ
 │   │   │   ├── api.js               # client สำหรับ auth และ admin API
 │   │   │   ├── admin.css            # style ของ admin
 │   │   │   └── ui.jsx               # shared admin UI และ helper hooks
@@ -187,14 +199,15 @@ worker/updater.js
 
 ## 5 สถานะการทดสอบปัจจุบัน
 
-- ยังไม่มี Cypress dependency, configuration หรือ E2E spec
-- มี Vitest configuration ที่แบ่งเป็นโปรเจกต์ `node` และ `components` โดยโปรเจกต์ `components` พร้อมสำหรับชุดทดสอบ React ที่จะเพิ่มภายหลัง
-- มี Vitest 5 test files และ 59 tests ที่ผ่านทั้งหมด: unit 53 tests (`server` และ `worker`) และ integration 6 tests (`auth` และ `admin-api`)
-- ชุดปัจจุบันทดสอบ authentication บางกรณี การบังคับ login, password, admin domain helpers และ updater worker บางส่วน
-- ยังไม่มี automated test สำหรับ public API, updater worker ในส่วนที่ยังไม่ครอบคลุม, API client, React pages และ user journeys
-- ต้องใช้ Node.js `>=20.19.0` ตามข้อกำหนดของ Vite และ Vitest
+- มี Cypress 16 พร้อม configuration, fixtures, custom commands และ E2E specs สำหรับ public/admin journeys
+- มี Vitest configuration ที่แบ่งเป็นโปรเจกต์ `node` และ `components` โดยโปรเจกต์ `components` รองรับ automatic JSX transform และ alias `@` เช่นเดียวกับ application
+- มี Vitest 8 test files และ 113 tests ที่ผ่านทั้งหมด: unit 66 tests (`server`, `worker` และ React component) และ integration 47 tests (`auth`, `admin-api` และ `public-api`)
+- มี Cypress 4 specs และ 9 E2E tests ผ่าน headless ทั้งหมด (public: home, search; admin: login, channels) โดย stub API ผ่าน `cy.intercept` ไม่พึ่ง production backend — รันด้วย `npm run test:e2e` ขณะ dev server ทำงานที่ `http://localhost:5173`
+- ชุดปัจจุบันทดสอบ authentication บางกรณี การบังคับ login, password, admin domain helpers, updater worker บางส่วน, การแสดงผล `RankBadge`, public API (`rankings`, `vtubers`, `compare` และ `summary`), admin channels CRUD/snapshots, YouTube import ทุก branch และ admin tabs/channels (smoke tests)
+- ยังไม่มี automated test สำหรับ updater worker ในส่วนที่ยังไม่ครอบคลุม, API client และ React pages อื่น
+- ต้องใช้ Node.js `^20.19.0 || >=22.12.0` ตามข้อกำหนดของ Vite และ Vitest โดย `.nvmrc` กำหนดเวอร์ชัน 20.19.0
 - `npm run test:coverage` สร้างรายงาน coverage ได้แล้ว แต่ยังไม่กำหนด threshold จนกว่าจะมี backend และ frontend suites ครบถ้วน
-- baseline ปัจจุบันจาก coverage คือ statements 7.31%, branches 61.63%, functions 29.72% และ lines 7.31%
+- baseline ปัจจุบันจาก coverage คือ statements 49.72%, branches 67.98%, functions 45.91% และ lines 49.72% โดยรายงานรวม `server/public.js` ที่ statements/lines 99.21% และ `worker/updater.js` ที่ statements/lines 89.18%
 
 ## 6 โครงสร้างการทดสอบเป้าหมาย
 
@@ -313,7 +326,7 @@ Cypress รับผิดชอบการทดสอบ user journey ผ่�
 
 ## 9 คำสั่งทดสอบ
 
-รันจากโฟลเดอร์ `frontend/` ด้วย Node.js `>=20.19.0`:
+รันจากโฟลเดอร์ `frontend/` ด้วย Node.js `^20.19.0 || >=22.12.0` (`.nvmrc` ใช้ 20.19.0):
 
 ```bash
 npm test

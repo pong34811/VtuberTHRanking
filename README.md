@@ -19,7 +19,7 @@ cd frontend && npm install
 npm run dev          # http://localhost:5173 (เรียก API production ผ่าน proxy)
 ```
 
-ต้องใช้ Node.js `>=20.19.0` สำหรับ Vite และ Vitest
+ต้องใช้ Node.js `^20.19.0 || >=22.12.0` สำหรับ Vite และ Vitest (ไฟล์ `.nvmrc` ใช้ Node.js 20.19.0)
 
 คำสั่งตรวจสอบชุดทดสอบ (รันจากโฟลเดอร์ `frontend/`):
 
@@ -28,9 +28,10 @@ npm test                 # Vitest ทั้งหมด
 npm run test:unit        # unit tests
 npm run test:integration # integration tests
 npm run test:coverage    # ทดสอบพร้อมรายงาน coverage
+npm run test:e2e         # Cypress E2E (ต้องรัน dev server ก่อน)
 ```
 
-ปัจจุบันมี Vitest 59 tests ผ่านทั้งหมด (53 unit และ 6 integration) และยังไม่มี coverage threshold บังคับ
+ปัจจุบันมี Vitest 113 tests ผ่านทั้งหมด (66 unit รวม React component smoke tests และ 47 integration) และ Cypress 9 E2E tests ผ่านทั้งหมด (public: home, search; admin: login, channels) โดย stub API ทั้งหมด ยังไม่มี coverage threshold บังคับ
 
 ## Deploy
 
