@@ -57,7 +57,8 @@ function AdminNav({ tabs, managerStart }) {
 export default function AdminPage() {
   const [session, setSession] = useState(null),
     [checking, setChecking] = useState(true),
-    [passwordOpen, setPasswordOpen] = useState(false);
+    [passwordOpen, setPasswordOpen] = useState(false),
+    [logoutError, setLogoutError] = useState("");
   const loc = useLocation();
   const check = () => {
     setChecking(true);
@@ -79,10 +80,12 @@ export default function AdminPage() {
     isManager = user.role === "manager",
     tabs = isManager ? [...baseTabs, ...managerTabs] : baseTabs;
   const logout = async () => {
+    setLogoutError("");
     try {
       await authApi("/logout", { method: "POST", csrfToken });
-    } finally {
       setSession(null);
+    } catch (error) {
+      setLogoutError(error.message || "ออกจากระบบไม่สำเร็จ กรุณาลองอีกครั้ง");
     }
   };
   const props = { csrfToken, isManager, currentUser: user };
@@ -128,6 +131,7 @@ export default function AdminPage() {
             ออกจากระบบ
           </button>
         </header>
+        <Notice>{logoutError}</Notice>
         <Routes>
           <Route index element={<Navigate to="channels" replace />} />
           <Route path="channels" element={<ChannelsTab {...props} />} />

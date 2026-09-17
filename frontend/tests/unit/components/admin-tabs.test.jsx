@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { CategoriesTab } from '@/admin/tabs/CategoriesTab.jsx';
 import { ReportsTab } from '@/admin/tabs/ReportsTab.jsx';
@@ -183,4 +183,87 @@ it('submits only user contract fields when editing', async () => {
   await waitFor(() => expect(fetchMock).toHaveBeenCalled());
   const sent = JSON.parse(fetchMock.mock.calls[0][1].body);
   expect(sent).toEqual({ display_name: 'Biko', email: 'b@example.com', role: 'staff', status: 'active', password: '' });
+});
+
+it('recovers from a failed channels request without crashing', async () => {
+  vi.stubGlobal('fetch', vi.fn()
+    .mockRejectedValueOnce(new Error('Channel service unavailable'))
+    .mockResolvedValue({ ok: true, json: async () => ({ results: [] }) }));
+  render(<ChannelsTab csrfToken="token" />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Channel service unavailable');
+  fireEvent.click(screen.getByRole('button', { name: 'ลองอีกครั้ง' }));
+  expect(await screen.findByText('ยังไม่มีช่อง VTuber')).toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('does not expose default settings after a failed load and allows retry', async () => {
+  vi.stubGlobal('fetch', vi.fn()
+    .mockRejectedValueOnce(new Error('Settings unavailable'))
+    .mockResolvedValue({ ok: true, json: async () => ({ results: [{ setting_key: 'site_name', setting_value: 'VTuber Thai' }] }) }));
+  render(<SettingsTab csrfToken="token" />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Settings unavailable');
+  expect(screen.queryByRole('button', { name: 'บันทึกการตั้งค่า' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'ลองอีกครั้ง' }));
+  expect(await screen.findByLabelText('ชื่อเว็บไซต์')).toHaveValue('VTuber Thai');
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+
+it('reports snapshot load failure instead of claiming there are no stats', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Snapshots unavailable')));
+  render(<Snapshots channel={{ id: 3, name: 'Aiko' }} csrfToken="token" />);
+  expect(await screen.findByRole('alert')).toHaveTextContent('Snapshots unavailable');
+  expect(screen.queryByText('ยังไม่มีสถิติ')).not.toBeInTheDocument();
+});
+
+it('limits category editing to managers', async () => {
+  mockFetch({ results: [{ id: 'followers', name: 'Followers', slug: 'followers', sort_order: 1, status: 'active' }] });
+  const view = render(<CategoriesTab csrfToken="token" isManager={false} />);
+  await screen.findByText('Followers');
+  expect(screen.queryByRole('button', { name: 'แก้ไข' })).not.toBeInTheDocument();
+  view.rerender(<CategoriesTab csrfToken="token" isManager />);
+  expect(screen.getByRole('button', { name: 'แก้ไข' })).toBeInTheDocument();
+});
+
+it('shows failures when disabling a user', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async (_, options) => options?.method === 'PUT'
+    ? { ok: false, status: 409, json: async () => ({ message: 'Cannot disable this user' }) }
+    : { ok: true, json: async () => ({ results: [{ id: 'u2', display_name: 'Staff', username: 'staff', status: 'active', role: 'staff' }] }) }));
+  render(<UsersTab csrfToken="token" currentUser={{ id: 'u1' }} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'ปิดใช้งาน' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Cannot disable this user');
+});
+
+it('announces a successful settings save', async () => {
+  mockFetch({ results: [{ setting_key: 'site_name', setting_value: 'VTuber Thai' }, { setting_key: 'current_ranking_period', setting_value: '2026-09' }] });
+  render(<SettingsTab csrfToken="token" />);
+  const input = await screen.findByLabelText('ชื่อเว็บไซต์');
+  fireEvent.submit(input.closest('form'));
+  expect(await screen.findByRole('status')).toHaveTextContent('บันทึกการตั้งค่าแล้ว');
+  fireEvent.change(input, { target: { value: 'Changed' } });
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
+});
+
+it('names the user editor dialog and supports Escape', async () => {
+  const onClose = vi.fn();
+  render(<UserForm value={{ username: '', display_name: '', email: '', role: 'staff', status: 'active', password: '' }} csrfToken="token" onClose={onClose} onSaved={() => {}} />);
+  expect(screen.getByRole('dialog', { name: 'เพิ่มผู้ใช้' })).toBeInTheDocument();
+  fireEvent.keyDown(document.activeElement, { key: 'Escape', code: 'Escape' });
+  await waitFor(() => expect(onClose).toHaveBeenCalled());
+});
+
+it('does not replace current rankings with a slower previous filter response', async () => {
+  let finishOld;
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async url => {
+    const category = new URL(String(url), 'http://localhost').searchParams.get('category');
+    if (category === 'followers' && !finishOld) {
+      return new Promise(resolve => { finishOld = () => resolve({ ok: true, json: async () => ({ results: [{ id: 'old', rank: 1, name: 'Old result', followers: 10 }] }) }); });
+    }
+    return { ok: true, json: async () => ({ results: [{ id: category, rank: 1, name: 'Current views', total_views: 500 }] }) };
+  }));
+  render(<RankingsTab csrfToken="token" isManager={false} />);
+  fireEvent.change(screen.getByLabelText('ตัวชี้วัด'), { target: { value: 'views' } });
+  expect(await screen.findByText('Current views')).toBeInTheDocument();
+  await act(async () => finishOld());
+  await waitFor(() => expect(screen.queryByText('Old result')).not.toBeInTheDocument());
+  expect(screen.getByText('Current views')).toBeInTheDocument();
 });

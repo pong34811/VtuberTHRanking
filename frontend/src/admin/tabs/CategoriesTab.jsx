@@ -3,7 +3,7 @@ import { adminApi } from "../api";
 import { useList } from "./useList";
 import { Button, Card, Field, Loading, Modal, Notice, useSubmit } from "../ui";
 
-export function CategoriesTab({ csrfToken }) {
+export function CategoriesTab({ csrfToken, isManager = false }) {
   const list = useList("/categories"),
     [editing, setEditing] = useState(null);
   return (
@@ -35,7 +35,7 @@ export function CategoriesTab({ csrfToken }) {
                     <td>{r.sort_order}</td>
                     <td>{r.status}</td>
                     <td>
-                      <button onClick={() => setEditing(r)}>แก้ไข</button>
+                      {isManager && <button onClick={() => setEditing(r)}>แก้ไข</button>}
                     </td>
                   </tr>
                 ))}
@@ -64,7 +64,7 @@ function CategoryForm({ value, csrfToken, onClose, onSaved }) {
     () =>
       adminApi(`/categories/${value.id}`, {
         method: "PUT",
-        body: form,
+        body: Object.fromEntries(["name", "slug", "description", "sort_order", "status"].map(key => [key, form[key]])),
         csrfToken,
       }),
     onSaved,

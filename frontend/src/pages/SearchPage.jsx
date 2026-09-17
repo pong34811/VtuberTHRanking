@@ -20,7 +20,7 @@ export default function SearchPage() {
     setError("");
     const timer = setTimeout(() => {
       vtubersAPI
-        .getList({ q: query, category, affiliation })
+        .getList({ q: query.trim(), category, affiliation })
         .then((res) => {
           if (active) setResults(res.data.results);
         })
@@ -68,6 +68,7 @@ export default function SearchPage() {
           <option value="art">Art</option>
           <option value="asmr">ASMR</option>
           <option value="education">Education</option>
+          <option value="other">อื่น ๆ</option>
           </select>
         </div>
         <div className="filter-field">

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Dialog as DialogPrimitive } from "radix-ui";
 
 export function Notice({ type = "error", children }) {
   return children ? (
@@ -44,17 +45,17 @@ export function Card({ title, actions, children }) {
 }
 export function Modal({ title, onClose, children }) {
   return (
-    <div className="admin-modal" role="dialog" aria-modal="true">
-      <div className="admin-modal-panel">
-        <header>
-          <h2>{title}</h2>
-          <button className="ghost" onClick={onClose} aria-label="ปิด">
-            ×
-          </button>
-        </header>
-        {children}
-      </div>
-    </div>
+    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogPrimitive.Overlay className="admin-modal">
+        <DialogPrimitive.Content className="admin-modal-panel" aria-describedby={undefined}>
+          <header>
+            <DialogPrimitive.Title asChild><h2>{title}</h2></DialogPrimitive.Title>
+            <DialogPrimitive.Close className="ghost" aria-label="ปิด">×</DialogPrimitive.Close>
+          </header>
+          {children}
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Overlay>
+    </DialogPrimitive.Root>
   );
 }
 

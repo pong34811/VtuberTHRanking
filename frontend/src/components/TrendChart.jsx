@@ -43,7 +43,7 @@ export default function TrendChart({ data, dataKey, color = 'var(--primary)' }) 
             dataKey="value"
             stroke={color}
             strokeWidth={2}
-            dot={false}
+            dot={formatted.length === 1 ? { r: 4 } : false}
             activeDot={{ r: 4 }}
           />
         </LineChart>

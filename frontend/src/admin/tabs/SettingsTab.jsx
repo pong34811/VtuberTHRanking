@@ -10,28 +10,39 @@ export function SettingsTab({ csrfToken }) {
       ranking_update_frequency: "manual",
     }),
     [loading, setLoading] = useState(true),
-    [loaded, setLoaded] = useState(false);
+    [loadError, setLoadError] = useState(""),
+    [success, setSuccess] = useState(""),
+    [retry, setRetry] = useState(0);
   useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setLoadError("");
     adminApi("/settings")
       .then((d) => {
+        if (!active) return;
         const obj = {};
         for (const r of d.results || []) obj[r.setting_key] = r.setting_value;
         setForm((f) => ({ ...f, ...obj }));
-        setLoaded(true);
+
       })
-      .finally(() => setLoading(false));
-  }, []);
-  const save = useSubmit(() =>
-    adminApi("/settings", { method: "PUT", csrfToken, body: form }),
-  );
+      .catch((error) => { if (active) setLoadError(error.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [retry]);
+  const save = useSubmit(() => {
+    setSuccess("");
+    return adminApi("/settings", { method: "PUT", csrfToken, body: form });
+  }, () => setSuccess("บันทึกการตั้งค่าแล้ว"));
   return (
     <Card title="ตั้งค่าเว็บไซต์">
       {loading ? (
         <Loading />
+      ) : loadError ? (
+        <><Notice>{loadError}</Notice><Button type="button" onClick={() => setRetry(value => value + 1)}>ลองอีกครั้ง</Button></>
       ) : (
-        <form onSubmit={save.submit}>
+        <form onSubmit={save.submit} onChange={() => setSuccess("")}>
           <Notice type={save.error ? "error" : "success"}>
-            {save.error || (!save.busy && loaded && "")}
+            {save.error || success}
           </Notice>
           <div className="admin-grid">
             <Field label="ชื่อเว็บไซต์">

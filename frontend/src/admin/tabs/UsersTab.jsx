@@ -105,9 +105,12 @@ function QuickDisable({ row, csrfToken, done }) {
     done,
   );
   return (
-    <button className="danger" disabled={save.busy} onClick={save.submit}>
-      ปิดใช้งาน
-    </button>
+    <>
+      <button className="danger" disabled={save.busy} onClick={save.submit}>
+        ปิดใช้งาน
+      </button>
+      <Notice>{save.error}</Notice>
+    </>
   );
 }
 export function UserForm({ value, csrfToken, onClose, onSaved }) {

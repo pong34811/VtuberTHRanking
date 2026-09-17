@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { vtubersAPI } from "../api/client";
 import Feedback from "../components/Feedback";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -12,6 +12,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const [failedAvatar, setFailedAvatar] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -50,14 +51,17 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4 p-6 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
-        <div className="w-16 h-16 rounded-full bg-[var(--primary)]/20 flex items-center justify-center text-2xl font-bold text-[var(--primary)]">
-          {vtuber.name.charAt(0)}
-        </div>
+      <Link to="/search" className="inline-flex min-h-11 items-center text-sm text-[var(--primary)]">← กลับไปสำรวจ VTuber</Link>
+      <div className="flex items-start gap-4 p-6 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
+        {vtuber.avatar && failedAvatar !== vtuber.avatar ? (
+          <img src={vtuber.avatar} alt="" className="w-16 h-16 shrink-0 rounded-full object-cover" onError={() => setFailedAvatar(vtuber.avatar)} />
+        ) : (
+          <div className="w-16 h-16 shrink-0 rounded-full bg-[var(--primary)]/20 flex items-center justify-center text-2xl font-bold text-[var(--primary)]">{vtuber.name.charAt(0)}</div>
+        )}
         <div className="flex-1 min-w-0 break-words">
           <h1 className="text-xl font-bold">{vtuber.name}</h1>
-          <p className="text-sm text-[var(--muted-foreground)]">{vtuber.bio}</p>
-          <div className="flex gap-2 mt-2">
+          <p className="text-sm whitespace-pre-line text-[var(--muted-foreground)]">{vtuber.bio}</p>
+          <div className="flex flex-wrap gap-2 mt-2">
             <span className="text-xs px-2 py-0.5 rounded bg-[var(--primary)]/10 text-[var(--primary)]">
               {vtuber.category}
             </span>
@@ -70,13 +74,13 @@ export default function ProfilePage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
-          <h3 className="text-sm text-[var(--muted-foreground)] mb-1">ผู้ติดตาม</h3>
+          <h2 className="text-sm text-[var(--muted-foreground)] mb-1">ผู้ติดตาม</h2>
           <p className="text-2xl font-bold">
             {vtuber.latest_stats?.followers?.toLocaleString() ?? "—"}
           </p>
         </div>
         <div className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
-          <h3 className="text-sm text-[var(--muted-foreground)] mb-1">ยอดวิวรวม</h3>
+          <h2 className="text-sm text-[var(--muted-foreground)] mb-1">ยอดวิวรวม</h2>
           <p className="text-2xl font-bold">
             {vtuber.latest_stats?.total_views?.toLocaleString() ?? "—"}
           </p>
@@ -84,7 +88,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
-        <h3 className="font-medium mb-4">แนวโน้มผู้ติดตาม</h3>
+        <h2 className="font-medium mb-4">แนวโน้มผู้ติดตาม</h2>
         <TrendChart
           data={history}
           dataKey="followers"
@@ -93,7 +97,7 @@ export default function ProfilePage() {
       </div>
 
       <div className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
-        <h3 className="font-medium mb-4">แนวโน้มยอดวิว</h3>
+        <h2 className="font-medium mb-4">แนวโน้มยอดวิว</h2>
         <TrendChart
           data={history}
           dataKey="total_views"

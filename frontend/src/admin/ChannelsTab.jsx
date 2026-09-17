@@ -8,7 +8,7 @@ import { Button } from "./components/ui/button";
 import { Badge } from "./components/ui/badge";
 import { Card, CardActions, CardContent } from "./components/ui/card";
 import { Dialog } from "./components/ui/dialog";
-import { Input, Select } from "./components/ui/field";
+import { Alert, Input, Select } from "./components/ui/field";
 import { TD, TH, THead, TR, Table, TableWrap } from "./components/ui/table";
 import { Avatar, EmptyState, SkeletonRows } from "./components/ui/feedback";
 
@@ -23,6 +23,7 @@ export default function ChannelsTab({ csrfToken }) {
     [status, setStatus] = useState("all");
   const load = () => {
     setLoading(true);
+    setError("");
     adminApi("/vtubers")
       .then((d) => setRows(d.results || []))
       .catch((e) => setError(e.message))
@@ -85,7 +86,7 @@ export default function ChannelsTab({ csrfToken }) {
       </div>
       <Card className="channel-table-card">
         <CardContent className="grid gap-4">
-          {error && <Alert>{error}</Alert>}
+          {error && <Alert>{error} <Button onClick={load}>ลองอีกครั้ง</Button></Alert>}
           <div className="channel-toolbar">
             <label className="channel-search">
               <span>ค้นหาช่อง</span>

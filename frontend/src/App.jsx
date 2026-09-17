@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Link } from 'react-router-dom'
 import Layout from './components/Layout'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
@@ -18,6 +18,7 @@ function App() {
           <Route path="profile/:slug" element={<ProfilePage />} />
           <Route path="compare" element={<ComparePage />} />
           <Route path="search" element={<SearchPage />} />
+          <Route path="*" element={<div className="empty-state"><h1 className="text-3xl font-semibold">ไม่พบหน้านี้</h1><p>ลิงก์อาจไม่ถูกต้อง หรือหน้านี้ถูกย้ายแล้ว</p><Link className="secondary-button" to="/">กลับหน้าแรก</Link></div>} />
         </Route>
       </Routes>
     </Suspense>

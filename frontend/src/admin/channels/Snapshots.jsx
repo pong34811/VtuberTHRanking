@@ -6,19 +6,29 @@ import { Alert, Field, FormActions, Input } from "../components/ui/field";
 import { TD, TH, THead, TR, Table, TableWrap } from "../components/ui/table";
 import { Avatar, EmptyState, SkeletonRows } from "../components/ui/feedback";
 
+export function localDateTime(date = new Date()) {
+  const pad = value => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 export function Snapshots({ channel, csrfToken }) {
   const [rows, setRows] = useState([]),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(true),
+    [loadError, setLoadError] = useState("");
   const [form, setForm] = useState({
     followers: "",
     total_views: "",
     video_count: "",
-    recorded_at: new Date().toISOString().slice(0, 16),
+    recorded_at: localDateTime(),
   });
-  const load = () =>
-    adminApi(`/vtubers/${channel.id}/snapshots`)
+  const load = () => {
+    setLoading(true);
+    setLoadError("");
+    return adminApi(`/vtubers/${channel.id}/snapshots`)
       .then((d) => setRows(d.results || []))
+      .catch((error) => setLoadError(error.message))
       .finally(() => setLoading(false));
+  };
   useEffect(() => {
     load();
   }, []);
@@ -112,6 +122,8 @@ export function Snapshots({ channel, csrfToken }) {
         <p className="mb-2 text-sm font-medium">ประวัติสถิติ</p>
         {loading ? (
           <SkeletonRows rows={3} />
+        ) : loadError ? (
+          <Alert>{loadError} <Button onClick={load}>ลองอีกครั้ง</Button></Alert>
         ) : rows.length ? (
           <TableWrap>
             <Table>

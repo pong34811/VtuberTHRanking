@@ -1,18 +1,23 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { adminApi } from "../api";
 
 export function useList(path) {
   const [rows, setRows] = useState([]),
     [loading, setLoading] = useState(true),
     [error, setError] = useState("");
-  const load = () => {
+  const requestId = useRef(0);
+  const load = useCallback(() => {
+    const id = ++requestId.current;
     setLoading(true);
-    adminApi(path)
-      .then((d) => setRows(d.results || []))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  };
-  useEffect(load, [path]);
+    setError("");
+    return adminApi(path)
+      .then((d) => { if (id === requestId.current) setRows(d.results || []); })
+      .catch((e) => { if (id === requestId.current) setError(e.message); })
+      .finally(() => { if (id === requestId.current) setLoading(false); });
+  }, [path]);
+  useEffect(() => {
+    load();
+    return () => { requestId.current += 1; };
+  }, [load]);
   return { rows, loading, error, load };
 }
-

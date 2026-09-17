@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { adminApi } from "./api";
 import {
   Button,
@@ -27,7 +27,9 @@ export default function RankingsTab({ csrfToken, isManager }) {
     [rows, setRows] = useState({}),
     [loading, setLoading] = useState(false),
     [error, setError] = useState("");
+  const requestId = useRef(0);
   const load = () => {
+    const id = ++requestId.current;
     setLoading(true);
     setError("");
     const selected = filters.category === "all" ? metrics : metrics.filter((metric) => metric.value === filters.category);
@@ -36,11 +38,14 @@ export default function RankingsTab({ csrfToken, isManager }) {
       const data = await adminApi(`/rankings?${params}`);
       return [metric.value, data.results || []];
     }))
-      .then((results) => setRows(Object.fromEntries(results)))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .then((results) => { if (id === requestId.current) setRows(Object.fromEntries(results)); })
+      .catch((e) => { if (id === requestId.current) setError(e.message); })
+      .finally(() => { if (id === requestId.current) setLoading(false); });
   };
-  useEffect(load, [filters.period, filters.month, filters.category]);
+  useEffect(() => {
+    load();
+    return () => { requestId.current += 1; };
+  }, [filters.period, filters.month, filters.category]);
   const calc = useSubmit(
     async () => {
       const selected = filters.category === "all" ? metrics : metrics.filter((metric) => metric.value === filters.category);

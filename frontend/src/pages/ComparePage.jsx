@@ -21,12 +21,14 @@ export default function ComparePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [listError, setListError] = useState("");
+  const [listLoading, setListLoading] = useState(true);
   const [retry, setRetry] = useState(0);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
     let active = true;
     setListError("");
+    setListLoading(true);
     vtubersAPI
       .getList()
       .then((res) => {
@@ -34,7 +36,8 @@ export default function ComparePage() {
       })
       .catch(() => {
         if (active) setListError("โหลดรายชื่อไม่สำเร็จ");
-      });
+      })
+      .finally(() => { if (active) setListLoading(false); });
     return () => {
       active = false;
     };
@@ -95,7 +98,7 @@ export default function ComparePage() {
         <label className="search-field" htmlFor="compare-search"><span>ค้นหารายชื่อ</span><input id="compare-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="พิมพ์ชื่อ VTuber..." className="control-input" /></label>
         <div className="selected-summary" aria-live="polite">
           <span className="selection-count">เลือกแล้ว {selected.length}/3</span>
-          {selectedVtubers.map((v) => <button key={v.id} onClick={() => toggle(v.id)} aria-label={`นำ ${v.name} ออกจากรายการ`}>{v.name}<span aria-hidden="true">×</span></button>)}
+          {selectedVtubers.map((v) => <button key={v.id} disabled={loading} onClick={() => toggle(v.id)} aria-label={`นำ ${v.name} ออกจากรายการ`}>{v.name}<span aria-hidden="true">×</span></button>)}
           {!selected.length && <small>ยังไม่ได้เลือกช่อง</small>}
         </div>
         <div className="channel-picker">
@@ -104,7 +107,8 @@ export default function ComparePage() {
               <span className="picker-avatar" aria-hidden="true">{v.name.charAt(0)}</span><span>{v.name}</span><span className="picker-check" aria-hidden="true">{selected.includes(v.id) ? "✓" : "+"}</span>
             </button>
           ))}
-          {!visibleVtubers.length && <p className="empty-inline">ไม่พบรายชื่อที่ค้นหา</p>}
+          {listLoading && <LoadingSpinner />}
+          {!listLoading && !listError && !visibleVtubers.length && <p className="empty-inline">ไม่พบรายชื่อที่ค้นหา</p>}
         </div>
         <div className="compare-action">
           <div className="compare-step"><span>2</span><div><strong>เลือกสถิติแล้วดูผล</strong><small>กราฟจะแสดงข้อมูลย้อนหลัง 6 เดือน</small></div></div>
@@ -172,7 +176,7 @@ export default function ComparePage() {
                     name={v.name}
                     stroke={v.color}
                     strokeWidth={2}
-                    dot={false}
+                    dot={{ r: 3 }}
                   />
                 ))}
               </LineChart>

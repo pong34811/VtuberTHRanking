@@ -170,7 +170,7 @@ a { color: inherit; text-decoration: none; }
   font-size: 12px;
   max-width: 110px;
 }
-main {
+#main-content {
   padding-top: 42px !important;
   padding-bottom: 64px !important;
 }
@@ -344,7 +344,7 @@ button.text-white {
   .theme-select {
     margin-left: auto;
   }
-  main {
+  #main-content {
     padding-top: 28px !important;
   }
   .ranking-row {
