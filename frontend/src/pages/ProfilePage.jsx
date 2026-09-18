@@ -72,6 +72,27 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      <section className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]" aria-labelledby="profile-rankings">
+        <h2 id="profile-rankings" className="font-medium mb-4">อันดับปัจจุบัน</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[["monthly", "เดือนนี้"], ["alltime", "ทั้งหมด"]].map(([period, label]) => (
+            <div key={period}>
+              <h3 className="text-sm font-medium mb-2">{label}</h3>
+              <dl className="space-y-2 text-sm">
+                {[["followers", "ผู้ติดตาม"], ["views", "ยอดวิว"], ["videos", "จำนวนคลิป"]].map(([category, name]) => (
+                  <div key={category} className="flex justify-between gap-4">
+                    <dt>{name}</dt>
+                    <dd>{vtuber.current_rank?.[`${period}_${category}`] != null
+                      ? `#${vtuber.current_rank[`${period}_${category}`].toLocaleString("th-TH")}`
+                      : "ยังไม่มีอันดับ"}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
           <h2 className="text-sm text-[var(--muted-foreground)] mb-1">ผู้ติดตาม</h2>

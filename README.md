@@ -31,7 +31,9 @@ npm run test:coverage    # ทดสอบพร้อมรายงาน cove
 npm run test:e2e         # Cypress E2E (ต้องรัน dev server ก่อน)
 ```
 
-ปัจจุบันมี Vitest 116 tests ผ่านทั้งหมด (69 unit รวม React component smoke tests และ 47 integration) และ Cypress 9 E2E tests ผ่านทั้งหมด (public: home, search; admin: login, channels) โดย stub API ทั้งหมด ยังไม่มี coverage threshold บังคับ
+ตรวจเมื่อ 18 กันยายน 2026: Vitest 149 tests ผ่านใน 9 files ส่วน Cypress มี 4 specs ครอบคลุม public: home, search และ admin: login, channels โดย stub API ทั้งหมด (ไม่ได้รัน Cypress ซ้ำในรอบนี้) ยังไม่มี coverage threshold บังคับ
+
+เอกสารพัฒนา: [ข้อกำหนดผลิตภัณฑ์](docs/PRD.md), [ฐานข้อมูล D1](docs/DATABASE.md), [API](docs/API_SPEC.md), [วิธีคำนวณอันดับ](docs/RANKING_ALGORITHM.md)
 
 ## Deploy
 

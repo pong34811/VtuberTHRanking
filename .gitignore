@@ -1,9 +1,4 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-venv/
+# Local environment
 .env
 
 # Node
@@ -18,12 +13,8 @@ cypress/downloads/
 # Wrangler
 .wrangler/
 
-# Django
+# Logs
 *.log
-*.pot
-*.pyc
-db.sqlite3
-media/
 
 # IDE
 .vscode/

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowDown, ArrowUpRight } from "lucide-react";
-import CreatorSpotlight from "../components/CreatorSpotlight";
+import { ArrowUpRight, Search } from "lucide-react";
+import { Button } from "../components/ui/button";
 import "./home.css";
 import { rankingsAPI, summaryAPI } from "../api/client";
 import PeriodSelector from "../components/PeriodSelector";
@@ -9,14 +9,15 @@ import CategorySelector from "../components/CategorySelector";
 import LoadingSpinner from "../components/LoadingSpinner";
 import LeaderboardTable from "../components/LeaderboardTable";
 import Feedback from "../components/Feedback";
+
 export default function HomePage() {
-  const [rankings, setRankings] = useState([]),
-    [summary, setSummary] = useState(null),
-    [period, setPeriod] = useState("monthly"),
-    [category, setCategory] = useState("followers"),
-    [loading, setLoading] = useState(true),
-    [error, setError] = useState(""),
-    [retry, setRetry] = useState(0);
+  const [rankings, setRankings] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [period, setPeriod] = useState("monthly");
+  const [category, setCategory] = useState("followers");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -24,107 +25,50 @@ export default function HomePage() {
     Promise.all([
       rankingsAPI.getList({ period, category, limit: 50 }),
       summaryAPI.get(),
-    ])
-      .then(([r, s]) => {
-        if (active) {
-          setRankings(r.data.results);
-          setSummary(s.data);
-        }
-      })
-      .catch(() => {
-        if (active) setError("โหลดอันดับไม่สำเร็จ กรุณาลองอีกครั้ง");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    ]).then(([r, s]) => {
+      if (active) { setRankings(r.data.results); setSummary(s.data); }
+    }).catch(() => {
+      if (active) setError("โหลดอันดับไม่สำเร็จ กรุณาลองอีกครั้ง");
+    }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [period, category, retry]);
-  const metric = { followers: "ผู้ติดตาม", views: "ยอดวิว", videos: "จำนวนคลิป" }[category] || "คะแนน";
+  const metric = { followers: "ผู้ติดตาม", views: "ยอดวิว", videos: "จำนวนคลิป" }[category];
   const updated = summary?.latest_update ? new Date(summary.latest_update) : null;
   return (
     <div className="homepage">
-      <section className="home-hero" aria-labelledby="home-title">
-        <div className="home-hero-copy">
-          <p className="eyebrow">A LITTLE CLOSER TO YOUR OSHI</p>
-          <h1 id="home-title">ค้นพบโลกของ<br /><em>VTuber ไทย</em></h1>
-          <p>หลากหลายคาแรกเตอร์ ทุกความเป็นตัวเอง<br />ทำความรู้จักช่องใหม่ ๆ แล้วค้นพบโอชิคนถัดไปของคุณ</p>
-          <div className="home-actions">
-            <Link to="/search" className="home-discover">สำรวจ VTuber <ArrowUpRight size={17} aria-hidden="true" /></Link>
-            <a href="#rankings" className="home-ranking-link">ดูอันดับล่าสุด <ArrowDown size={15} aria-hidden="true" /></a>
-          </div>
+      <header className="home-heading">
+        <div>
+          <p className="home-kicker">YOUTUBE RANKINGS</p>
+          <h1>อันดับ VTuber ไทย</h1>
+          <p className="home-description">ติดตามสถิติและเปรียบเทียบช่อง VTuber ไทย</p>
         </div>
-        <div className="home-art" aria-hidden="true">
-          <span className="home-art-star">✳</span>
-          <div className="home-art-type">VTuber<span>TH.</span></div>
-          <span className="home-art-caption">VIRTUAL TALENT. REAL CONNECTION.</span>
-          <span className="home-art-dot" />
+        <div className="home-actions">
+          <Button asChild variant="outline"><Link to="/search"><Search aria-hidden="true" />ค้นหาช่อง</Link></Button>
+          <Button asChild variant="outline"><Link to="/compare">เปรียบเทียบ<ArrowUpRight aria-hidden="true" /></Link></Button>
         </div>
-      </section>
+      </header>
       <div className="home-summary" aria-label="สรุปข้อมูล">
-        <p><strong>{summary?.total_vtubers?.toLocaleString("th-TH") ?? "—"}</strong>ช่อง VTuber ในรายการ</p>
-        {updated && !Number.isNaN(updated.getTime()) && <p>อัปเดต {updated.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}</p>}
-        <span className="home-summary-source">สำรวจผ่านสถิติ YouTube</span>
+        <p><strong>{summary?.total_vtubers?.toLocaleString("th-TH") ?? "—"}</strong> ช่อง VTuber ในรายการ</p>
+        <p>แหล่งข้อมูล <strong>YouTube</strong></p>
+        <p className="home-updated">อัปเดตล่าสุด <strong>{updated && !Number.isNaN(updated.getTime()) ? updated.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" }) : "—"}</strong></p>
       </div>
-      {!loading && !error && rankings.length > 0 && (
-        <section aria-labelledby="spotlight-title">
-          <div className="home-section-title">
-            <div><p className="eyebrow">CREATOR SPOTLIGHT</p><h2 id="spotlight-title">ทำความรู้จักช่องเด่น</h2><p>3 อันดับแรกตาม{metric} ในช่วงเวลาที่เลือก</p></div>
-            <Link to="/search">สำรวจทุกช่อง <ArrowRight size={15} aria-hidden="true" /></Link>
+      <section id="rankings" className="home-rankings" aria-label="ตารางอันดับ VTuber" aria-busy={loading}>
+        <div className="ranking-toolbar">
+          <div role="group" aria-label="ช่วงเวลา">
+            <span className="home-control-label">ช่วงเวลา</span>
+            <PeriodSelector value={period} onChange={setPeriod} choices={summary?.period_choices || [{ value: "monthly", label: "รายเดือน" }, { value: "alltime", label: "ทั้งหมด" }]} />
           </div>
-          <CreatorSpotlight rankings={rankings} metric={metric} />
-        </section>
-      )}
-      <section id="rankings" className="home-rankings" aria-labelledby="rankings-title" aria-busy={loading}>
-        <div className="home-section-title">
-          <div><p className="eyebrow">THE RANKINGS</p><h2 id="rankings-title">อันดับ VTuber ไทย</h2><p>ติดตามการเติบโตของครีเอเตอร์ที่คุณชื่นชอบ</p></div>
-          <Link to="/compare">เปรียบเทียบช่อง <ArrowUpRight size={15} aria-hidden="true" /></Link>
-        </div>
-      <div className="ranking-toolbar">
-        <div role="group" aria-label="ช่วงเวลา">
-          <label>ช่วงเวลา</label>
-          <PeriodSelector
-            value={period}
-            onChange={setPeriod}
-            choices={
-              summary?.period_choices || [
-                { value: "monthly", label: "รายเดือน" },
-                { value: "alltime", label: "ทั้งหมด" },
-              ]
-            }
-          />
-        </div>
-        <div role="group" aria-label="จัดอันดับตาม">
-          <label>จัดอันดับตาม</label>
-          <CategorySelector
-            value={category}
-            onChange={setCategory}
-            choices={
-              summary?.category_choices || [
-                { value: "followers", label: "ผู้ติดตาม" },
-                { value: "views", label: "ยอดวิว" },
-                { value: "videos", label: "จำนวนคลิป" },
-              ]
-            }
-          />
-        </div>
-      </div>
-      {loading ? (
-        <LoadingSpinner />
-      ) : error ? (
-        <Feedback error={error} retry={() => setRetry((x) => x + 1)} />
-      ) : (
-        <>
-          <div className="list-heading">
-            <span>อันดับ / ช่อง</span>
-            <span>
-              {metric} ·
-              การเปลี่ยนอันดับ
-            </span>
+          <div role="group" aria-label="จัดอันดับตาม">
+            <span className="home-control-label">จัดอันดับตาม</span>
+            <CategorySelector value={category} onChange={setCategory} choices={summary?.category_choices || [{ value: "followers", label: "ผู้ติดตาม" }, { value: "views", label: "ยอดวิว" }, { value: "videos", label: "จำนวนคลิป" }]} />
           </div>
-          <LeaderboardTable rankings={rankings} />
-        </>
-      )}
-      <p className="home-endnote">อันดับอ้างอิงจากสถิติ YouTube · ทุกครีเอเตอร์มีเสน่ห์ในแบบของตัวเอง</p>
+        </div>
+        <div className="home-table-heading">
+          <h2>{metric} <span>/ {period === "monthly" ? "เดือนนี้" : "ทั้งหมด"}</span></h2>
+          <span aria-live="polite">{loading ? "กำลังโหลด…" : error ? "โหลดไม่สำเร็จ" : `${rankings.length.toLocaleString("th-TH")} รายการ`}</span>
+        </div>
+        {loading ? <LoadingSpinner /> : error ? <Feedback error={error} retry={() => setRetry(x => x + 1)} /> : <LeaderboardTable rankings={rankings} metric={metric} />}
+        <p className="home-endnote">แสดงสูงสุด 50 รายการ · การเปลี่ยนอันดับ: ↑ ขึ้น · ↓ ลง · — ไม่เปลี่ยนหรือไม่มีข้อมูลเดิม</p>
       </section>
     </div>
   );

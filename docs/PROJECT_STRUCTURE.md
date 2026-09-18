@@ -37,7 +37,7 @@ Cloudflare D1      YouTube Data API
 | Database | Cloudflare D1 | เก็บ VTuber, snapshots, rankings, users และข้อมูลระบบ |
 | Background job | Cloudflare Worker | ดึงสถิติช่องจาก YouTube Data API |
 | Unit and integration test | Vitest | ทดสอบ business rules, API และ React components |
-| End to end test | Cypress ที่จะเพิ่ม | ทดสอบ user journey ผ่าน browser |
+| End to end test | Cypress | ทดสอบ user journey ผ่าน browser |
 
 ## 3 โครงสร้างปัจจุบัน
 
@@ -58,7 +58,9 @@ VtuberTHRanking/
 │   ├── migrations/
 │   │   ├── 0001_existing_schema.sql # ตารางหลักของระบบ
 │   │   ├── 0002_admin.sql           # ตารางและฟิลด์สำหรับระบบ admin
-│   │   └── 0003_videos_category.sql # เพิ่มหมวดจำนวนวิดีโอ
+│   │   ├── 0003_videos_category.sql # เพิ่มหมวดจำนวนวิดีโอ
+│   │   ├── 0004_channel_notes.sql   # notes ภายใน
+│   │   └── 0005_agencies.sql        # สังกัดและ agency_id
 │   ├── server/
 │   │   ├── admin-domain.js          # validation และกฎธุรกิจของ admin
 │   │   ├── admin.js                 # admin routes และ database operations
@@ -201,13 +203,13 @@ worker/updater.js
 
 - มี Cypress 16 พร้อม configuration, fixtures, custom commands และ E2E specs สำหรับ public/admin journeys
 - มี Vitest configuration ที่แบ่งเป็นโปรเจกต์ `node` และ `components` โดยโปรเจกต์ `components` รองรับ automatic JSX transform และ alias `@` เช่นเดียวกับ application
-- มี Vitest 8 test files และ 116 tests ที่ผ่านทั้งหมด: unit 69 tests (`server`, `worker` และ React component) และ integration 47 tests (`auth`, `admin-api` และ `public-api`)
+- ตรวจเมื่อ 18 กันยายน 2026: Vitest 9 test files และ 149 tests ผ่านทั้งหมด ครอบคลุม server, worker, React components/pages และ auth/admin/public API
 - มี Cypress 4 specs และ 9 E2E tests ผ่าน headless ทั้งหมด (public: home, search; admin: login, channels) โดย stub API ผ่าน `cy.intercept` ไม่พึ่ง production backend — รันด้วย `npm run test:e2e` ขณะ dev server ทำงานที่ `http://localhost:5173`
 - ชุดปัจจุบันทดสอบ authentication บางกรณี การบังคับ login, password, admin domain helpers, updater worker บางส่วน, การแสดงผล `RankBadge`, public API (`rankings`, `vtubers`, `compare` และ `summary`), admin channels CRUD/snapshots, YouTube import ทุก branch และ admin tabs/channels (smoke tests)
-- ยังไม่มี automated test สำหรับ updater worker ในส่วนที่ยังไม่ครอบคลุม, API client และ React pages อื่น
+- ยังต้องขยาย updater coverage และ API client; public pages มี component tests บางพฤติกรรมแล้ว
 - ต้องใช้ Node.js `^20.19.0 || >=22.12.0` ตามข้อกำหนดของ Vite และ Vitest โดย `.nvmrc` กำหนดเวอร์ชัน 20.19.0
 - `npm run test:coverage` สร้างรายงาน coverage ได้แล้ว แต่ยังไม่กำหนด threshold จนกว่าจะมี backend และ frontend suites ครบถ้วน
-- baseline ปัจจุบันจาก coverage คือ statements 49.89%, branches 68.38%, functions 45.91% และ lines 49.89% โดยรายงานรวม `server/public.js` ที่ statements/lines 99.21% และ `worker/updater.js` ที่ statements/lines 89.18%
+- ตัวเลข coverage เดิมไม่ใช่ผลยืนยันของโค้ดล่าสุด ต้องรัน `npm run test:coverage` เพื่อสร้างรายงานใหม่
 
 ## 6 โครงสร้างการทดสอบเป้าหมาย
 
@@ -335,13 +337,13 @@ npm run test:integration
 npm run test:coverage
 ```
 
-ปัจจุบันคำสั่งเหล่านี้เป็น scripts ที่ใช้งานจริงใน `frontend/package.json` ส่วนคำสั่ง Cypress จะเพิ่มเมื่อมีการทำแผน E2E
+คำสั่งเหล่านี้มีใน `frontend/package.json` แล้ว รวมถึง `npm run test:e2e` สำหรับ Cypress ซึ่งต้องรัน dev server ก่อน
 
 ## 10 สิ่งที่ต้องเพิ่มก่อนถือว่าระบบทดสอบพร้อม
 
 1. แยกและขยาย test ให้ครอบคลุม public API, API client และ component behavior
 2. เพิ่ม D1 mock หรือ test database helper ที่ให้ผลลัพธ์สม่ำเสมอสำหรับชุด integration ที่กว้างขึ้น
-3. เพิ่ม Cypress configuration, fixtures, commands และ E2E specs
+3. ขยาย Cypress specs สำหรับ profile, compare และ admin journeys ที่เหลือจาก configuration, fixtures และ commands ที่มีแล้ว
 4. ตั้ง CI ให้รัน build, Vitest และ Cypress โดยไม่แตะ production data
 5. เก็บ test artifacts จาก CI เฉพาะเมื่อทดสอบล้มเหลวเพื่อช่วยวิเคราะห์ปัญหา
 

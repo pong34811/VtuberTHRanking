@@ -27,6 +27,36 @@ describe('public API status', () => {
 });
 
 describe('public rankings', () => {
+  it('preserves month, category and page size in both navigation links', async () => {
+    const { response } = await publicRequest('/rankings/?month=2025-02&category=videos&limit=10&offset=20', [{ total: 80 }, { results: [] }]);
+    const body = await response.json();
+    for (const [link, offset] of [[body.next, '30'], [body.previous, '10']]) {
+      const params = new URL(link, 'https://example.com').searchParams;
+      expect(Object.fromEntries(params)).toEqual({ period: 'monthly', category: 'videos', month: '2025-02', limit: '10', offset });
+    }
+  });
+
+  it.each(['nope', '-5', '2.5', '1x', '9007199254740992'])('normalizes malformed pagination %s', async value => {
+    const { calls } = await publicRequest(`/rankings/?limit=${value}&offset=${value}`, [{ total: 0 }, { results: [] }]);
+    expect(calls[1].values.slice(-2)).toEqual([50, 0]);
+  });
+
+  it('uses at least one result per page', async () => {
+    const { calls } = await publicRequest('/rankings/?limit=0', [{ total: 0 }, { results: [] }]);
+    expect(calls[1].values.at(-2)).toBe(1);
+  });
+
+  it('falls back to the current month for impossible month values', async () => {
+    const { response } = await publicRequest('/rankings/?month=2026-13', [{ total: 0 }, { results: [] }]);
+    expect((await response.json()).month).toBe(currentMonth());
+  });
+
+  it('omits month from alltime page links', async () => {
+    const { response } = await publicRequest('/rankings/?period=alltime&month=2025-02&limit=10', [{ total: 80 }, { results: [] }]);
+    const params = new URL((await response.json()).next, 'https://example.com').searchParams;
+    expect(params.has('month')).toBe(false);
+    expect(params.get('period')).toBe('alltime');
+  });
   it('applies monthly and followers defaults for the current month', async () => {
     const { response } = await publicRequest('/rankings/', [{ total: 0 }, { results: [] }]);
 
@@ -120,6 +150,12 @@ describe('public vtuber search', () => {
 });
 
 describe('public vtuber detail', () => {
+  it('requests only active current-month and alltime ranks', async () => {
+    const { calls } = await publicRequest('/vtubers/aiko/', [{ id: 3 }, { results: [] }, null]);
+    expect(calls[1].values).toEqual([3, `${currentMonth()}-01`]);
+    expect(calls[1].sql).toContain("status = 'active'");
+    expect(calls[1].sql).toContain("(period = 'monthly' AND month = ?) OR (period = 'alltime' AND month IS NULL)");
+  });
   it('returns 404 for an unknown slug', async () => {
     const { response } = await publicRequest('/vtubers/unknown/', [null]);
 

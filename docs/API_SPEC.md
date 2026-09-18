@@ -3,10 +3,15 @@
 ## Base URL
 
 ```
-http://localhost:8000/api/v1
+/api/v1
 ```
 
 ---
+
+API ใช้ Hono บน Cloudflare Pages Functions และ Cloudflare D1
+Production: https://vtuberthai-ranking.pages.dev/api/v1
+Local: http://localhost:5173/api/v1 (Vite proxy ไป production ตาม frontend/vite.config.js)
+โค้ดอ้างอิง: frontend/server/public.js; auth/admin ดู frontend/AUTH.md
 
 ## Endpoints
 
@@ -21,9 +26,9 @@ GET /rankings/
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | period | string | 否 | `monthly` หรือ `alltime` (default: `monthly`) |
-| category | string | 否 | `followers` หรือ `views` (default: `followers`) |
+| category | string | 否 | `followers`, `views` หรือ `videos` (default: `followers`) |
 | month | string | 否 | เดือนที่ต้องการ เช่น `2026-08` (default: เดือนปัจจุบัน) |
-| limit | int | 否 | จำนวนรายการ (default: 50, max: 100) |
+| limit | int | 否 | จำนวนรายการ (default: 50, min: 1, max: 100); ค่าผิดรูปแบบใช้ค่าเริ่มต้น |
 | offset | int | 否 | ตำแหน่งเริ่มต้น (default: 0) |
 
 **Response:**
@@ -31,10 +36,10 @@ GET /rankings/
 {
   "period": "monthly",
   "category": "followers",
-  "month": "2026-08-01",
+  "month": "2026-08",
   "total": 45,
   "count": 10,
-  "next": "/api/v1/rankings/?period=monthly&category=followers&offset=10",
+  "next": "/api/v1/rankings/?period=monthly&category=followers&limit=10&offset=10&month=2026-08",
   "previous": null,
   "results": [
     {
@@ -158,7 +163,6 @@ GET /vtubers/
 | q | string | 否 | ค้นหาจากชื่อ |
 | category | string | 否 | กรองตามแนวหน้า |
 | affiliation | string | 否 | กรองตามสังกัด |
-| ordering | string | 否 | เรียงลำดับ (name, -name) |
 
 **Response:**
 ```json
@@ -267,7 +271,12 @@ GET /summary/
 
 ---
 
-## Rate Limiting
+## พฤติกรรมปัจจุบันและข้อจำกัด
 
-- API ทั่วไป: 100 requests/minute
-- Scrape trigger: 1 request/5 minutes (admin only)
+- ลิงก์ next/previous เก็บ period, category, limit และ month ของรายเดือน; month รูปแบบไม่ถูกต้องใช้เดือนปัจจุบันตาม UTC
+- current_rank ในโปรไฟล์ใช้เฉพาะอันดับ active ของเดือนปัจจุบันตาม UTC และ alltime; หมวดที่ไม่มีข้อมูลจะไม่มี key
+- ค้นหาเรียงตาม name ASC; ยังไม่รองรับ ordering และช่วงผู้ติดตาม
+- API เปรียบเทียบรองรับ 2–5 IDs ขณะที่หน้าเว็บเลือกได้ 2–3 ช่อง
+- ประวัติสถิติเรียงจากเก่าไปใหม่; ตัวอย่างข้อมูลด้านบนใช้แสดงโครงสร้าง response
+- summary.total_followers_all ปัจจุบันใช้ MAX(followers) จาก snapshots ของช่อง active ไม่ใช่ผลรวม ต้องแก้ implementation ก่อนใช้เป็นยอดรวม
+- ยังไม่มี rate limit สำหรับ public API ใน router นี้; authentication มีการจำกัดความพยายามเข้าสู่ระบบแยกต่างหาก

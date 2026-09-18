@@ -1,180 +1,56 @@
-# Database Schema & Models
+# ฐานข้อมูล Cloudflare D1
 
-## 1. Entity Relationship Diagram
+ปรับตาม migrations เมื่อ 18 กันยายน 2026 ฐานข้อมูล vtuberthai-db ใช้ binding DB ทั้ง Pages Functions และ Worker
 
-```
-┌─────────────────────┐       ┌─────────────────────────┐
-│      VTuber         │       │     StatsSnapshot        │
-├─────────────────────┤       ├─────────────────────────┤
-│ id (PK)             │──┐    │ id (PK)                 │
-│ name                │  │    │ vtuber_id (FK)          │
-│ slug (unique)       │  └───>│ followers               │
-│ bio                 │       │ total_views             │
-│ avatar              │       │ avg_views               │
-│ channel_url         │       │ recorded_at             │
-│ platform            │       └─────────────────────────┘
-│ category            │
-│ affiliation         │       ┌─────────────────────────┐
-│ agency_name         │       │       Ranking           │
-│ is_active           │       ├─────────────────────────┤
-│ created_at          │       │ id (PK)                 │
-│ updated_at          │       │ vtuber_id (FK)          │
-└─────────────────────┘       │ period                  │
-                              │ category                │
-                              │ rank                    │
-                              │ score                   │
-                              │ rank_change             │
-                              │ month                   │
-                              │ calculated_at           │
-                              └─────────────────────────┘
-```
+## Schema อ้างอิง
 
----
+SQL ใน [frontend/migrations](../frontend/migrations/) เป็นแหล่งอ้างอิงหลัก ใช้ตามลำดับ:
 
-## 2. Django Models
+| Migration | หน้าที่ |
+|---|---|
+| 0001_existing_schema.sql | vtubers, stats_snapshots, rankings |
+| 0002_admin.sql | ข้อมูลช่องเพิ่ม, video_count, ผู้ใช้/session, categories, reports, audit_logs, settings |
+| 0003_videos_category.sql | เพิ่ม videos และปรับ categories/rankings |
+| 0004_channel_notes.sql | notes ภายใน |
+| 0005_agencies.sql | agencies, agency_id และเชื่อมข้อมูลสังกัดเดิม |
 
-### VTuber Model
+## ตารางหลัก
 
-```python
-from django.db import models
+| ตาราง | ข้อมูล |
+|---|---|
+| vtubers | id, name, slug (unique), bio, avatar, channel_url, platform, category, affiliation, agency_name, agency_id, is_active, country, debut_date, banner_url, youtube_url, twitch_url, x_url, notes, created_at, updated_at |
+| agencies | id, name (unique ไม่แยกตัวพิมพ์), description, image_url, contact, youtube_channel_id (unique), created_at, updated_at |
+| stats_snapshots | id, vtuber_id, followers, total_views, avg_views, video_count, recorded_at |
+| rankings | id, vtuber_id, period, category, rank, score, rank_change, month, calculated_at, subscriber_count, total_views, video_count, status |
 
-class VTuber(models.Model):
-    PLATFORM_CHOICES = [
-        ('youtube', 'YouTube'),
-        ('twitch', 'Twitch'),
-        ('bilibili', 'Bilibili'),
-        ('other', 'Other'),
-    ]
-    
-    CATEGORY_CHOICES = [
-        ('gaming', 'Gaming'),
-        ('singing', 'Singing'),
-        ('chatting', 'Chatting'),
-        ('art', 'Art'),
-        ('asmr', 'ASMR'),
-        ('education', 'Education'),
-        ('other', 'Other'),
-    ]
-    
-    AFFILIATION_CHOICES = [
-        ('indie', 'Indie'),
-        ('agency', 'Agency'),
-    ]
-    
-    name = models.CharField(max_length=100)
-    slug = models.SlugField(unique=True, max_length=100)
-    bio = models.TextField(blank=True, default='')
-    avatar = models.ImageField(upload_to='avatars/%Y/%m/', blank=True)
-    channel_url = models.URLField()
-    platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES, default='youtube')
-    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
-    affiliation = models.CharField(max_length=10, choices=AFFILIATION_CHOICES, default='indie')
-    agency_name = models.CharField(max_length=100, blank=True, default='')
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        db_table = 'vtubers'
-        ordering = ['name']
-    
-    def __str__(self):
-        return self.name
-```
+agency_id อ้าง agencies ด้วย ON DELETE RESTRICT ส่วน snapshots และ rankings อ้าง vtubers ด้วย ON DELETE CASCADE ข้อมูล notes ไม่ส่งออกใน public profile API
 
-### StatsSnapshot Model
+## ตารางผู้ดูแล
 
-```python
-class StatsSnapshot(models.Model):
-    vtuber = models.ForeignKey(VTuber, on_delete=models.CASCADE, related_name='snapshots')
-    followers = models.BigIntegerField(default=0)
-    total_views = models.BigIntegerField(default=0)
-    avg_views = models.IntegerField(default=0)
-    recorded_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'stats_snapshots'
-        ordering = ['-recorded_at']
-        indexes = [
-            models.Index(fields=['vtuber', 'recorded_at']),
-            models.Index(fields=['recorded_at']),
-        ]
-    
-    def __str__(self):
-        return f"{self.vtuber.name} - {self.recorded_at.strftime('%Y-%m-%d %H:%M')}"
-```
+| ตาราง | หน้าที่ |
+|---|---|
+| users | username/email unique ไม่แยกตัวพิมพ์, password_hash, display_name, role manager/staff, status และเวลา |
+| sessions | token_hash, user_id, csrf_token, expires_at, created_at |
+| auth_attempts | ตัวนับและช่วงเวลาการพยายามเข้าสู่ระบบ |
+| bootstrap_lock | ล็อกการตั้งค่าบัญชีแรก |
+| categories | followers/views/videos, name, slug, description, sort_order, status |
+| reports | รอบรายงาน หมวด ผู้สร้าง และ snapshot_json |
+| audit_logs | ผู้ใช้ action target และ details |
+| settings | setting_key, setting_value, description, updated_at |
 
-### Ranking Model
+settings เริ่มต้นมี site_name, site_status, current_ranking_period, ranking_update_frequency การเก็บค่าไม่ได้หมายความว่าทุกค่าถูกบังคับใช้ใน public API แล้ว
 
-```python
-class Ranking(models.Model):
-    PERIOD_CHOICES = [
-        ('monthly', 'Monthly'),
-        ('alltime', 'All Time'),
-    ]
-    
-    CATEGORY_CHOICES = [
-        ('followers', 'Followers'),
-        ('views', 'Views'),
-    ]
-    
-    vtuber = models.ForeignKey(VTuber, on_delete=models.CASCADE, related_name='rankings')
-    period = models.CharField(max_length=10, choices=PERIOD_CHOICES)
-    category = models.CharField(max_length=10, choices=CATEGORY_CHOICES)
-    rank = models.PositiveIntegerField()
-    score = models.BigIntegerField()
-    rank_change = models.IntegerField(default=0)
-    month = models.DateField(null=True, blank=True)  # null = alltime
-    calculated_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        db_table = 'rankings'
-        unique_together = [('period', 'category', 'month', 'vtuber')]
-        ordering = ['rank']
-        indexes = [
-            models.Index(fields=['period', 'category', 'month', 'rank']),
-        ]
-    
-    def __str__(self):
-        return f"#{self.rank} {self.vtuber.name} ({self.period}/{self.category})"
-```
+## ข้อกำหนดและดัชนี
 
----
+- monthly เก็บ month แบบ YYYY-MM-01; alltime เก็บ NULL
+- UNIQUE(period,category,month,vtuber_id) ป้องกันอันดับรายเดือนซ้ำ
+- partial unique index rankings_alltime_unique ป้องกัน alltime ซ้ำเมื่อ month IS NULL
+- snapshots_latest ใช้ vtuber_id, recorded_at DESC, id DESC
+- มีดัชนี sessions_user, sessions_expiry, audit_logs_time, vtubers_agency_id
+- เวลาส่วนใหญ่เก็บ TEXT; session และ auth_attempts เก็บเวลา INTEGER ตามโค้ด auth
 
-## 3. Database Indexes
+## การพัฒนา
 
-| Table | Index | Purpose |
-|-------|-------|---------|
-| stats_snapshots | (vtuber, recorded_at) | ค้นหา snapshot ล่าสุดของ VTuber |
-| stats_snapshots | (recorded_at) | ค้นหา snapshot ตามช่วงเวลา |
-| rankings | (period, category, month, rank) | ดึงอันดับตามเงื่อนไข |
-| rankings | unique_together | ป้องกันข้อมูลซ้ำ |
+เพิ่ม migration หมายเลขถัดไปเมื่อเปลี่ยน schema และทดสอบบน local/test ก่อน ปรับ SQL ใน frontend/server และ worker/updater.js ให้ตรงกัน
 
----
-
-## 4. Migration Commands
-
-```bash
-python manage.py makemigrations
-python manage.py migrate
-```
-
----
-
-## 5. Sample Data (สำหรับทดสอบ)
-
-```python
-# สร้าง VTuber ตัวอย่าง
-vtubers = [
-    VTuber.objects.create(
-        name="VTuber A",
-        slug="vtuber-a",
-        bio="Gaming VTuber จากกรุงเทพ",
-        channel_url="https://youtube.com/@vtubera",
-        platform="youtube",
-        category="gaming",
-        affiliation="indie",
-    ),
-    # ... เพิ่มตามต้องการ
-]
-```
+API tests ใช้ D1 stub ใน frontend/tests/helpers/d1.js ซึ่งไม่รัน SQL จริง การเปลี่ยน schema จึงต้องตรวจ migration และ query กับฐานข้อมูลทดสอบด้วย

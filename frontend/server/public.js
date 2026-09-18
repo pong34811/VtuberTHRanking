@@ -2,6 +2,13 @@ import { Hono } from 'hono';
 
 const api = new Hono();
 
+const currentMonth = () => new Date().toISOString().slice(0, 7);
+const pageInteger = (value, fallback, minimum, maximum = Number.MAX_SAFE_INTEGER) => {
+  if (!/^\d+$/.test(value || '')) return fallback;
+  const number = Number(value);
+  return Number.isSafeInteger(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
+};
+
 api.get('/', (c) => c.json({ status: 'ok', service: 'VTuber Thai Ranking API' }));
 
 api.get('/rankings/', async (c) => {
@@ -11,21 +18,18 @@ api.get('/rankings/', async (c) => {
   let period = c.req.query('period') || 'monthly';
   let category = c.req.query('category') || 'followers';
   const monthStr = c.req.query('month');
-  let limit = parseInt(c.req.query('limit') || '50', 10);
-  let offset = parseInt(c.req.query('offset') || '0', 10);
+  const limit = pageInteger(c.req.query('limit'), 50, 1, 100);
+  const offset = pageInteger(c.req.query('offset'), 0, 0);
 
   if (!['monthly', 'alltime'].includes(period)) period = 'monthly';
   if (!['followers', 'views', 'videos'].includes(category)) category = 'followers';
-  if (limit > 100) limit = 100;
-  if (offset < 0) offset = 0;
 
   let monthDate = null;
   if (period !== 'alltime') {
-    if (monthStr && /^\d{4}-\d{2}$/.test(monthStr)) {
+    if (monthStr && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthStr)) {
       monthDate = monthStr + '-01';
     } else {
-      const now = new Date();
-      monthDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      monthDate = `${currentMonth()}-01`;
     }
   }
 
@@ -49,12 +53,18 @@ api.get('/rankings/', async (c) => {
 
   const { results } = await db.prepare(query).bind(...params, limit, offset).all();
 
+  const pageLink = (pageOffset) => {
+    const query = new URLSearchParams({ period, category, limit: String(limit), offset: String(pageOffset) });
+    if (monthDate) query.set('month', monthDate.slice(0, 7));
+    return `/api/v1/rankings/?${query}`;
+  };
+
   return c.json({
     period, category,
     month: monthDate ? monthDate.slice(0, 7) : null,
     total, count: results.length,
-    next: offset + limit < total ? `/api/v1/rankings/?period=${period}&category=${category}&offset=${offset + limit}` : null,
-    previous: offset > 0 ? `/api/v1/rankings/?period=${period}&category=${category}&offset=${Math.max(0, offset - limit)}` : null,
+    next: offset + limit < total ? pageLink(offset + limit) : null,
+    previous: offset > 0 ? pageLink(Math.max(0, offset - limit)) : null,
     results: results.map(row => ({
       rank: row.rank,
       vtuber: { id: row.id, name: row.name, slug: row.slug, avatar: row.avatar, category: row.vtuber_category, affiliation: row.affiliation, video_count: row.video_count },
@@ -82,7 +92,10 @@ api.get('/vtubers/:slug/', async (c) => {
   const slug = c.req.param('slug');
   const vtuber = await db.prepare(`SELECT * FROM vtubers WHERE slug = ? AND is_active = 1`).bind(slug).first();
   if (!vtuber) return c.json({ error: true, status: 404, message: 'VTuber not found' }, 404);
-  const { results: rankResults } = await db.prepare(`SELECT period, category, rank FROM rankings WHERE vtuber_id = ? ORDER BY period, category`).bind(vtuber.id).all();
+  const { results: rankResults } = await db.prepare(`SELECT period, category, rank FROM rankings
+    WHERE vtuber_id = ? AND status = 'active'
+    AND ((period = 'monthly' AND month = ?) OR (period = 'alltime' AND month IS NULL))
+    ORDER BY period, category`).bind(vtuber.id, `${currentMonth()}-01`).all();
   const currentRank = {};
   for (const r of rankResults) currentRank[`${r.period}_${r.category}`] = r.rank;
   const latestStats = await db.prepare(`SELECT followers, total_views, avg_views, recorded_at FROM stats_snapshots WHERE vtuber_id = ? ORDER BY recorded_at DESC LIMIT 1`).bind(vtuber.id).first();

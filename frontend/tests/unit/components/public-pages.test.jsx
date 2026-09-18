@@ -62,3 +62,13 @@ it('formats snapshot datetime-local values without shifting the local clock', ()
   const date = new Date(2026, 8, 17, 17, 30);
   expect(localDateTime(date)).toBe('2026-09-17T17:30');
 });
+
+it('shows current profile ranks and distinguishes missing rankings', async () => {
+  vtubersAPI.getBySlug.mockResolvedValue({ data: { name: 'Aiko', current_rank: { monthly_followers: 2, alltime_videos: 7 } } });
+  vtubersAPI.getHistory.mockResolvedValue({ data: { history: [] } });
+  render(<MemoryRouter><ProfilePage /></MemoryRouter>);
+  await screen.findByRole('heading', { name: 'อันดับปัจจุบัน' });
+  expect(screen.getByText('#2')).toBeInTheDocument();
+  expect(screen.getByText('#7')).toBeInTheDocument();
+  expect(screen.getAllByText('ยังไม่มีอันดับ')).toHaveLength(4);
+});
