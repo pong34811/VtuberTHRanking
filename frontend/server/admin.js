@@ -3,6 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { hashPassword, validatePassword } from './password.js';
 import { fail, choice, str, url, month, selection, csvCell, body, channel, channelFields } from './admin-domain.js';
 import { calculateRanking } from './ranking-service.js';
+import { HOMEPAGE_TEMPLATE_IDS, normalizeHomepageTemplate } from '../../shared/homepage-templates.js';
 
 const app = new Hono();
 const userFields = 'id,username,display_name,email,role,status,created_at,updated_at,last_login_at';
@@ -132,6 +133,21 @@ app.get('/pipeline-runs', c => {
 
 const settingsKeys = ['site_name','site_status','current_ranking_period','ranking_update_frequency'];
 app.get('/settings', c => list(c, `SELECT * FROM settings WHERE setting_key IN (${settingsKeys.map(() => '?').join(',')}) ORDER BY setting_key`, ...settingsKeys));
+app.get('/settings/homepage-template', async c => {
+  manager(c);
+  const row = await stmt(c, 'SELECT setting_value FROM settings WHERE setting_key=?', 'homepage_template').first();
+  return c.json({ homepage_template: normalizeHomepageTemplate(row?.setting_value) });
+});
+app.put('/settings/homepage-template', async c => {
+  manager(c);
+  const data = await body(c, ['homepage_template']);
+  choice(data.homepage_template, HOMEPAGE_TEMPLATE_IDS, 'homepage_template');
+  await c.env.DB.batch([
+    stmt(c, "INSERT INTO settings (setting_key,setting_value,updated_at) VALUES (?,?,datetime('now')) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_at=excluded.updated_at", 'homepage_template', data.homepage_template),
+    audit(c, 'update', 'settings', 'homepage_template', { homepage_template: data.homepage_template }),
+  ]);
+  return c.json({ ok: true, homepage_template: data.homepage_template });
+});
 app.put('/settings', async c => {
   manager(c); const data = await body(c, settingsKeys);
   data.site_name = str(data.site_name, 'site_name', 100, true);

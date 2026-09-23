@@ -311,6 +311,7 @@ describe('public summary', () => {
       total_followers_all: 1000,
       top_gainer: null,
       latest_update: '2026-09-01T00:00:00.000Z',
+      homepage_template: 'ranking-first',
       period_choices: [{ value: 'monthly', label: 'รายเดือน' }, { value: 'alltime', label: 'ทั้งหมด' }],
       category_choices: [
         { value: 'followers', label: 'ยอดผู้ติดตาม' },
