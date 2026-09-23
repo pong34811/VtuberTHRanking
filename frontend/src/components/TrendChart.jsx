@@ -3,9 +3,13 @@ import {
   Tooltip, ResponsiveContainer,
 } from 'recharts'
 
-export default function TrendChart({ data, dataKey, color = 'var(--primary)' }) {
-  if (!data?.length) {
-    return <p className="text-center text-[var(--muted-foreground)] py-8">ไม่มีข้อมูลกราฟ</p>
+export default function TrendChart({ data, dataKey, color = 'var(--primary)', periodLabel = 'ช่วงเวลาที่เลือก' }) {
+  const pointCount = new Set((data ?? []).map((point) => point.date).filter(Boolean)).size
+  if (pointCount < 2) {
+    const message = pointCount === 0
+      ? `ยังไม่มีข้อมูลย้อนหลังในช่วง ${periodLabel}`
+      : `มีข้อมูลย้อนหลัง 1 จุดในช่วง ${periodLabel} ยังแสดงแนวโน้มไม่ได้`
+    return <p role="status" className="text-center text-[var(--muted-foreground)] py-8">{message}</p>
   }
 
   const formatted = data.map((d) => ({
@@ -43,7 +47,7 @@ export default function TrendChart({ data, dataKey, color = 'var(--primary)' }) 
             dataKey="value"
             stroke={color}
             strokeWidth={2}
-            dot={formatted.length === 1 ? { r: 4 } : false}
+            dot={false}
             activeDot={{ r: 4 }}
           />
         </LineChart>

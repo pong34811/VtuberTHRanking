@@ -13,6 +13,7 @@ SQL ใน [frontend/migrations](../frontend/migrations/) เป็นแหล�
 | 0003_videos_category.sql | เพิ่ม videos และปรับ categories/rankings |
 | 0004_channel_notes.sql | notes ภายใน |
 | 0005_agencies.sql | agencies, agency_id และเชื่อมข้อมูลสังกัดเดิม |
+| 0006_ranking_pipeline_runs.sql | ประวัติผลการเก็บสถิติและเผยแพร่อันดับ |
 
 ## ตารางหลัก
 
@@ -37,6 +38,11 @@ agency_id อ้าง agencies ด้วย ON DELETE RESTRICT ส่วน sna
 | reports | รอบรายงาน หมวด ผู้สร้าง และ snapshot_json |
 | audit_logs | ผู้ใช้ action target และ details |
 | settings | setting_key, setting_value, description, updated_at |
+| ranking_pipeline_runs | สถานะ เวลา จำนวนช่อง/สแนปช็อต/ชุดอันดับ และสรุปข้อผิดพลาดของแต่ละรอบ |
+
+รอบอัปเดตจะเป็น `succeeded` ต่อเมื่อเผยแพร่ครบทั้ง 6 ชุด (รายเดือนและตลอดกาล × ผู้ติดตาม ยอดดู และจำนวนคลิป) แต่ละชุดอันดับใช้ D1 batch ของตัวเองเพื่อคงชุดเดิมไว้หาก batch นั้นล้มเหลว การล้มเหลวหลังเผยแพร่บางชุดจะแสดงเป็น `partial` ไม่ได้หมายความว่าทั้ง 6 ชุดเปลี่ยนพร้อมกัน
+
+ค่าความถี่ `daily`, `weekly`, `monthly` เป็นช่วงห่าง 24 ชั่วโมง, 7 วัน และ 30 วันนับจากรอบที่สำเร็จล่าสุด ค่าเหล่านี้ไม่ใช่การตั้งเวลาตามวันหรือเดือนปฏิทิน การคำนวณอันดับรายเดือนยังใช้เดือนปฏิทินเวลา Bangkok แยกจากความถี่เก็บข้อมูล ค่า `manual` ปิดการทำงานตาม Cron แต่ endpoint ที่ใช้ API key สามารถสั่งรอบใหม่ด้วย `force=1`
 
 settings เริ่มต้นมี site_name, site_status, current_ranking_period, ranking_update_frequency การเก็บค่าไม่ได้หมายความว่าทุกค่าถูกบังคับใช้ใน public API แล้ว
 

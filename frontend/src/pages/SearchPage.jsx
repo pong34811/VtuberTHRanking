@@ -3,6 +3,7 @@ import { vtubersAPI } from "../api/client";
 import VTuberCard from "../components/VTuberCard";
 import Feedback from "../components/Feedback";
 import LoadingSpinner from "../components/LoadingSpinner";
+import { affiliationLabel, categoryLabel } from "../components/channelLabels";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -62,13 +63,13 @@ export default function SearchPage() {
           className="control-input"
         >
           <option value="">ทุกประเภท</option>
-          <option value="gaming">Gaming</option>
-          <option value="singing">Singing</option>
-          <option value="chatting">Chatting</option>
-          <option value="art">Art</option>
-          <option value="asmr">ASMR</option>
-          <option value="education">Education</option>
-          <option value="other">อื่น ๆ</option>
+          <option value="gaming">{categoryLabel("gaming")}</option>
+          <option value="singing">{categoryLabel("singing")}</option>
+          <option value="chatting">{categoryLabel("chatting")}</option>
+          <option value="art">{categoryLabel("art")}</option>
+          <option value="asmr">{categoryLabel("asmr")}</option>
+          <option value="education">{categoryLabel("education")}</option>
+          <option value="other">{categoryLabel("other")}</option>
           </select>
         </div>
         <div className="filter-field">
@@ -79,8 +80,8 @@ export default function SearchPage() {
           className="control-input"
         >
           <option value="">ทุกสังกัด</option>
-          <option value="indie">Indie</option>
-          <option value="agency">Agency</option>
+          <option value="indie">{affiliationLabel("indie")}</option>
+          <option value="agency">{affiliationLabel("agency")}</option>
           </select>
         </div>
         {hasFilters && <button className="clear-button" onClick={() => { setQuery(""); setCategory(""); setAffiliation(""); }}>ล้างตัวกรอง</button>}

@@ -13,6 +13,10 @@ export function SettingsTab({ csrfToken }) {
     [loadError, setLoadError] = useState(""),
     [success, setSuccess] = useState(""),
     [retry, setRetry] = useState(0);
+  const [runs, setRuns] = useState([]);
+  const [runsLoading, setRunsLoading] = useState(true);
+  const [runsError, setRunsError] = useState("");
+  const [runsRetry, setRunsRetry] = useState(0);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -29,12 +33,62 @@ export function SettingsTab({ csrfToken }) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [retry]);
+  useEffect(() => {
+    let active = true;
+    setRunsLoading(true);
+    setRunsError("");
+    adminApi("/pipeline-runs")
+      .then((response) => { if (active) setRuns(response.results || []); })
+      .catch((error) => { if (active) setRunsError(error.message); })
+      .finally(() => { if (active) setRunsLoading(false); });
+    return () => { active = false; };
+  }, [runsRetry]);
   const save = useSubmit(() => {
     setSuccess("");
     return adminApi("/settings", { method: "PUT", csrfToken, body: form });
   }, () => setSuccess("บันทึกการตั้งค่าแล้ว"));
+  const runStatus = (run) => {
+    if (run.status === "running") {
+      const age = Date.now() - Date.parse(run.started_at);
+      return Number.isFinite(age) && age > 15 * 60 * 1000 ? "หยุดก่อนเสร็จ" : "กำลังทำงาน";
+    }
+    return ({ succeeded: "สำเร็จ", partial: "สำเร็จบางส่วน", failed: "ล้มเหลว" })[run.status] || run.status;
+  };
+  const runTime = (value) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "ไม่ทราบเวลา" : date.toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
+  };
+  const frequencyLabel = (value) => ({ manual: "ด้วยตนเอง", hourly: "ทุกชั่วโมง", daily: "ทุก 24 ชั่วโมง", weekly: "ทุก 7 วัน", monthly: "ทุก 30 วัน" })[value] || value;
   return (
     <Card title="ตั้งค่าเว็บไซต์">
+      <section className="pipeline-runs" aria-labelledby="pipeline-runs-title">
+        <header>
+          <div>
+            <h3 id="pipeline-runs-title">สถานะรอบอัปเดตอันดับ</h3>
+            <small>สำเร็จเมื่อเก็บสถิติและเผยแพร่ครบ 6 ชุดอันดับ</small>
+          </div>
+          {!runsLoading && <Button type="button" onClick={() => setRunsRetry((value) => value + 1)}>รีเฟรช</Button>}
+        </header>
+        {runsLoading ? <Loading /> : runsError ? (
+          <div><Notice>{runsError}</Notice><Button type="button" onClick={() => setRunsRetry((value) => value + 1)}>ลองโหลดสถานะอีกครั้ง</Button></div>
+        ) : runs.length ? (
+          runs.map((run) => (
+            <article className="pipeline-run" key={run.id} data-status={run.status}>
+              <header>
+                <h3>{runStatus(run)}</h3>
+                <time dateTime={run.completed_at || run.started_at}>{runTime(run.completed_at || run.started_at)}</time>
+              </header>
+              <small>{run.trigger_source === "manual" ? "สั่งด้วยตนเอง" : "ตั้งเวลาทำงาน"} · {frequencyLabel(run.frequency)}</small>
+              <dl>
+                <div><dt>ช่องที่พบ</dt><dd>{run.channels_total ?? 0}</dd></div>
+                <div><dt>บันทึกสถิติ</dt><dd>{run.snapshots_written ?? 0}</dd></div>
+                <div><dt>ชุดอันดับที่เผยแพร่</dt><dd>{run.rankings_published ?? 0}/6</dd></div>
+              </dl>
+              {run.error_summary && <p className="pipeline-error">{run.error_summary}</p>}
+            </article>
+          ))
+        ) : <p className="admin-state">ยังไม่มีรอบอัปเดต</p>}
+      </section>
       {loading ? (
         <Loading />
       ) : loadError ? (
@@ -84,9 +138,9 @@ export function SettingsTab({ csrfToken }) {
               >
                 <option value="manual">ด้วยตนเอง</option>
                 <option value="hourly">ทุกชั่วโมง</option>
-                <option value="daily">รายวัน</option>
-                <option value="weekly">รายสัปดาห์</option>
-                <option value="monthly">รายเดือน</option>
+                <option value="daily">ทุก 24 ชั่วโมง</option>
+                <option value="weekly">ทุก 7 วัน</option>
+                <option value="monthly">ทุก 30 วัน</option>
               </select>
             </Field>
           </div>

@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
+import { currentMonth } from './ranking-period.js';
 
 const api = new Hono();
 
-const currentMonth = () => new Date().toISOString().slice(0, 7);
 const pageInteger = (value, fallback, minimum, maximum = Number.MAX_SAFE_INTEGER) => {
   if (!/^\d+$/.test(value || '')) return fallback;
   const number = Number(value);

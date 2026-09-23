@@ -738,3 +738,181 @@ label.check {
 .admin-app [data-slot="button"]:hover {
   filter: brightness(0.94);
 }
+
+.ranking-metric-control {
+  display: grid;
+  gap: 6px;
+  min-width: min(100%, 320px);
+}
+.ranking-metric-control > span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.ranking-metric-control > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+.admin-app .ranking-metric-control button {
+  min-height: 40px;
+  width: auto;
+  flex: 1 1 auto;
+  padding: 7px 10px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+.admin-app .ranking-metric-control button:hover {
+  background: var(--color-card-hover);
+  color: var(--color-text);
+}
+.admin-app .ranking-metric-control button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--primary) 13%, var(--color-card));
+  color: var(--primary);
+  font-weight: 700;
+}
+.admin-app .ranking-metric-control button:focus-visible,
+.audit-table summary:focus-visible,
+.audit-table button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.audit-table {
+  min-width: 850px;
+}
+.audit-table th:nth-child(1),
+.audit-table td:nth-child(1) {
+  min-width: 155px;
+}
+.audit-table th:nth-child(3),
+.audit-table td:nth-child(3) {
+  min-width: 150px;
+}
+.audit-table th:nth-child(4),
+.audit-table td:nth-child(4) {
+  min-width: 170px;
+}
+.audit-table th:nth-child(5),
+.audit-table td:nth-child(5) {
+  min-width: 280px;
+  white-space: normal;
+  vertical-align: top;
+}
+.audit-target {
+  white-space: normal;
+}
+.audit-target span,
+.audit-target code {
+  display: block;
+}
+.audit-target code,
+.audit-detail pre {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.audit-target code {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.audit-detail p {
+  margin: 0 0 5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.audit-detail details summary {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--primary);
+  cursor: pointer;
+}
+.audit-detail pre {
+  max-height: 240px;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 11px;
+}
+.audit-detail button {
+  min-height: 40px;
+}
+.audit-copy-status {
+  display: block;
+  min-height: 18px;
+  margin-top: 5px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.pipeline-runs {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.pipeline-run {
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+}
+.pipeline-run header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.pipeline-run h3,
+.pipeline-run p {
+  margin: 0;
+}
+.pipeline-run h3 {
+  font-size: 14px;
+}
+.pipeline-run time,
+.pipeline-run small {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.pipeline-run dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 14px;
+  margin: 10px 0 0;
+}
+.pipeline-run dl div {
+  min-width: 0;
+}
+.pipeline-run dt {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.pipeline-run dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.pipeline-run .pipeline-error {
+  margin-top: 8px;
+  color: var(--color-red);
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .ranking-metric-control {
+    width: 100%;
+  }
+  .audit-table td {
+    white-space: normal;
+  }
+  .pipeline-run dl {
+    grid-template-columns: 1fr 1fr;
+  }
+}

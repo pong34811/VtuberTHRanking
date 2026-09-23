@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import ChangeIndicator from './ChangeIndicator';
+import { affiliationLabel, categoryLabel } from './channelLabels';
 
 function ChannelAvatar({ vtuber }) {
   const [failed, setFailed] = useState(false);
@@ -20,7 +21,7 @@ export default function LeaderboardTable({ rankings, loading, metric = 'คะ�
         <tbody>{rankings.map(item => (
           <tr key={item.vtuber.id}>
             <td className="home-rank">{String(item.rank).padStart(2, '0')}</td>
-            <th scope="row"><Link to={`/profile/${item.vtuber.slug}`} className="home-channel"><ChannelAvatar vtuber={item.vtuber} /><span><span className="home-channel-name">{item.vtuber.name}</span><span className="home-channel-meta">{item.vtuber.category} · {item.vtuber.affiliation}</span></span></Link></th>
+            <th scope="row"><Link to={`/profile/${item.vtuber.slug}`} className="home-channel"><ChannelAvatar vtuber={item.vtuber} /><span><span className="home-channel-name">{item.vtuber.name}</span><span className="home-channel-meta">{categoryLabel(item.vtuber.category)} · {affiliationLabel(item.vtuber.affiliation)}</span></span></Link></th>
             <td className="home-number">{item.score?.toLocaleString('th-TH') ?? '—'}</td>
             <td className="home-change"><ChangeIndicator change={item.rank_change} isNew={item.rank_change === 'NEW'} /></td>
           </tr>

@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import publicApi from '../../server/public.js';
+import { selection } from '../../server/admin-domain.js';
 import { createD1Stub } from '../helpers/d1.js';
 
 async function publicRequest(path, responses = [], init = {}) {
@@ -13,9 +14,31 @@ async function publicRequestWithoutDb(path, init = {}) {
 }
 
 const currentMonth = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const now = new Date(Date.now() + 7 * 3600000);
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 };
+
+afterEach(() => vi.useRealTimers());
+
+describe('Bangkok ranking month boundaries', () => {
+  it.each([
+    ['2026-09-30T16:59:59.999Z', '2026-09'],
+    ['2026-09-30T17:00:00.000Z', '2026-10'],
+    ['2026-09-30T23:59:59.999Z', '2026-10'],
+    ['2026-12-31T17:00:00.000Z', '2027-01'],
+  ])('uses %s consistently across rankings, profiles and admin', async (time, month) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(time));
+    const rankings = await publicRequest('/rankings/?limit=1', [{ total: 2 }, { results: [] }]);
+    const body = await rankings.response.json();
+    expect(body.month).toBe(month);
+    expect(new URL(body.next, 'https://example.com').searchParams.get('month')).toBe(month);
+    expect(rankings.calls[0].values).toContain(`${month}-01`);
+    const profile = await publicRequest('/vtubers/aiko/', [{ id: 3 }, { results: [] }, null]);
+    expect(profile.calls[1].values).toEqual([3, `${month}-01`]);
+    expect(selection({}).month).toBe(`${month}-01`);
+  });
+});
 
 describe('public API status', () => {
   it('reports the service status', async () => {

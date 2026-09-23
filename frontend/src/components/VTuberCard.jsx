@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import ChangeIndicator from "./ChangeIndicator";
 import { useState } from "react";
+import { affiliationLabel, categoryLabel } from "./channelLabels";
 export default function VTuberCard({ vtuber, rank, score, rankChange, isNew, videoCount }) {
   const [failed, setFailed] = useState(false);
   return (
@@ -24,7 +25,7 @@ export default function VTuberCard({ vtuber, rank, score, rankChange, isNew, vid
       <div className="flex-1 min-w-0">
         <p className="font-medium truncate">{vtuber.name}</p>
         <p className="text-xs text-[var(--muted-foreground)] truncate">
-          {vtuber.category} · {vtuber.affiliation}
+          {categoryLabel(vtuber.category)} · {affiliationLabel(vtuber.affiliation)}
         </p>
         {videoCount != null && (
           <p className="text-xs text-[var(--muted-foreground)]">

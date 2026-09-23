@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { hashPassword, validatePassword } from './password.js';
-import { fail, choice, str, url, month, selection, nextMonthBoundary, previousMonth, competitionRanks, csvCell, body, channel, channelFields } from './admin-domain.js';
+import { fail, choice, str, url, month, selection, csvCell, body, channel, channelFields } from './admin-domain.js';
+import { calculateRanking } from './ranking-service.js';
 
 const app = new Hono();
 const userFields = 'id,username,display_name,email,role,status,created_at,updated_at,last_login_at';
@@ -14,6 +15,7 @@ const exists = async (c, table, id) => { const row = await stmt(c, `SELECT * FRO
 app.use('*', async (c, next) => { if (!c.get('user') || c.get('user').status !== 'active') fail('Authentication required', 401); await next(); });
 app.onError((error, c) => {
   if (error instanceof HTTPException) return c.json({ message: error.message }, error.status);
+  if (error.code === 'RANKING_CHANNEL_LIMIT') return c.json({ message: error.message }, 409);
   if (/UNIQUE constraint failed/i.test(error.message)) return c.json({ message: 'A record with this unique value already exists' }, 409);
   console.error('Admin operation failed', error);
   return c.json({ message: 'Unable to complete operation' }, 500);
@@ -103,17 +105,10 @@ const rankingRows = async (c, filter) => (await stmt(c, 'SELECT r.*,v.name,v.slu
 app.get('/rankings', async c => c.json({ results: await rankingRows(c, selection(c.req.query())) }));
 app.post('/rankings/calculate', async c => {
   manager(c); const filter = selection(await body(c, ['period','month','category']));
-  const cutoff = filter.period === 'monthly' ? nextMonthBoundary(filter.month) : null;
-  const rows = (await stmt(c, `SELECT v.id AS vtuber_id,s.followers,s.total_views,s.video_count FROM vtubers v JOIN stats_snapshots s ON s.id=(SELECT ss.id FROM stats_snapshots ss WHERE ss.vtuber_id=v.id AND (? IS NULL OR julianday(ss.recorded_at)<julianday(?)) ORDER BY julianday(ss.recorded_at) DESC,ss.id DESC LIMIT 1) WHERE v.is_active=1 LIMIT 91`, cutoff, cutoff).all()).results;
-  if (rows.length > 90) fail('Ranking publication supports at most 90 channels per batch; no changes were saved', 409);
-  const previous = await rankingRows(c, { ...filter, month: filter.period === 'monthly' ? previousMonth(filter.month) : null });
-  const ranked = competitionRanks(rows, filter.category, previous);
-  await c.env.DB.batch([
-    stmt(c, 'DELETE FROM rankings WHERE period=? AND category=? AND month IS ?', filter.period, filter.category, filter.month),
-    ...ranked.map(row => stmt(c, "INSERT INTO rankings (vtuber_id,period,category,month,rank,score,rank_change,subscriber_count,total_views,video_count,status,calculated_at) VALUES (?,?,?,?,?,?,?,?,?,?,'active',datetime('now'))", row.vtuber_id, filter.period, filter.category, filter.month, row.rank, row.score, row.rank_change, row.followers, row.total_views, row.video_count)),
-    audit(c, 'calculate', 'ranking', `${filter.period}:${filter.month || 'alltime'}:${filter.category}`, { count: ranked.length }),
+  const { count } = await calculateRanking(c.env.DB, filter, count => [
+    audit(c, 'calculate', 'ranking', `${filter.period}:${filter.month || 'alltime'}:${filter.category}`, { count }),
   ]);
-  return c.json({ ok: true });
+  return c.json({ ok: true, count });
 });
 app.get('/reports', c => list(c, 'SELECT id,report_type,report_period,category_id,total_vtubers,generated_at,generated_by FROM reports ORDER BY generated_at DESC,id DESC LIMIT 200'));
 app.post('/reports', async c => {
@@ -130,6 +125,10 @@ app.get('/reports/:id/download', async c => {
   c.header('Content-Type', 'text/csv; charset=utf-8'); c.header('Content-Disposition', 'attachment; filename="ranking-report.csv"'); return c.body(csv);
 });
 app.get('/audit-logs', c => { manager(c); return list(c, 'SELECT a.*,u.username FROM audit_logs a LEFT JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC,a.id DESC LIMIT 200'); });
+app.get('/pipeline-runs', c => {
+  manager(c);
+  return list(c, 'SELECT id,trigger_source,frequency,status,started_at,completed_at,channels_total,snapshots_written,rankings_published,error_summary FROM ranking_pipeline_runs ORDER BY started_at DESC,id DESC LIMIT 10');
+});
 
 const settingsKeys = ['site_name','site_status','current_ranking_period','ranking_update_frequency'];
 app.get('/settings', c => list(c, `SELECT * FROM settings WHERE setting_key IN (${settingsKeys.map(() => '?').join(',')}) ORDER BY setting_key`, ...settingsKeys));

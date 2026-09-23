@@ -75,7 +75,7 @@ export default function ComparePage() {
 
   const points = new Map();
   compareData?.vtubers?.forEach((v) =>
-    v.history.forEach((h) => {
+    (v.history || []).filter((point) => point.date).forEach((h) => {
       if (!points.has(h.date)) points.set(h.date, { date: h.date });
       points.get(h.date)[`channel_${v.id}`] = h.value;
     }),
@@ -83,15 +83,26 @@ export default function ComparePage() {
   const chartData = [...points.values()].sort((a, b) =>
     a.date.localeCompare(b.date),
   );
+  const historyCoverage = (compareData?.vtubers || []).map((vtuber) => ({
+    ...vtuber,
+    pointCount: new Set((vtuber.history || []).map((point) => point.date).filter(Boolean)).size,
+  }));
+  const missingTrendCoverage = historyCoverage.filter((vtuber) => vtuber.pointCount < 2);
   const visibleVtubers = vtubers.filter((v) => v.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const selectedVtubers = selected.map((id) => vtubers.find((v) => v.id === id)).filter(Boolean);
+  const representedIds = new Set(historyCoverage.map((vtuber) => vtuber.id));
+  const omittedSelectedVtubers = selectedVtubers.filter((vtuber) => !representedIds.has(vtuber.id));
+  const canCompareTrend = selectedVtubers.length === selected.length
+    && historyCoverage.length === selected.length
+    && historyCoverage.length >= 2
+    && missingTrendCoverage.length === 0;
 
   return (
     <div>
       <p className="eyebrow">COMPARE PERFORMANCE</p>
       <h1 className="text-3xl font-semibold">เปรียบเทียบ VTuber</h1>
       <p className="page-intro">
-        เลือก 2–3 ช่อง เพื่อดูแนวโน้มย้อนหลัง 6 เดือน
+        เลือก 2–3 ช่อง เพื่อเปรียบเทียบข้อมูลย้อนหลังสูงสุด 6 เดือนตามข้อมูลที่มี
       </p>
       <section className="compare-workspace" aria-label="เลือกช่องสำหรับเปรียบเทียบ">
         <div className="compare-step"><span>1</span><div><strong>เลือกช่อง</strong><small>เลือกได้สูงสุด 3 ช่อง</small></div></div>
@@ -141,10 +152,26 @@ export default function ComparePage() {
       )}
       {error && <Feedback error={error} retry={handleCompare} />}
       {loading && <LoadingSpinner />}
-      {compareData && !chartData.length && (
-        <Feedback>ยังไม่มีข้อมูลย้อนหลังสำหรับช่องที่เลือก</Feedback>
+      {compareData && !canCompareTrend && (
+        <p className="compare-coverage" role="status">
+          {!chartData.length
+            ? "ยังไม่มีข้อมูลย้อนหลังสำหรับช่องที่เลือกในช่วงสูงสุด 6 เดือน"
+            : omittedSelectedVtubers.length
+              ? "ข้อมูลเปรียบเทียบมีไม่ครบทุกช่องที่เลือก"
+              : "แสดงกราฟเมื่อแต่ละช่องมีข้อมูลอย่างน้อย 2 จุด ภายในช่วงสูงสุด 6 เดือน"}
+        </p>
       )}
-      {compareData && chartData.length > 0 && (
+      {compareData && !canCompareTrend && (missingTrendCoverage.length > 0 || omittedSelectedVtubers.length > 0) && (
+        <ul className="compare-coverage-list" aria-label="จำนวนข้อมูลย้อนหลังแยกตามช่อง">
+          {missingTrendCoverage.map((vtuber) => (
+            <li key={vtuber.id}>{vtuber.name}: มีข้อมูลย้อนหลัง {vtuber.pointCount} จุด</li>
+          ))}
+          {omittedSelectedVtubers.map((vtuber) => (
+            <li key={vtuber.id}>{vtuber.name}: ไม่มีข้อมูลเปรียบเทียบในผลลัพธ์</li>
+          ))}
+        </ul>
+      )}
+      {compareData && canCompareTrend && (
         <section className="chart-panel" aria-label="กราฟเปรียบเทียบ">
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">

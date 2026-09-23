@@ -4,49 +4,53 @@ import { vtubersAPI } from "../api/client";
 import Feedback from "../components/Feedback";
 import LoadingSpinner from "../components/LoadingSpinner";
 import TrendChart from "../components/TrendChart";
+import { affiliationLabel, categoryLabel } from "../components/channelLabels";
 
 export default function ProfilePage() {
   const { slug } = useParams();
   const [vtuber, setVtuber] = useState(null);
   const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [retry, setRetry] = useState(0);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [profileError, setProfileError] = useState("");
+  const [historyError, setHistoryError] = useState("");
+  const [profileRetry, setProfileRetry] = useState(0);
+  const [historyRetry, setHistoryRetry] = useState(0);
   const [failedAvatar, setFailedAvatar] = useState("");
 
   useEffect(() => {
     let active = true;
-    const fetchData = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const [vtuberRes, historyRes] = await Promise.all([
-          vtubersAPI.getBySlug(slug),
-          vtubersAPI.getHistory(slug, 6),
-        ]);
+    setProfileLoading(true);
+    setProfileError("");
+    setVtuber(null);
+    vtubersAPI.getBySlug(slug)
+      .then((response) => { if (active) setVtuber(response.data); })
+      .catch((err) => {
         if (!active) return;
-        setVtuber(vtuberRes.data);
-        setHistory(historyRes.data.history);
-      } catch (err) {
-        if (active)
-          setError(
-            err.response?.status === 404
-              ? "ไม่พบช่องนี้"
-              : "โหลดโปรไฟล์ไม่สำเร็จ",
-          );
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    fetchData();
+        setProfileError(err.response?.status === 404 ? "ไม่พบช่องนี้" : "โหลดโปรไฟล์ไม่สำเร็จ");
+      })
+      .finally(() => { if (active) setProfileLoading(false); });
     return () => {
       active = false;
     };
-  }, [slug, retry]);
+  }, [slug, profileRetry]);
 
-  if (loading) return <LoadingSpinner />;
-  if (error)
-    return <Feedback error={error} retry={() => setRetry((x) => x + 1)} />;
+  useEffect(() => {
+    let active = true;
+    setHistoryLoading(true);
+    setHistoryError("");
+    vtubersAPI.getHistory(slug, 6)
+      .then((response) => { if (active) setHistory(response.data.history || []); })
+      .catch(() => { if (active) setHistoryError("โหลดประวัติสถิติไม่สำเร็จ"); })
+      .finally(() => { if (active) setHistoryLoading(false); });
+    return () => {
+      active = false;
+    };
+  }, [slug, historyRetry]);
+
+  if (profileLoading) return <LoadingSpinner />;
+  if (profileError)
+    return <Feedback error={profileError} retry={() => setProfileRetry((x) => x + 1)} />;
   if (!vtuber) return <p className="text-center py-8">ไม่พบข้อมูล</p>;
 
   return (
@@ -63,10 +67,10 @@ export default function ProfilePage() {
           <p className="text-sm whitespace-pre-line text-[var(--muted-foreground)]">{vtuber.bio}</p>
           <div className="flex flex-wrap gap-2 mt-2">
             <span className="text-xs px-2 py-0.5 rounded bg-[var(--primary)]/10 text-[var(--primary)]">
-              {vtuber.category}
+              {categoryLabel(vtuber.category)}
             </span>
             <span className="text-xs px-2 py-0.5 rounded bg-[var(--color-card)] text-[var(--muted-foreground)]">
-              {vtuber.affiliation}
+              {affiliationLabel(vtuber.affiliation)}
             </span>
           </div>
         </div>
@@ -108,23 +112,22 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
-        <h2 className="font-medium mb-4">แนวโน้มผู้ติดตาม</h2>
-        <TrendChart
-          data={history}
-          dataKey="followers"
-          color="var(--primary)"
-        />
-      </div>
-
-      <div className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
-        <h2 className="font-medium mb-4">แนวโน้มยอดวิว</h2>
-        <TrendChart
-          data={history}
-          dataKey="total_views"
-          color="var(--color-green)"
-        />
-      </div>
+      {historyLoading ? (
+        <div className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]"><LoadingSpinner /></div>
+      ) : historyError ? (
+        <Feedback error={historyError} retry={() => setHistoryRetry((x) => x + 1)} />
+      ) : (
+        <>
+          <section className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]" aria-labelledby="profile-followers-trend">
+            <h2 id="profile-followers-trend" className="font-medium mb-4">แนวโน้มผู้ติดตาม</h2>
+            <TrendChart data={history} dataKey="followers" color="var(--primary)" periodLabel="6 เดือน" />
+          </section>
+          <section className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]" aria-labelledby="profile-views-trend">
+            <h2 id="profile-views-trend" className="font-medium mb-4">แนวโน้มยอดวิว</h2>
+            <TrendChart data={history} dataKey="total_views" color="var(--color-green)" periodLabel="6 เดือน" />
+          </section>
+        </>
+      )}
     </div>
   );
 }

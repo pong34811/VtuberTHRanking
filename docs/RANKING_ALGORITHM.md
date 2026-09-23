@@ -32,7 +32,9 @@ manager เรียก POST /api/v1/admin/rankings/calculate พร้อม pe
 
 Rankings API แบ่งหน้าด้วย limit/offset ลิงก์ next/previous เก็บเดือน หมวด และขนาดหน้าไว้ครบ
 
-Profile API คืนอันดับ active ของเดือนปัจจุบันตาม UTC และ alltime เท่านั้น ไม่ใช้อันดับเดือนเก่าทดแทน หน้าโปรไฟล์แสดง “ยังไม่มีอันดับ” เมื่อข้อมูลขาด
+Profile API คืนอันดับ active ของเดือนปัจจุบันตามเวลาไทย (UTC+7) และ alltime เท่านั้น ไม่ใช้อันดับเดือนเก่าทดแทน หน้าโปรไฟล์แสดง “ยังไม่มีอันดับ” เมื่อข้อมูลขาด
+
+Public API และ admin ใช้ตัวช่วย currentMonth ร่วมกันจาก frontend/server/ranking-period.js เพื่อเปลี่ยนเดือนพร้อมกันตอนเที่ยงคืนเวลาไทย
 
 ## รอบดึงข้อมูล
 

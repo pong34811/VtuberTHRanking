@@ -1,4 +1,8 @@
 import { HTTPException } from 'hono/http-exception';
+import { currentMonth } from './ranking-period.js';
+import { competitionRanks, nextMonthBoundary, previousMonth } from '../../shared/ranking.js';
+
+export { currentMonth, competitionRanks, nextMonthBoundary, previousMonth };
 
 export const fail = (message, status = 400) => { throw new HTTPException(status, { message }); };
 export const choice = (value, values, field) => values.includes(value) ? value : fail(`Invalid ${field}`);
@@ -10,29 +14,10 @@ export function month(value) {
   if (typeof value !== 'string' || !/^(20\d{2}|21\d{2})-(0[1-9]|1[0-2])$/.test(value)) fail('Invalid month (YYYY-MM)');
   return value;
 }
-export const currentMonth = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 7);
 export function selection(body) {
   const period = choice(body.period || 'monthly', ['monthly', 'alltime'], 'period');
   const category = choice(body.category || 'followers', ['followers', 'views', 'videos'], 'category');
   return { period, category, month: period === 'monthly' ? month(body.month || currentMonth()) + '-01' : null };
-}
-export function nextMonthBoundary(value) {
-  const [year, mon] = value.split('-').map(Number);
-  return new Date(Date.UTC(year, mon, 1) - 7 * 3600000).toISOString();
-}
-export function previousMonth(value) {
-  const [year, mon] = value.split('-').map(Number);
-  return new Date(Date.UTC(year, mon - 2, 1)).toISOString().slice(0, 10);
-}
-export function competitionRanks(rows, category, previous = []) {
-  const key = category === 'followers' ? 'followers' : category === 'videos' ? 'video_count' : 'total_views';
-  const old = new Map(previous.map(row => [row.vtuber_id, row.rank]));
-  const sorted = [...rows].sort((a, b) => b[key] - a[key] || a.vtuber_id - b.vtuber_id);
-  let rank = 0;
-  return sorted.map((row, index) => {
-    if (!index || row[key] !== sorted[index - 1][key]) rank = index + 1;
-    return { ...row, score: row[key], rank, rank_change: old.has(row.vtuber_id) ? old.get(row.vtuber_id) - rank : 0 };
-  });
 }
 export function csvCell(value) {
   let text = String(value ?? '');

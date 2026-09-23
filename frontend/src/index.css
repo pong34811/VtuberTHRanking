@@ -320,6 +320,8 @@ h1 {
 .compare-action { display: grid; grid-template-columns: 1fr 180px auto; align-items: end; gap: 10px; margin: 18px -18px -18px; padding: 16px 18px; border-top: 1px solid var(--color-border); }
 .compare-action .compare-step { margin: 0; }
 .chart-panel { padding: 18px; background: var(--color-card); border: 1px solid var(--color-border); border-radius: 14px; }
+.compare-coverage { margin: 0 0 8px; padding: 13px 15px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-card); color: var(--muted-foreground); font-size: 13px; line-height: 1.65; }
+.compare-coverage-list { margin: 0 0 16px; padding: 0 0 0 30px; color: var(--muted-foreground); font-size: 12px; line-height: 1.8; }
 button.text-white {
   background: #245dcc;
   color: white;
