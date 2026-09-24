@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { vtubersAPI } from '@/api/client';
 import SearchPage from '@/pages/SearchPage';
 
@@ -18,6 +18,22 @@ afterEach(() => cleanup());
 
 function renderSearchPage() {
   return render(<MemoryRouter><SearchPage /></MemoryRouter>);
+}
+
+function CurrentSearch() {
+  return <output data-testid="current-search">{useLocation().search}</output>;
+}
+
+function SearchNavigation() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <button onClick={() => navigate('/search?q=Biko&category=singing')}>อีกคำค้น</button>
+      <button onClick={() => navigate(-1)}>ย้อนกลับ</button>
+      <CurrentSearch />
+      <SearchPage />
+    </>
+  );
 }
 
 describe('Search page follower filters', () => {
@@ -57,5 +73,44 @@ describe('Search page follower filters', () => {
     expect(screen.getByLabelText('ผู้ติดตามถึง')).toHaveValue(null);
     expect(screen.getByLabelText('เรียงผลลัพธ์')).toHaveValue('name');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('Search page directory URL filters', () => {
+  it('prefills encoded Thai search and clears URL filters permanently', async () => {
+    render(
+      <MemoryRouter initialEntries={['/search?q=%E0%B8%A1%E0%B8%B4%E0%B8%81%E0%B8%B8&category=gaming&affiliation=indie']}>
+        <CurrentSearch />
+        <SearchPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('ชื่อช่อง')).toHaveValue('มิกุ');
+    expect(screen.getByLabelText('ประเภทเนื้อหา')).toHaveValue('gaming');
+    await waitFor(() => expect(vtubersAPI.getList).toHaveBeenLastCalledWith({ q: 'มิกุ', category: 'gaming', affiliation: 'indie' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ล้างตัวกรอง' }));
+    await waitFor(() => expect(vtubersAPI.getList).toHaveBeenLastCalledWith({ q: '', category: '', affiliation: '' }));
+    expect(screen.getByLabelText('ชื่อช่อง')).toHaveValue('');
+    expect(screen.getByTestId('current-search')).toHaveTextContent('');
+  });
+
+  it('ignores unsupported metadata query filters', async () => {
+    render(<MemoryRouter initialEntries={['/search?category=unknown&affiliation=unknown']}><SearchPage /></MemoryRouter>);
+
+    await waitFor(() => expect(vtubersAPI.getList).toHaveBeenLastCalledWith({ q: '', category: '', affiliation: '' }));
+    expect(screen.getByLabelText('ประเภทเนื้อหา')).toHaveValue('');
+    expect(screen.getByLabelText('สังกัด')).toHaveValue('');
+  });
+
+  it('updates filters for navigation and restores them on back', async () => {
+    render(<MemoryRouter initialEntries={['/search?q=Aiko&category=gaming']}><SearchNavigation /></MemoryRouter>);
+
+    await waitFor(() => expect(vtubersAPI.getList).toHaveBeenLastCalledWith({ q: 'Aiko', category: 'gaming', affiliation: '' }));
+    fireEvent.click(screen.getByRole('button', { name: 'อีกคำค้น' }));
+    await waitFor(() => expect(vtubersAPI.getList).toHaveBeenLastCalledWith({ q: 'Biko', category: 'singing', affiliation: '' }));
+    expect(screen.getByLabelText('ชื่อช่อง')).toHaveValue('Biko');
+    fireEvent.click(screen.getByRole('button', { name: 'ย้อนกลับ' }));
+    await waitFor(() => expect(vtubersAPI.getList).toHaveBeenLastCalledWith({ q: 'Aiko', category: 'gaming', affiliation: '' }));
+    expect(screen.getByLabelText('ประเภทเนื้อหา')).toHaveValue('gaming');
   });
 });

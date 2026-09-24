@@ -1,14 +1,18 @@
 import { useState, useEffect } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { vtubersAPI } from "../api/client";
 import VTuberCard from "../components/VTuberCard";
 import Feedback from "../components/Feedback";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { affiliationLabel, categoryLabel } from "../components/channelLabels";
+import { readDirectorySearch } from "./searchParams";
 
 export default function SearchPage() {
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("");
-  const [affiliation, setAffiliation] = useState("");
+  const location = useLocation();
+  const [, setSearchParams] = useSearchParams();
+  const [query, setQuery] = useState(() => readDirectorySearch(location.search).q);
+  const [category, setCategory] = useState(() => readDirectorySearch(location.search).category);
+  const [affiliation, setAffiliation] = useState(() => readDirectorySearch(location.search).affiliation);
   const [minFollowers, setMinFollowers] = useState("");
   const [maxFollowers, setMaxFollowers] = useState("");
   const [sort, setSort] = useState("name");
@@ -35,7 +39,20 @@ export default function SearchPage() {
     setMinFollowers("");
     setMaxFollowers("");
     setSort("name");
+    setSearchParams((current) => {
+      current.delete("q");
+      current.delete("category");
+      current.delete("affiliation");
+      return current;
+    }, { replace: true });
   };
+
+  useEffect(() => {
+    const filters = readDirectorySearch(location.search);
+    setQuery(filters.q);
+    setCategory(filters.category);
+    setAffiliation(filters.affiliation);
+  }, [location.search]);
 
   useEffect(() => {
     let active = true;

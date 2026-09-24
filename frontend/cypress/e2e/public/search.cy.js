@@ -16,6 +16,21 @@ describe('Search journey', () => {
     cy.contains('Aiko').should('exist');
   });
 
+  it('accepts directory filters from a homepage link and clears them from the URL', () => {
+    cy.visit('/search?q=Aiko&category=gaming');
+    cy.wait('@getVtubers').then(({ request }) => {
+      const params = new URL(request.url).searchParams;
+      expect(params.get('q')).to.equal('Aiko');
+      expect(params.get('category')).to.equal('gaming');
+    });
+    cy.get('#vtuber-search').should('have.value', 'Aiko');
+    cy.get('#category-filter').should('have.value', 'gaming');
+    cy.get('.clear-button').click();
+    cy.location('search').should('not.include', 'q=');
+    cy.location('search').should('not.include', 'category=');
+    cy.get('#vtuber-search').should('have.value', '');
+  });
+
   it('filters by follower range and orders the results by followers', () => {
     cy.get('#followers-min').type('100');
     cy.get('#followers-max').type('900');
