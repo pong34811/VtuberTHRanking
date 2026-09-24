@@ -108,6 +108,17 @@ describe('homepage template rendering', () => {
     expect(screen.getByRole('heading', { name: 'อันดับที่กำลังจับตา' })).toBeInTheDocument();
   });
 
+  it('keeps ranking-first and shows both errors when summary and rankings fail', async () => {
+    summaryAPI.get.mockRejectedValue(new Error('summary unavailable'));
+    rankingsAPI.getList.mockRejectedValue(new Error('rankings unavailable'));
+    const { container } = renderHome();
+
+    expect(await screen.findByText('โหลดข้อมูลภาพรวมไม่สำเร็จ')).toBeInTheDocument();
+    expect(await screen.findByText('โหลดอันดับไม่สำเร็จ กรุณาลองอีกครั้ง')).toBeInTheDocument();
+    expect(container.querySelector('.homepage')).toHaveAttribute('data-template', 'ranking-first');
+    expect(screen.getByRole('heading', { name: 'อันดับที่กำลังจับตา' })).toBeInTheDocument();
+  });
+
   it('keeps preview links inside the current Admin route', async () => {
     render(
       <MemoryRouter initialEntries={['/admin/homepage']}>

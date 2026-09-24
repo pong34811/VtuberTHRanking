@@ -102,8 +102,9 @@ export function HomepageTemplateTab({ csrfToken }) {
             <span className={`homepage-template-thumbnail homepage-template-thumbnail--${template.id}`} aria-hidden="true">
               <span className="thumbnail-hero" />
               <span className="thumbnail-summary" />
-              <span className="thumbnail-content" />
-              <span className="thumbnail-footer" />
+              <span className="thumbnail-method" />
+              <span className="thumbnail-rankings" />
+              <span className="thumbnail-discovery" />
             </span>
             <span className="homepage-template-option-copy">
               <span className="homepage-template-option-title">

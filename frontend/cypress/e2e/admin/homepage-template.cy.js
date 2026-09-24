@@ -41,6 +41,16 @@ describe('Admin homepage templates', () => {
 
     cy.visit('/admin/homepage');
     cy.wait(['@getMe', '@getHomepageTemplate', '@getSummary', '@getRankings']);
+    [
+      ['ranking-first', ['hero', 'summary', 'method', 'rankings', 'discovery']],
+      ['discovery-first', ['hero', 'summary', 'discovery', 'rankings', 'method']],
+      ['compact-ranking', ['hero', 'summary', 'rankings', 'method', 'discovery']],
+    ].forEach(([id, expectedOrder]) => {
+      cy.get(`.homepage-template-thumbnail--${id}`).should($thumbnail => {
+        const actualOrder = getComputedStyle($thumbnail[0]).gridTemplateAreas.replace(/"/g, '').trim().split(/\s+/);
+        expect(actualOrder).to.deep.equal(expectedOrder);
+      });
+    });
     cy.contains('button', 'ค้นพบ VTuber').click();
     cy.get('[data-testid="homepage-preview"] .homepage').should('have.attr', 'data-template', 'discovery-first');
     cy.contains('.homepage-template-draft-label', 'ตัวอย่าง — ยังไม่เผยแพร่').should('exist');

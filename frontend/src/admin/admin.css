@@ -982,13 +982,14 @@ label.check {
 }
 .homepage-template-thumbnail {
   display: grid;
-  grid-template-rows: 19px 7px 10px 7px;
-  grid-template-areas: "hero" "summary" "content" "footer";
-  gap: 4px;
+  grid-template-rows: 17px 5px 4px 8px 4px;
+  grid-template-areas: "hero" "summary" "method" "rankings" "discovery";
+  align-content: start;
+  gap: 3px;
   width: 100%;
   min-width: 0;
-  height: 63px;
-  padding: 7px;
+  height: 65px;
+  padding: 5px;
   border: 1px solid var(--color-border);
   border-radius: 7px;
   background: var(--color-card);
@@ -996,10 +997,16 @@ label.check {
 .homepage-template-thumbnail > span { display: block; min-width: 0; border-radius: 3px; }
 .homepage-template-thumbnail .thumbnail-hero { grid-area: hero; background: color-mix(in srgb, var(--primary) 35%, var(--color-card-hover)); }
 .homepage-template-thumbnail .thumbnail-summary { grid-area: summary; width: 65%; background: var(--color-card-hover); }
-.homepage-template-thumbnail .thumbnail-content { grid-area: content; background: color-mix(in srgb, var(--primary) 16%, var(--color-card-hover)); }
-.homepage-template-thumbnail .thumbnail-footer { grid-area: footer; width: 76%; background: var(--color-card-hover); }
-.homepage-template-thumbnail--discovery-first { grid-template-areas: "hero" "summary" "content" "footer"; }
-.homepage-template-thumbnail--compact-ranking { grid-template-rows: 12px 7px 17px 7px; }
+.homepage-template-thumbnail .thumbnail-method { grid-area: method; width: 46%; background: var(--color-card-hover); }
+.homepage-template-thumbnail .thumbnail-rankings { grid-area: rankings; background: color-mix(in srgb, var(--primary) 16%, var(--color-card-hover)); }
+.homepage-template-thumbnail .thumbnail-discovery { grid-area: discovery; width: 76%; background: color-mix(in srgb, var(--primary) 9%, var(--color-card-hover)); }
+.homepage-template-thumbnail--discovery-first {
+  grid-template-areas: "hero" "summary" "discovery" "rankings" "method";
+}
+.homepage-template-thumbnail--compact-ranking {
+  grid-template-rows: 12px 5px 4px 8px 4px;
+  grid-template-areas: "hero" "summary" "rankings" "method" "discovery";
+}
 .homepage-template-option-copy { display: grid; align-content: start; gap: 5px; min-width: 0; }
 .homepage-template-option-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 .homepage-template-option-title strong { font-size: 12px; }
@@ -1064,6 +1071,6 @@ label.check {
 @media (max-width: 420px) {
   .homepage-template-manager { padding: 13px; }
   .admin-app button.homepage-template-option { grid-template-columns: 82px minmax(0, 1fr); padding: 8px; }
-  .homepage-template-thumbnail { height: 62px; padding: 5px; }
+  .homepage-template-thumbnail { height: 62px; padding: 4px; grid-template-rows: 13px 4px 3px 6px 3px; gap: 2px; }
   .homepage-template-actions button { width: 100%; }
 }
