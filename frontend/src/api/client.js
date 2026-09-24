@@ -12,6 +12,10 @@ export const rankingsAPI = {
   getList: (params = {}) => client.get('/rankings/', { params }),
 }
 
+export const directoryAPI = {
+  getList: (params = {}) => client.get('/directory/', { params }),
+}
+
 export const vtubersAPI = {
   getList: (params = {}) => client.get('/vtubers/', { params }),
   getBySlug: (slug) => client.get(`/vtubers/${slug}/`),

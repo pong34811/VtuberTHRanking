@@ -15,6 +15,53 @@ Local: http://localhost:5173/api/v1 (Vite proxy ไป production ตาม fron
 
 ## Endpoints
 
+### Public metadata directory for the homepage
+
+```
+GET /directory/
+```
+
+This endpoint returns active creator profile metadata only. It is separate from `/vtubers/`, whose existing follower filters and ranking consumers remain unchanged.
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| q | string | No | Case-insensitive name substring. Bound as a query value. |
+| category | string | No | `gaming`, `singing`, `chatting`, `art`, `asmr`, `education`, or `other`; an unknown nonempty value returns 400. |
+| affiliation | string | No | `indie` or `agency`; an unknown nonempty value returns 400. |
+| sort | string | No | `name` (default) or `created_at_desc`; unknown values use `name`. |
+| limit | int | No | Page size (default: 12, min: 1, max: 100); malformed values use the default and out-of-range values are clamped. |
+| offset | int | No | Zero-based page offset (default: 0); malformed or negative values use 0. |
+
+**Response:**
+
+```json
+{
+  "total": 3,
+  "count": 1,
+  "limit": 1,
+  "offset": 0,
+  "results": [
+    {
+      "id": 1,
+      "name": "VTuber A",
+      "slug": "vtuber-a",
+      "avatar": "/media/avatars/a.png",
+      "category": "gaming",
+      "affiliation": "indie",
+      "created_at": "2026-09-20 00:00:00"
+    }
+  ],
+  "category_counts": [
+    { "category": "gaming", "count": 2 },
+    { "category": "singing", "count": 1 }
+  ]
+}
+```
+
+`total` counts active profiles matching the requested filters; `count` is the number of rows on this page. `category_counts` counts every active profile regardless of the request filters or pagination. Rows expose only `id`, `name`, `slug`, `avatar`, `category`, `affiliation`, and `created_at`; the endpoint does not return snapshot, follower, or ranking metrics. Name sort uses case-insensitive name order with ID as the tie breaker. Newest sort uses valid creation timestamps descending, followed by name and ID; missing and malformed timestamps are placed last. The date means when the profile was added to this directory.
+
 ### 1. ดึงอันดับตามเงื่อนไข
 
 ```

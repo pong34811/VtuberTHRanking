@@ -1,16 +1,13 @@
 import { Hono } from 'hono';
 import { currentMonth } from './ranking-period.js';
 import { normalizeHomepageTemplate } from '../../shared/homepage-templates.js';
+import directoryApi from './directory.js';
+import { pageInteger } from './pagination.js';
 
 const api = new Hono();
 
-const pageInteger = (value, fallback, minimum, maximum = Number.MAX_SAFE_INTEGER) => {
-  if (!/^\d+$/.test(value || '')) return fallback;
-  const number = Number(value);
-  return Number.isSafeInteger(number) ? Math.min(maximum, Math.max(minimum, number)) : fallback;
-};
-
 api.get('/', (c) => c.json({ status: 'ok', service: 'VTuber Thai Ranking API' }));
+api.route('/directory/', directoryApi);
 
 api.get('/rankings/', async (c) => {
   const db = c.env.DB;
