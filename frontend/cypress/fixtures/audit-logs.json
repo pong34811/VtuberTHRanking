@@ -1,0 +1,14 @@
+{
+  "results": [
+    {
+      "id": 7,
+      "created_at": "2026-09-16T00:00:00.000Z",
+      "username": "manager",
+      "display_name": "Manager",
+      "action": "update",
+      "target_type": "vtuber",
+      "target_id": 3,
+      "details": "{\"fields\":[\"name\",\"followers\"],\"name\":\"Aiko\"}"
+    }
+  ]
+}

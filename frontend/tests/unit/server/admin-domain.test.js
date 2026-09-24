@@ -100,7 +100,7 @@ describe('competitionRanks', () => {
     ])).toMatchObject([
       { vtuber_id: 1, rank: 1, rank_change: 1 },
       { vtuber_id: 2, rank: 2, rank_change: -1 },
-      { vtuber_id: 3, rank: 3, rank_change: 0 },
+      { vtuber_id: 3, rank: 3, rank_change: null },
     ]);
   });
 });

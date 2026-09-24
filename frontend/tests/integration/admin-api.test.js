@@ -292,3 +292,29 @@ describe('admin youtube import', () => {
     await expect(response.json()).resolves.toMatchObject({ ok: true, id: 3, updated: true });
   });
 });
+
+describe('admin ranking pipeline history', () => {
+  const manager = { id: 'u2', role: 'manager', status: 'active' };
+
+  it('limits pipeline history to managers', async () => {
+    const { response } = await authedRequest('/pipeline-runs');
+
+    expect(response.status).toBe(403);
+  });
+
+  it('returns recent pipeline outcomes to a manager', async () => {
+    const runs = [{
+      id: 'run-1', trigger_source: 'scheduled', frequency: 'weekly', status: 'partial',
+      channels_total: 8, snapshots_written: 7, rankings_published: 4,
+    }];
+    const { response, calls } = await authedRequest('/pipeline-runs', {
+      user: manager,
+      responses: [{ results: runs }],
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ results: runs });
+    expect(calls[0].sql).toContain('FROM ranking_pipeline_runs');
+    expect(calls[0].sql).toContain('LIMIT 10');
+  });
+});

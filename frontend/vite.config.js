@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -14,7 +14,8 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     // ponytail: dev ยิง /api/v1 ผ่าน proxy ไป production ตรงๆ ไม่ต้องรัน backend เอง
-    proxy: {
+    // Browser tests stub every API request. Do not let an unmatched request hit production.
+    proxy: mode === 'e2e' ? undefined : {
       '/api': {
         target: 'https://vtuberthai-ranking.pages.dev',
         changeOrigin: true,
@@ -35,4 +36,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

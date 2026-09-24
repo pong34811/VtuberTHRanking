@@ -1,7 +1,7 @@
 Cypress.Commands.add('stubPublicApi', () => {
-  cy.intercept('GET', '**/api/v1/rankings/**', { fixture: 'rankings.json' }).as('getRankings');
-  cy.intercept('GET', '**/api/v1/summary/', { fixture: 'summary.json' }).as('getSummary');
-  cy.intercept('GET', '**/api/v1/vtubers/**', { fixture: 'vtubers.json' }).as('getVtubers');
+  cy.intercept({ method: 'GET', pathname: '/api/v1/rankings/' }, { fixture: 'rankings.json' }).as('getRankings');
+  cy.intercept({ method: 'GET', pathname: '/api/v1/summary/' }, { fixture: 'summary.json' }).as('getSummary');
+  cy.intercept({ method: 'GET', pathname: '/api/v1/vtubers/' }, { fixture: 'vtubers.json' }).as('getVtubers');
 });
 
 Cypress.Commands.add('loginAs', (role = 'staff') => {

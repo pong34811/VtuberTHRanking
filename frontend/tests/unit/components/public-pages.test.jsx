@@ -26,7 +26,7 @@ it('keeps selected channels stable while a comparison is in progress', async () 
   expect(screen.getByLabelText('เลือกสถิติที่เปรียบเทียบ')).toBeDisabled();
   await act(async () => finish({ data: { vtubers: [] } }));
   expect(screen.getByRole('button', { name: 'นำ Aiko ออกจากรายการ' })).toBeEnabled();
-  expect(screen.getByText('ยังไม่มีข้อมูลย้อนหลังสำหรับช่องที่เลือก')).toBeInTheDocument();
+  expect(screen.getByText('ยังไม่มีข้อมูลย้อนหลังสำหรับช่องที่เลือกในช่วงสูงสุด 6 เดือน')).toBeInTheDocument();
 });
 
 it('shows loading rather than no matches before the channel list arrives', async () => {

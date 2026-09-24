@@ -23,7 +23,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('shows every ranking metric in the all view', async () => {
+it('shows the selected ranking metric and changes metric with an accessible pressed state', async () => {
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url) => {
     const category = new URL(String(url), 'http://localhost').searchParams.get('category');
     return {
@@ -35,9 +35,13 @@ it('shows every ranking metric in the all view', async () => {
   render(<RankingsTab csrfToken="token" isManager={false} />);
 
   expect(await screen.findByText('followers')).toBeInTheDocument();
-  expect(screen.getByText('views')).toBeInTheDocument();
-  expect(screen.getByText('videos')).toBeInTheDocument();
-  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(screen.getByRole('button', { name: 'ผู้ติดตาม' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'ยอดดู' })).toHaveAttribute('aria-pressed', 'false');
+  expect(fetch).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button', { name: 'ยอดดู' }));
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  expect(new URL(String(fetch.mock.calls[1][0]), 'http://localhost').searchParams.get('category')).toBe('views');
+  expect(screen.getByRole('button', { name: 'ยอดดู' })).toHaveAttribute('aria-pressed', 'true');
 });
 
 it('shows the categories console while entries load', async () => {
@@ -78,6 +82,39 @@ it('shows the settings form once settings load', async () => {
   render(<SettingsTab csrfToken="token" />);
 
   expect(await screen.findByText('ชื่อเว็บไซต์')).toBeInTheDocument();
+});
+
+it('shows partial pipeline runs with their frequency and published-set count', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async url => String(url).endsWith('/pipeline-runs')
+    ? { ok: true, json: async () => ({ results: [{
+      id: 'run-1', trigger_source: 'scheduled', frequency: 'weekly', status: 'partial',
+      started_at: '2026-09-16T00:00:00.000Z', completed_at: '2026-09-16T00:01:00.000Z',
+      channels_total: 8, snapshots_written: 7, rankings_published: 4, error_summary: '1 จาก 8 ช่องดึงสถิติไม่สำเร็จ',
+    }] }) }
+    : { ok: true, json: async () => ({ results: [] }) }));
+
+  render(<SettingsTab csrfToken="token" />);
+
+  expect(await screen.findByText('สำเร็จบางส่วน')).toBeInTheDocument();
+  expect(screen.getByText('ตั้งเวลาทำงาน · ทุก 7 วัน')).toBeInTheDocument();
+  expect(screen.getByText('4/6')).toBeInTheDocument();
+  expect(screen.getByText('1 จาก 8 ช่องดึงสถิติไม่สำเร็จ')).toBeInTheDocument();
+});
+
+it('shows readable audit action, target, and expanded details', async () => {
+  mockFetch({ results: [{
+    id: 7, created_at: '2026-09-16T00:00:00.000Z', username: 'manager', display_name: 'Manager',
+    action: 'update', target_type: 'vtuber', target_id: 3,
+    details: JSON.stringify({ fields: ['name', 'followers'], name: 'Aiko' }),
+  }] });
+
+  render(<AuditTab />);
+
+  expect(await screen.findByText('แก้ไข')).toBeInTheDocument();
+  expect(screen.getByText('ช่อง VTuber')).toBeInTheDocument();
+  expect(screen.getByText('ฟิลด์ที่แก้ไข: name, followers · ชื่อ: Aiko')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('ดูรายละเอียด'));
+  expect(screen.getByText(/"fields"/)).toBeInTheDocument();
 });
 
 it('shows the channel editor fields', async () => {
@@ -261,7 +298,7 @@ it('does not replace current rankings with a slower previous filter response', a
     return { ok: true, json: async () => ({ results: [{ id: category, rank: 1, name: 'Current views', total_views: 500 }] }) };
   }));
   render(<RankingsTab csrfToken="token" isManager={false} />);
-  fireEvent.change(screen.getByLabelText('ตัวชี้วัด'), { target: { value: 'views' } });
+  fireEvent.click(screen.getByRole('button', { name: 'ยอดดู' }));
   expect(await screen.findByText('Current views')).toBeInTheDocument();
   await act(async () => finishOld());
   await waitFor(() => expect(screen.queryByText('Old result')).not.toBeInTheDocument());
