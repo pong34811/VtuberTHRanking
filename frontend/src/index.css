@@ -344,11 +344,16 @@ button.text-white {
     order: 3;
     width: 100%;
     margin: 0;
+    gap: 2px;
   }
   .nav-shell nav a {
     flex: 1;
+    min-width: 0;
+    padding-inline: 8px;
+    font-size: 12px;
     text-align: center;
     justify-content: center;
+    white-space: nowrap;
   }
   .nav-index { display: none; }
   .theme-select {

@@ -1,11 +1,8 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowDown, ArrowUpRight, Search } from "lucide-react";
-import { Button } from "../components/ui/button";
+import { ArrowUpRight } from "lucide-react";
 import "./stats.css";
 import { rankingsAPI, summaryAPI } from "../api/client";
-import { normalizeHomepageTemplate } from "../../../shared/homepage-templates.js";
-import { HOMEPAGE_TEMPLATES } from "./homepageTemplates.js";
 import PeriodSelector from "../components/PeriodSelector";
 import CategorySelector from "../components/CategorySelector";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -23,65 +20,7 @@ const categories = [
   { value: "videos", label: "จำนวนคลิป" },
 ];
 
-function containPreviewNavigation(event) {
-  if (event.target instanceof Element && event.target.closest("a")) event.preventDefault();
-}
-
-function HomeHero({ compact, discoveryFirst, previewMode }) {
-  return (
-    <section
-      className={`home-hero${compact ? " home-hero--compact" : ""}`}
-      aria-labelledby="home-title"
-      onClickCapture={previewMode ? containPreviewNavigation : undefined}
-    >
-      <div className="home-hero-copy">
-        <p className="home-kicker"><span aria-hidden="true" />VTUBER THAILAND · RANKING & DISCOVERY</p>
-        <h1 id="home-title">
-          {discoveryFirst ? <>ค้นพบ<br /><span>VTuber ไทย</span></> : <>สำรวจอันดับ<br /><span>VTuber ไทย</span></>}
-        </h1>
-        <p className="home-description">
-          {discoveryFirst
-            ? 'ค้นหาและเปรียบเทียบช่อง VTuber ไทยจากสถิติ YouTube ทั้งผู้ติดตาม ยอดวิว และจำนวนคลิป'
-            : 'พื้นที่ค้นหาและติดตามช่อง VTuber ไทย ผ่านสถิติจาก YouTube เลือกดูอันดับตามผู้ติดตาม ยอดวิว หรือจำนวนคลิป'}
-        </p>
-        <div className="home-actions">
-          {discoveryFirst ? (
-            <>
-              <Button asChild>
-                <Link to="/search"><Search aria-hidden="true" />ค้นหา VTuber</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/compare">เปรียบเทียบช่อง <ArrowUpRight aria-hidden="true" /></Link>
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button asChild>
-                <a href="#rankings">ดูอันดับล่าสุด <ArrowDown aria-hidden="true" /></a>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/search"><Search aria-hidden="true" />ค้นหา VTuber</Link>
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="home-hero-art" aria-hidden="true">
-        <div className="home-art-orbit home-art-orbit-outer" />
-        <div className="home-art-orbit home-art-orbit-inner" />
-        <div className="home-art-core"><span>VT</span><small>THAI</small></div>
-        <span className="home-art-tag home-art-tag-one">ค้นพบ</span>
-        <span className="home-art-tag home-art-tag-two">เปรียบเทียบ</span>
-        <span className="home-art-tag home-art-tag-three">ติดตาม</span>
-        <span className="home-art-star home-art-star-one">✳</span>
-        <span className="home-art-star home-art-star-two">✦</span>
-      </div>
-    </section>
-  );
-}
-
-export default function HomePage({ templateOverride, previewMode = false }) {
+export default function StatsPage() {
   const [rankings, setRankings] = useState([]);
   const [totalRankings, setTotalRankings] = useState(0);
   const [summary, setSummary] = useState(null);
@@ -145,9 +84,6 @@ export default function HomePage({ templateOverride, previewMode = false }) {
   const updateLabel = updated && !Number.isNaN(updated.getTime())
     ? updated.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })
     : "ยังไม่มีข้อมูล";
-  const selectedId = normalizeHomepageTemplate(templateOverride ?? summary?.homepage_template);
-  const template = HOMEPAGE_TEMPLATES[selectedId];
-
   const summarySection = (
     <section className="home-summary" aria-label="ข้อมูลของรายการ VTuber" aria-busy={summaryLoading}>
       <article className="home-fact">
@@ -227,40 +163,19 @@ export default function HomePage({ templateOverride, previewMode = false }) {
     </section>
   );
 
-  const discoverySection = (
-    <section className="home-discovery" aria-label="สำรวจ VTuber เพิ่มเติม">
-      <div>
-        <p className="home-section-kicker">FIND YOUR NEXT FAVORITE</p>
-        <h2>ยังไม่รู้จักช่องที่ใช่?</h2>
-        <p>ค้นหาจากชื่อ ประเภทเนื้อหา หรือสังกัด แล้วเลือกช่องมาเปรียบเทียบกัน</p>
-      </div>
-      <div className="home-discovery-actions">
-        <Button asChild><Link to="/search"><Search aria-hidden="true" />ค้นหา VTuber</Link></Button>
-        <Button asChild variant="outline"><Link to="/compare">เปรียบเทียบช่อง <ArrowUpRight aria-hidden="true" /></Link></Button>
-      </div>
-    </section>
-  );
-
-  const sections = {
-    summary: summarySection,
-    method: methodSection,
-    rankings: rankingsSection,
-    discovery: discoverySection,
-  };
   return (
-    <div
-      className={`homepage homepage--${selectedId}`}
-      data-template={selectedId}
-      onClickCapture={previewMode ? containPreviewNavigation : undefined}
-    >
-      <HomeHero
-        compact={template.compactHero}
-        discoveryFirst={selectedId === 'discovery-first'}
-        previewMode={previewMode}
-      />
-      {template.sectionOrder.map((name) => (
-        <Fragment key={name}>{sections[name]}</Fragment>
-      ))}
+    <div className="homepage stats-page">
+      <header className="home-section-heading">
+        <div>
+          <p className="home-section-kicker">VTUBER THAILAND</p>
+          <h1>สถิติ VTuber ไทย</h1>
+          <p>สำรวจอันดับจากข้อมูล YouTube ที่บันทึกไว้ในระบบ</p>
+        </div>
+        <Link className="home-text-link" to="/">ค้นพบ VTuber <ArrowUpRight aria-hidden="true" /></Link>
+      </header>
+      {summarySection}
+      {methodSection}
+      {rankingsSection}
     </div>
   );
 }

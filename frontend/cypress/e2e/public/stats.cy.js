@@ -1,12 +1,12 @@
-describe('Homepage ranking journey', () => {
+describe('Public stats journey', () => {
   beforeEach(() => {
     cy.stubPublicApi();
-    cy.visit('/');
+    cy.visit('/stats');
     cy.wait(['@getRankings', '@getSummary']);
   });
 
   it('explains the site and shows summary figures and stubbed channels', () => {
-    cy.contains('h1', 'สำรวจอันดับ').should('exist');
+    cy.contains('h1', 'สถิติ VTuber ไทย').should('exist');
     cy.contains('.home-fact', 'ช่องที่ร่วมจัดอันดับ').contains('strong', '2');
     cy.contains('Aiko').should('exist');
     cy.contains('Biko').should('exist');
@@ -20,5 +20,18 @@ describe('Homepage ranking journey', () => {
     cy.wait('@getViewRankings').its('request.url').should('include', 'category=views');
     cy.contains('h3', 'ยอดวิว').should('exist');
     cy.contains('Aiko').should('exist');
+  });
+
+  it('navigates from the directory to the stats page', () => {
+    cy.get('nav[aria-label="เมนูหลัก"]').contains('a', 'หน้าแรก').click();
+    cy.get('nav[aria-label="เมนูหลัก"]').contains('a', 'สถิติ').click();
+    cy.location('pathname').should('eq', '/stats');
+    cy.contains('h1', 'สถิติ VTuber ไทย').should('be.visible');
+  });
+
+  it('fits the public navigation and ranking table on mobile', () => {
+    cy.viewport(390, 844);
+    cy.document().its('documentElement.scrollWidth').should('be.lte', 390);
+    cy.get('.home-rankings').should('be.visible');
   });
 });
