@@ -15,6 +15,7 @@ import { AuditTab } from "./tabs/AuditTab";
 import { CategoriesTab } from "./tabs/CategoriesTab";
 import { ReportsTab } from "./tabs/ReportsTab";
 import { SettingsTab } from "./tabs/SettingsTab";
+import { HomepageTemplateTab } from "./tabs/HomepageTemplateTab";
 import { UsersTab } from "./tabs/UsersTab";
 import { Button, Field, Modal, Notice, useSubmit } from "./ui";
 import "./admin.css";
@@ -29,6 +30,7 @@ const baseTabs = [
 const managerTabs = [
   ["users", "ผู้ใช้งาน", "US"],
   ["history", "ประวัติการทำงาน", "LG"],
+  ["homepage", "หน้าแรก", "HP"],
   ["settings", "ตั้งค่าระบบ", "ST"],
 ];
 
@@ -141,6 +143,7 @@ export default function AdminPage() {
           <Route path="reports" element={<ReportsTab {...props} />} />
           <Route path="users" element={guard(<UsersTab {...props} />)} />
           <Route path="history" element={guard(<AuditTab />)} />
+          <Route path="homepage" element={guard(<HomepageTemplateTab {...props} />)} />
           <Route path="settings" element={guard(<SettingsTab {...props} />)} />
           <Route path="*" element={<Navigate to="channels" replace />} />
         </Routes>
