@@ -150,9 +150,11 @@ describe('Admin homepage templates', () => {
       cy.document().its('documentElement.scrollWidth').should('be.lte', 390);
     }
 
+    cy.then(() => { publicTemplate = 'search-first'; });
     cy.viewport(1280, 720);
     cy.visit('/');
     cy.wait(['@getHomepageConfig', '@getDirectory']);
+    cy.get('.homepage').should('have.attr', 'data-template', 'search-first');
     cy.document().its('documentElement.scrollWidth').should('be.lte', 1280);
     cy.get('.discovery-home form[role="search"] input').focus();
     cy.focused().should('match', 'input');
