@@ -1,6 +1,6 @@
 # VTuber Thai Ranking — Discovery Homepage and Stats Page
 
-**Status:** Proposed for review
+**Status:** Approved by user on 2026-09-24
 **Date:** 2026-09-24
 
 ## Objective
