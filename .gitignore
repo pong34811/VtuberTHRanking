@@ -13,6 +13,9 @@ cypress/downloads/
 # Wrangler
 .wrangler/
 
+# Isolated Superpowers worktrees
+.worktrees/
+
 # Logs
 *.log
 
