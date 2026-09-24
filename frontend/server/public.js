@@ -78,12 +78,37 @@ api.get('/vtubers/', async (c) => {
   const db = c.env.DB;
   if (!db) return c.json({ error: 'DB not available' }, 500);
   const q = c.req.query('q'), category = c.req.query('category'), affiliation = c.req.query('affiliation');
-  let whereClause = 'WHERE is_active = 1', params = [];
-  if (q) { whereClause += ' AND name LIKE ?'; params.push(`%${q}%`); }
-  if (category) { whereClause += ' AND category = ?'; params.push(category); }
-  if (affiliation) { whereClause += ' AND affiliation = ?'; params.push(affiliation); }
-  const countResult = await db.prepare(`SELECT COUNT(*) as count FROM vtubers ${whereClause}`).bind(...params).first();
-  const { results } = await db.prepare(`SELECT id, name, slug, avatar, category, affiliation FROM vtubers ${whereClause} ORDER BY name ASC`).bind(...params).all();
+  const parseFollowerBound = (raw) => {
+    if (raw == null || raw === '') return { valid: true, value: null };
+    if (!/^\d+$/.test(raw)) return { valid: false, value: null };
+    const value = Number(raw);
+    return { valid: Number.isSafeInteger(value), value: Number.isSafeInteger(value) ? value : null };
+  };
+  const minFollowers = parseFollowerBound(c.req.query('min_followers'));
+  const maxFollowers = parseFollowerBound(c.req.query('max_followers'));
+  if (!minFollowers.valid || !maxFollowers.valid || (minFollowers.value != null && maxFollowers.value != null && minFollowers.value > maxFollowers.value)) {
+    return c.json({ error: true, status: 400, message: 'Invalid follower range' }, 400);
+  }
+
+  const requestedSort = c.req.query('sort');
+  const sort = ['name', 'followers_desc', 'followers_asc'].includes(requestedSort) ? requestedSort : 'name';
+  const fromClause = `FROM vtubers v LEFT JOIN stats_snapshots latest ON latest.id = (
+    SELECT s.id FROM stats_snapshots s WHERE s.vtuber_id = v.id
+    ORDER BY s.recorded_at DESC, s.id DESC LIMIT 1
+  )`;
+  let whereClause = 'WHERE v.is_active = 1', params = [];
+  if (q) { whereClause += ' AND v.name LIKE ?'; params.push(`%${q}%`); }
+  if (category) { whereClause += ' AND v.category = ?'; params.push(category); }
+  if (affiliation) { whereClause += ' AND v.affiliation = ?'; params.push(affiliation); }
+  if (minFollowers.value != null) { whereClause += ' AND latest.followers >= ?'; params.push(minFollowers.value); }
+  if (maxFollowers.value != null) { whereClause += ' AND latest.followers <= ?'; params.push(maxFollowers.value); }
+  const countResult = await db.prepare(`SELECT COUNT(*) as count ${fromClause} ${whereClause}`).bind(...params).first();
+  const orderClause = sort === 'followers_desc'
+    ? 'CASE WHEN latest.followers IS NULL THEN 1 ELSE 0 END ASC, latest.followers DESC, v.name COLLATE NOCASE ASC, v.id ASC'
+    : sort === 'followers_asc'
+      ? 'CASE WHEN latest.followers IS NULL THEN 1 ELSE 0 END ASC, latest.followers ASC, v.name COLLATE NOCASE ASC, v.id ASC'
+      : 'v.name COLLATE NOCASE ASC, v.id ASC';
+  const { results } = await db.prepare(`SELECT v.id, v.name, v.slug, v.avatar, v.category, v.affiliation, latest.followers AS followers ${fromClause} ${whereClause} ORDER BY ${orderClause}`).bind(...params).all();
   return c.json({ count: countResult?.count || 0, results });
 });
 

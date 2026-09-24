@@ -163,6 +163,11 @@ GET /vtubers/
 | q | string | 否 | ค้นหาจากชื่อ |
 | category | string | 否 | กรองตามแนวหน้า |
 | affiliation | string | 否 | กรองตามสังกัด |
+| min_followers | integer | 否 | จำนวนผู้ติดตามขั้นต่ำจากสถิติล่าสุด (ตั้งแต่ 0 ขึ้นไป) |
+| max_followers | integer | 否 | จำนวนผู้ติดตามสูงสุดจากสถิติล่าสุด (ตั้งแต่ 0 ขึ้นไป) |
+| sort | string | 否 | `name` (ค่าเริ่มต้น), `followers_desc` หรือ `followers_asc`; ผู้ติดตามที่ไม่มีข้อมูลจะแสดงท้ายรายการ |
+
+ระบบตอบกลับ `400` เมื่อค่าช่วงผู้ติดตามไม่ใช่จำนวนเต็มที่ปลอดภัย หรือค่าขั้นต่ำมากกว่าค่าสูงสุด ผลลัพธ์แต่ละรายการมีฟิลด์ `followers` ซึ่งเป็นจำนวนล่าสุดหรือ `null` หากไม่มีข้อมูล
 
 **Response:**
 ```json
@@ -175,7 +180,8 @@ GET /vtubers/
       "slug": "vtuber-a",
       "avatar": "/media/avatars/2026/08/a.png",
       "category": "gaming",
-      "affiliation": "indie"
+      "affiliation": "indie",
+      "followers": 12500
     }
   ]
 }

@@ -170,6 +170,44 @@ describe('public vtuber search', () => {
 
     expect(calls[0].values).toEqual(['%aiko%']);
   });
+
+  it('filters by the latest follower range and returns followers in the selected order', async () => {
+    const vtuber = { id: 1, name: 'Aiko', slug: 'aiko', avatar: 'a.png', category: 'gaming', affiliation: 'indie', followers: 450 };
+    const { response, calls } = await publicRequest(
+      '/vtubers/?min_followers=100&max_followers=900&sort=followers_desc',
+      [{ count: 1 }, { results: [vtuber] }],
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ count: 1, results: [vtuber] });
+    expect(calls[0].sql).toContain('latest.followers >= ?');
+    expect(calls[0].sql).toContain('latest.followers <= ?');
+    expect(calls[0].sql).toContain('LEFT JOIN stats_snapshots latest');
+    expect(calls[0].sql).toContain('ORDER BY s.recorded_at DESC, s.id DESC LIMIT 1');
+    expect(calls[0].values).toEqual([100, 900]);
+    expect(calls[1].values).toEqual([100, 900]);
+    expect(calls[1].sql).toContain('CASE WHEN latest.followers IS NULL THEN 1 ELSE 0 END ASC');
+    expect(calls[1].sql).toContain('latest.followers DESC');
+  });
+
+  it('rejects an inverted or invalid follower range before querying D1', async () => {
+    for (const path of [
+      '/vtubers/?min_followers=900&max_followers=100',
+      '/vtubers/?min_followers=-1',
+      '/vtubers/?max_followers=900000000000000000000',
+    ]) {
+      const { response, calls } = await publicRequest(path);
+      expect(response.status).toBe(400);
+      expect(calls).toHaveLength(0);
+    }
+  });
+
+  it('uses a safe name ordering for an unknown sort option', async () => {
+    const { calls } = await publicRequest('/vtubers/?sort=name;drop_table', [{ count: 0 }, { results: [] }]);
+
+    expect(calls[1].sql).toContain('ORDER BY v.name COLLATE NOCASE ASC');
+    expect(calls[1].sql).not.toContain('drop_table');
+  });
 });
 
 describe('public vtuber detail', () => {

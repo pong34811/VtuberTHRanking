@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import ChangeIndicator from "./ChangeIndicator";
 import { useState } from "react";
 import { affiliationLabel, categoryLabel } from "./channelLabels";
-export default function VTuberCard({ vtuber, rank, score, rankChange, isNew, videoCount }) {
+export default function VTuberCard({ vtuber, rank, score, rankChange, isNew, videoCount, followers }) {
   const [failed, setFailed] = useState(false);
   return (
     <Link to={`/profile/${vtuber.slug}`} className="ranking-row">
@@ -30,6 +30,11 @@ export default function VTuberCard({ vtuber, rank, score, rankChange, isNew, vid
         {videoCount != null && (
           <p className="text-xs text-[var(--muted-foreground)]">
             {videoCount.toLocaleString("th-TH")} คลิป
+          </p>
+        )}
+        {followers !== undefined && (
+          <p className="text-xs text-[var(--muted-foreground)]">
+            {followers == null ? "ยังไม่มีข้อมูลผู้ติดตาม" : `${followers.toLocaleString("th-TH")} ผู้ติดตาม`}
           </p>
         )}
       </div>

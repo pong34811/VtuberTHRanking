@@ -9,19 +9,51 @@ export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [affiliation, setAffiliation] = useState("");
+  const [minFollowers, setMinFollowers] = useState("");
+  const [maxFollowers, setMaxFollowers] = useState("");
+  const [sort, setSort] = useState("name");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
-  const hasFilters = Boolean(query || category || affiliation);
+  const parsedMinFollowers = minFollowers === "" ? null : Number(minFollowers);
+  const parsedMaxFollowers = maxFollowers === "" ? null : Number(maxFollowers);
+  const invalidFollowerBound = [parsedMinFollowers, parsedMaxFollowers].some(
+    (value) => value !== null && (!Number.isSafeInteger(value) || value < 0),
+  );
+  const followerRangeError = invalidFollowerBound
+    ? "กรุณาระบุจำนวนผู้ติดตามเป็นจำนวนเต็มตั้งแต่ 0 ขึ้นไป"
+    : parsedMinFollowers !== null && parsedMaxFollowers !== null && parsedMinFollowers > parsedMaxFollowers
+      ? "จำนวนขั้นต่ำต้องไม่เกินจำนวนสูงสุด"
+      : "";
+  const hasFilters = Boolean(query || category || affiliation || minFollowers || maxFollowers || sort !== "name");
+
+  const clearFilters = () => {
+    setQuery("");
+    setCategory("");
+    setAffiliation("");
+    setMinFollowers("");
+    setMaxFollowers("");
+    setSort("name");
+  };
 
   useEffect(() => {
     let active = true;
+    if (followerRangeError) {
+      setResults([]);
+      setLoading(false);
+      setError("");
+      return () => { active = false; };
+    }
     setLoading(true);
     setError("");
     const timer = setTimeout(() => {
+      const params = { q: query.trim(), category, affiliation };
+      if (minFollowers !== "") params.min_followers = parsedMinFollowers;
+      if (maxFollowers !== "") params.max_followers = parsedMaxFollowers;
+      if (sort !== "name") params.sort = sort;
       vtubersAPI
-        .getList({ q: query.trim(), category, affiliation })
+        .getList(params)
         .then((res) => {
           if (active) setResults(res.data.results);
         })
@@ -36,7 +68,7 @@ export default function SearchPage() {
       active = false;
       clearTimeout(timer);
     };
-  }, [query, category, affiliation, retry]);
+  }, [query, category, affiliation, minFollowers, maxFollowers, sort, followerRangeError, retry]);
 
   return (
     <div>
@@ -84,10 +116,30 @@ export default function SearchPage() {
           <option value="agency">{affiliationLabel("agency")}</option>
           </select>
         </div>
-        {hasFilters && <button className="clear-button" onClick={() => { setQuery(""); setCategory(""); setAffiliation(""); }}>ล้างตัวกรอง</button>}
+        <div className="filter-field follower-range-field">
+          <label>ช่วงผู้ติดตาม</label>
+          <div className="follower-range-control">
+            <label className="sr-only" htmlFor="followers-min">ผู้ติดตามตั้งแต่</label>
+            <input id="followers-min" aria-label="ผู้ติดตามตั้งแต่" type="number" min="0" step="1" inputMode="numeric" value={minFollowers} onChange={(e) => setMinFollowers(e.target.value)} placeholder="ขั้นต่ำ" className="control-input" />
+            <span aria-hidden="true">ถึง</span>
+            <label className="sr-only" htmlFor="followers-max">ผู้ติดตามถึง</label>
+            <input id="followers-max" aria-label="ผู้ติดตามถึง" type="number" min="0" step="1" inputMode="numeric" value={maxFollowers} onChange={(e) => setMaxFollowers(e.target.value)} placeholder="สูงสุด" className="control-input" />
+          </div>
+        </div>
+        <div className="filter-field">
+          <label htmlFor="search-sort">เรียงผลลัพธ์</label>
+          <select id="search-sort" aria-label="เรียงผลลัพธ์" value={sort} onChange={(e) => setSort(e.target.value)} className="control-input">
+            <option value="name">ชื่อ A–Z</option>
+            <option value="followers_desc">ผู้ติดตามมากไปน้อย</option>
+            <option value="followers_asc">ผู้ติดตามน้อยไปมาก</option>
+          </select>
+        </div>
+        {hasFilters && <button className="clear-button" onClick={clearFilters}>ล้างตัวกรอง</button>}
       </section>
 
-      {loading ? (
+      {followerRangeError ? (
+        <p className="filter-error" role="alert">{followerRangeError}</p>
+      ) : loading ? (
         <LoadingSpinner />
       ) : error ? (
         <Feedback error={error} retry={() => setRetry((x) => x + 1)} />
@@ -95,8 +147,8 @@ export default function SearchPage() {
         <section aria-live="polite">
           <div className="result-heading"><h2>ผลการค้นหา</h2><span>{results.length.toLocaleString("th-TH")} ช่อง</span></div>
           <div className="ranking-list">
-            {results.map((v) => <VTuberCard key={v.id} vtuber={v} rank="-" score={null} rankChange={null} />)}
-            {results.length === 0 && <div className="empty-state"><strong>ไม่พบช่องที่ตรงกับตัวกรอง</strong><span>ลองใช้คำค้นที่สั้นลง หรือล้างตัวกรองบางรายการ</span>{hasFilters && <button className="secondary-button" onClick={() => { setQuery(""); setCategory(""); setAffiliation(""); }}>แสดงทุกช่อง</button>}</div>}
+            {results.map((v) => <VTuberCard key={v.id} vtuber={v} rank="-" score={null} rankChange={null} followers={v.followers} />)}
+            {results.length === 0 && <div className="empty-state"><strong>ไม่พบช่องที่ตรงกับตัวกรอง</strong><span>ลองใช้คำค้นที่สั้นลง หรือล้างตัวกรองบางรายการ</span>{hasFilters && <button className="secondary-button" onClick={clearFilters}>แสดงทุกช่อง</button>}</div>}
           </div>
         </section>
       )}
