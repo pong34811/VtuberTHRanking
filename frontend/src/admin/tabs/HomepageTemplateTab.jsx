@@ -100,11 +100,21 @@ export function HomepageTemplateTab({ csrfToken }) {
             onClick={() => selectDraft(template.id)}
           >
             <span className={`homepage-template-thumbnail homepage-template-thumbnail--${template.id}`} aria-hidden="true">
-              <span className="thumbnail-hero" />
-              <span className="thumbnail-summary" />
-              <span className="thumbnail-method" />
-              <span className="thumbnail-rankings" />
-              <span className="thumbnail-discovery" />
+              {template.id === 'search-first' && <>
+                <span className="thumbnail-search-bar" />
+                <span className="thumbnail-card-row"><i /><i /><i /></span>
+              </>}
+              {template.id === 'category-first' && <>
+                <span className="thumbnail-category-tiles"><i /><i /><i /><i /></span>
+                <span className="thumbnail-category-group"><i /><i /><i /></span>
+                <span className="thumbnail-category-group"><i /><i /><i /></span>
+              </>}
+              {template.id === 'newest-first' && <>
+                <span className="thumbnail-date-heading" />
+                <span className="thumbnail-newest-entry"><i /><b /><b /></span>
+                <span className="thumbnail-newest-entry"><i /><b /><b /></span>
+                <span className="thumbnail-newest-entry"><i /><b /><b /></span>
+              </>}
             </span>
             <span className="homepage-template-option-copy">
               <span className="homepage-template-option-title">

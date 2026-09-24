@@ -11,96 +11,115 @@ function stubTemplateSettings(readPublished, savePublished) {
 }
 
 function stubPublicApi(readPublished) {
-  cy.intercept({ method: 'GET', pathname: '/api/v1/summary/' }, req => {
-    req.reply({
-      total_vtubers: 2,
-      total_followers_all: 183000,
-      top_gainer: null,
-      latest_update: '2026-09-16T00:00:00.000Z',
-      homepage_template: readPublished(),
-      period_choices: [
-        { value: 'monthly', label: 'รายเดือน' },
-        { value: 'alltime', label: 'ทั้งหมด' },
-      ],
-      category_choices: [
-        { value: 'followers', label: 'ผู้ติดตาม' },
-        { value: 'views', label: 'ยอดวิว' },
-        { value: 'videos', label: 'จำนวนคลิป' },
-      ],
-    });
+  cy.intercept({ method: 'GET', pathname: '/api/v1/homepage-config/' }, req => {
+    req.reply({ template: readPublished() });
+  }).as('getHomepageConfig');
+  cy.fixture('directory.json').then(directory => {
+    cy.intercept({ method: 'GET', pathname: '/api/v1/directory/' }, req => {
+      let results = directory.results.filter(creator => !req.query.category || creator.category === req.query.category);
+      if (req.query.sort === 'created_at_desc') results = [...results].sort((a, b) => b.created_at.localeCompare(a.created_at));
+      else results = [...results].sort((a, b) => a.name.localeCompare(b.name));
+      const limit = Math.max(1, Math.min(100, Number.parseInt(req.query.limit, 10) || 12));
+      const offset = Math.max(0, Number.parseInt(req.query.offset, 10) || 0);
+      req.reply({
+        total: results.length,
+        count: results.slice(offset, offset + limit).length,
+        limit,
+        offset,
+        results: results.slice(offset, offset + limit),
+        category_counts: directory.category_counts,
+      });
+    }).as('getDirectory');
+  });
+  cy.intercept({ method: 'GET', pathname: '/api/v1/summary/' }, {
+    total_vtubers: 2,
+    total_followers_all: 183000,
+    top_gainer: null,
+    latest_update: '2026-09-16T00:00:00.000Z',
+    period_choices: [
+      { value: 'monthly', label: 'รายเดือน' },
+      { value: 'alltime', label: 'ทั้งหมด' },
+    ],
+    category_choices: [
+      { value: 'followers', label: 'ผู้ติดตาม' },
+      { value: 'views', label: 'ยอดวิว' },
+      { value: 'videos', label: 'จำนวนคลิป' },
+    ],
   }).as('getSummary');
   cy.intercept({ method: 'GET', pathname: '/api/v1/rankings/' }, { fixture: 'rankings.json' }).as('getRankings');
 }
 
 describe('Admin homepage templates', () => {
-  it('previews a manager draft, saves it, and publishes it on the public Home', () => {
-    let publishedTemplate = 'ranking-first';
+  it('previews a category draft, saves it, and publishes it on the public Home', () => {
+    let publishedTemplate = 'search-first';
     cy.loginAs('manager');
     stubTemplateSettings(() => publishedTemplate, value => { publishedTemplate = value; });
     stubPublicApi(() => publishedTemplate);
 
     cy.visit('/admin/homepage');
-    cy.wait(['@getMe', '@getHomepageTemplate', '@getSummary', '@getRankings']);
-    [
-      ['ranking-first', ['hero', 'summary', 'method', 'rankings', 'discovery']],
-      ['discovery-first', ['hero', 'summary', 'discovery', 'rankings', 'method']],
-      ['compact-ranking', ['hero', 'summary', 'rankings', 'method', 'discovery']],
-    ].forEach(([id, expectedOrder]) => {
-      cy.get(`.homepage-template-thumbnail--${id}`).should($thumbnail => {
-        const actualOrder = getComputedStyle($thumbnail[0]).gridTemplateAreas.replace(/"/g, '').trim().split(/\s+/);
-        expect(actualOrder).to.deep.equal(expectedOrder);
-      });
-    });
-    cy.contains('button', 'ค้นพบ VTuber').click();
-    cy.get('[data-testid="homepage-preview"] .homepage').should('have.attr', 'data-template', 'discovery-first');
+    cy.wait(['@getMe', '@getHomepageTemplate', '@getDirectory']);
+    cy.get('.homepage-template-thumbnail--search-first .thumbnail-search-bar').should('exist');
+    cy.get('.homepage-template-thumbnail--category-first .thumbnail-category-tiles').should('exist');
+    cy.get('.homepage-template-thumbnail--newest-first .thumbnail-newest-entry').should('exist');
+
+    cy.get('.homepage-template-option').eq(1).click();
+    cy.get('[data-testid="homepage-preview"] .homepage').should('have.attr', 'data-template', 'category-first');
+    cy.get('[data-testid="homepage-preview"]').contains('Biko').should('be.visible');
     cy.contains('.homepage-template-draft-label', 'ตัวอย่าง — ยังไม่เผยแพร่').should('exist');
-    cy.contains('.homepage-template-published', 'เผยแพร่อยู่: อันดับเด่น').should('exist');
+    cy.contains('.homepage-template-published', 'เผยแพร่อยู่: ค้นหาก่อน').should('exist');
 
     cy.contains('button', 'บันทึกเป็นหน้าแรก').click();
-    cy.wait('@saveHomepageTemplate').its('request.body.homepage_template').should('eq', 'discovery-first');
-    cy.contains('.homepage-template-published', 'เผยแพร่อยู่: ค้นพบ VTuber').should('exist');
+    cy.wait('@saveHomepageTemplate').its('request.body.homepage_template').should('eq', 'category-first');
+    cy.contains('.homepage-template-published', 'เผยแพร่อยู่: เลือกหมวดหมู่').should('exist');
     cy.contains('.homepage-template-draft-label').should('not.exist');
 
     cy.visit('/');
-    cy.wait(['@getSummary', '@getRankings']);
-    cy.get('.homepage').should('have.attr', 'data-template', 'discovery-first');
+    cy.wait(['@getHomepageConfig', '@getDirectory']);
+    cy.get('.homepage').should('have.attr', 'data-template', 'category-first');
+    cy.contains('.discovery-group', 'Biko').should('be.visible');
+    cy.get('@getSummary.all').should('have.length', 0);
+    cy.get('@getRankings.all').should('have.length', 0);
   });
 
-  it('leaves an unsaved draft unpublished when the manager opens the public Home', () => {
-    let publishedTemplate = 'ranking-first';
+  it('keeps an unsaved newest draft unpublished on the public Home', () => {
+    let publishedTemplate = 'search-first';
     cy.loginAs('manager');
     stubTemplateSettings(() => publishedTemplate, value => { publishedTemplate = value; });
     stubPublicApi(() => publishedTemplate);
 
     cy.visit('/admin/homepage');
-    cy.wait(['@getMe', '@getHomepageTemplate', '@getSummary', '@getRankings']);
-    cy.contains('button', 'อันดับแบบกระชับ').click();
+    cy.wait(['@getMe', '@getHomepageTemplate', '@getDirectory']);
+    cy.contains('button', 'เพิ่มเข้ารายการล่าสุด').click();
+    cy.get('[data-testid="homepage-preview"] .discovery-date-note').should('contain.text', 'ไม่ใช่วันเดบิวต์');
     cy.contains('.homepage-template-draft-label', 'ตัวอย่าง — ยังไม่เผยแพร่').should('exist');
     cy.get('@saveHomepageTemplate.all').should('have.length', 0);
 
     cy.visit('/');
-    cy.wait(['@getSummary', '@getRankings']);
-    cy.get('.homepage').should('have.attr', 'data-template', 'ranking-first');
+    cy.wait(['@getHomepageConfig', '@getDirectory']);
+    cy.get('.homepage').should('have.attr', 'data-template', 'search-first');
     cy.get('@saveHomepageTemplate.all').should('have.length', 0);
   });
 
-  it('lets a manager select a preset with the keyboard', () => {
-    let publishedTemplate = 'ranking-first';
+  it('keeps the preview controls contained and lets a manager select with the keyboard', () => {
+    let publishedTemplate = 'search-first';
     cy.loginAs('manager');
     stubTemplateSettings(() => publishedTemplate, value => { publishedTemplate = value; });
     stubPublicApi(() => publishedTemplate);
 
     cy.visit('/admin/homepage');
-    cy.wait(['@getMe', '@getHomepageTemplate', '@getSummary', '@getRankings']);
-    cy.contains('button', 'อันดับเด่น').click();
+    cy.wait(['@getMe', '@getHomepageTemplate', '@getDirectory']);
+    cy.get('.homepage-template-option').first().focus();
     cy.press(Cypress.Keyboard.Keys.TAB);
-    cy.press(Cypress.Keyboard.Keys.TAB);
-    cy.focused().should('have.class', 'homepage-template-option').and('contain.text', 'อันดับแบบกระชับ');
+    cy.focused().should('have.class', 'homepage-template-option').and('contain.text', 'เลือกหมวดหมู่');
     cy.press(Cypress.Keyboard.Keys.SPACE);
+    cy.get('[data-testid="homepage-preview"] .homepage').should('have.attr', 'data-template', 'category-first');
+    cy.get('[data-testid="homepage-preview"] form[role="search"] input').should('not.exist');
 
-    cy.contains('button', 'อันดับแบบกระชับ').should('have.attr', 'aria-pressed', 'true');
-    cy.get('[data-testid="homepage-preview"] .homepage').should('have.attr', 'data-template', 'compact-ranking');
-    cy.contains('.homepage-template-published', 'เผยแพร่อยู่: อันดับเด่น').should('exist');
+    cy.get('.homepage-template-option').first().click();
+    cy.get('[data-testid="homepage-preview"] form[role="search"] input').type('Aiko');
+    cy.get('[data-testid="homepage-preview"] form[role="search"]').submit();
+    cy.get('[data-testid="homepage-preview"] .discovery-card').first().click();
+    cy.location('pathname').should('eq', '/admin/homepage');
     cy.get('@saveHomepageTemplate.all').should('have.length', 0);
   });
 
@@ -115,23 +134,35 @@ describe('Admin homepage templates', () => {
     cy.get('@staffTemplateSettings.all').should('have.length', 0);
   });
 
-  it('keeps all public presets and the Admin preview within a 390px viewport', () => {
-    let publicTemplate = 'ranking-first';
-    cy.viewport(390, 844);
+  it('keeps public templates and the Admin preview within mobile and desktop widths', () => {
+    let publicTemplate = 'search-first';
     cy.loginAs('manager');
     stubTemplateSettings(() => publicTemplate, value => { publicTemplate = value; });
     stubPublicApi(() => publicTemplate);
 
-    for (const template of ['ranking-first', 'discovery-first', 'compact-ranking']) {
+    for (const template of ['search-first', 'category-first', 'newest-first']) {
       cy.then(() => { publicTemplate = template; });
+      cy.viewport(390, 844);
       cy.visit('/');
-      cy.wait(['@getSummary', '@getRankings']);
+      cy.wait(['@getHomepageConfig', '@getDirectory']);
       cy.get('.homepage').should('have.attr', 'data-template', template);
+      cy.get('.discovery-card').first().should('be.visible');
       cy.document().its('documentElement.scrollWidth').should('be.lte', 390);
     }
 
+    cy.viewport(1280, 720);
+    cy.visit('/');
+    cy.wait(['@getHomepageConfig', '@getDirectory']);
+    cy.document().its('documentElement.scrollWidth').should('be.lte', 1280);
+    cy.get('.discovery-home form[role="search"] input').focus();
+    cy.focused().should('match', 'input');
+    cy.focused().then($input => {
+      expect(getComputedStyle($input[0]).outlineStyle).not.to.equal('none');
+    });
+
+    cy.viewport(390, 844);
     cy.visit('/admin/homepage');
-    cy.wait(['@getMe', '@getHomepageTemplate', '@getSummary', '@getRankings']);
+    cy.wait(['@getMe', '@getHomepageTemplate', '@getDirectory']);
     cy.get('.homepage-template-options').should($options => {
       expect($options[0].scrollWidth).to.be.lte($options[0].clientWidth);
     });

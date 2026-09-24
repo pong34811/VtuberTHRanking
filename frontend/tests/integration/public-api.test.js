@@ -336,7 +336,7 @@ describe('public compare', () => {
 
 describe('public summary', () => {
   it('returns totals, choices and the latest update', async () => {
-    const { response } = await publicRequest('/summary/', [
+    const { response, calls } = await publicRequest('/summary/', [
       { count: 3 },
       { total: 1000 },
       null,
@@ -344,12 +344,12 @@ describe('public summary', () => {
     ]);
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
+    const body = await response.json();
+    expect(body).toEqual({
       total_vtubers: 3,
       total_followers_all: 1000,
       top_gainer: null,
       latest_update: '2026-09-01T00:00:00.000Z',
-      homepage_template: 'ranking-first',
       period_choices: [{ value: 'monthly', label: 'รายเดือน' }, { value: 'alltime', label: 'ทั้งหมด' }],
       category_choices: [
         { value: 'followers', label: 'ยอดผู้ติดตาม' },
@@ -357,6 +357,9 @@ describe('public summary', () => {
         { value: 'videos', label: 'จำนวนคลิป' },
       ],
     });
+    expect(calls).toHaveLength(4);
+    expect(calls.some(call => /\bsettings\b/i.test(call.sql))).toBe(false);
+    expect(body).not.toHaveProperty('homepage_template');
   });
 
   it('returns the top gainer when one exists', async () => {

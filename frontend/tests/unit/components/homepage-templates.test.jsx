@@ -1,135 +1,112 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { rankingsAPI, summaryAPI } from '@/api/client';
+import { directoryAPI, homepageConfigAPI, rankingsAPI, summaryAPI } from '@/api/client';
 import HomePage from '@/pages/HomePage';
 import { HOMEPAGE_TEMPLATES } from '@/pages/homepageTemplates';
 
 vi.mock('@/api/client', () => ({
+  directoryAPI: { getList: vi.fn() },
+  homepageConfigAPI: { get: vi.fn() },
   rankingsAPI: { getList: vi.fn() },
   summaryAPI: { get: vi.fn() },
 }));
 
-const sectionNames = ['home-summary', 'home-method', 'home-rankings', 'home-discovery'];
-const expectedOrders = {
-  'ranking-first': ['home-summary', 'home-method', 'home-rankings', 'home-discovery'],
-  'discovery-first': ['home-summary', 'home-discovery', 'home-rankings', 'home-method'],
-  'compact-ranking': ['home-summary', 'home-rankings', 'home-method', 'home-discovery'],
-};
+const aiko = { id: 1, name: 'Aiko', slug: 'aiko', category: 'gaming', affiliation: 'indie', avatar: '', created_at: '2026-09-01 00:00:00' };
+const directoryPage = { total: 1, count: 1, results: [aiko], category_counts: [{ category: 'gaming', count: 1 }] };
 
-const sectionOrder = container => Array.from(container.querySelector('.homepage').children)
-  .filter(node => sectionNames.some(name => node.classList.contains(name)))
-  .map(node => sectionNames.find(name => node.classList.contains(name)));
-
-function renderHome(props = {}) {
-  return render(<MemoryRouter><HomePage {...props} /></MemoryRouter>);
+function renderHome(props = {}, initialEntry = '/') {
+  return render(<MemoryRouter initialEntries={[initialEntry]}><CurrentPath /><HomePage {...props} /></MemoryRouter>);
 }
 
 function CurrentPath() {
   const location = useLocation();
-  return <output data-testid="current-path">{location.pathname}</output>;
+  return <output data-testid="current-path">{location.pathname + location.search}</output>;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  directoryAPI.getList.mockResolvedValue({ data: directoryPage });
+  homepageConfigAPI.get.mockResolvedValue({ data: { template: 'search-first' } });
   rankingsAPI.getList.mockResolvedValue({ data: { results: [], total: 0 } });
-  summaryAPI.get.mockResolvedValue({
-    data: {
-      total_vtubers: 2,
-      latest_update: '2026-09-01T00:00:00.000Z',
-      homepage_template: 'ranking-first',
-    },
-  });
+  summaryAPI.get.mockResolvedValue({ data: {} });
 });
 afterEach(() => cleanup());
 
 describe('homepage template registry', () => {
   it.each([
-    ['ranking-first', 'อันดับเด่น', false],
-    ['discovery-first', 'ค้นพบ VTuber', false],
-    ['compact-ranking', 'อันดับแบบกระชับ', true],
-  ])('registry describes %s with its agreed metadata', (id, label, compactHero) => {
-    expect(HOMEPAGE_TEMPLATES[id]).toMatchObject({
-      id,
-      label,
-      description: expect.any(String),
-      compactHero,
-      sectionOrder: expectedOrders[id].map(name => name.replace('home-', '')),
-    });
+    ['search-first', 'ค้นหาก่อน', 'ค้นหา'],
+    ['category-first', 'เลือกหมวดหมู่', 'หมวดหมู่'],
+    ['newest-first', 'เพิ่มเข้ารายการล่าสุด', 'วันที่เพิ่ม'],
+  ])('registry describes %s with its agreed metadata', (id, label, hint) => {
+    expect(HOMEPAGE_TEMPLATES[id]).toMatchObject({ id, label, description: expect.stringContaining(hint) });
+    expect(HOMEPAGE_TEMPLATES[id]).not.toHaveProperty('sectionOrder');
   });
 });
 
 describe('homepage template rendering', () => {
-  it.each(Object.keys(expectedOrders))('%s preserves trust content and follows its section order', async id => {
-    summaryAPI.get.mockResolvedValue({
-      data: {
-        total_vtubers: 2,
-        latest_update: '2026-09-01T00:00:00.000Z',
-        homepage_template: id,
-      },
-    });
+  it.each([
+    ['search-first', 'ค้นพบ VTuber ไทย'],
+    ['category-first', 'ค้นพบผ่านหมวดหมู่'],
+    ['newest-first', 'เพิ่มเข้ารายการล่าสุด'],
+  ])('renders the published %s directory', async (template, title) => {
+    homepageConfigAPI.get.mockResolvedValue({ data: { template } });
     const { container } = renderHome();
 
-    await screen.findByRole('heading', { name: 'อันดับที่กำลังจับตา' });
-    expect(container.querySelector('.homepage')).toHaveAttribute('data-template', id);
-    expect(sectionOrder(container)).toEqual(expectedOrders[id]);
-    expect(screen.getByRole('heading', {
-      name: id === 'discovery-first' ? 'ค้นพบ VTuber ไทย' : 'สำรวจอันดับ VTuber ไทย',
-    })).toBeInTheDocument();
-    expect(screen.getByText('YouTube')).toBeInTheDocument();
-    expect(screen.getByText('วิธีจัดอันดับ')).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'ช่วงเวลา' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'จัดอันดับตาม' })).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /เปรียบเทียบช่อง/ }).map(link => link.getAttribute('href')))
-      .toEqual(id === 'discovery-first' ? ['/compare', '/compare'] : ['/compare']);
-    expect(screen.getAllByRole('link', { name: /ค้นหา VTuber/ }).map(link => link.getAttribute('href')))
-      .toEqual(['/search', '/search']);
+    expect(await screen.findByRole('link', { name: /Aiko/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: title })).toBeInTheDocument();
+    expect(container.querySelector('.homepage')).toHaveAttribute('data-template', template);
+    expect(screen.getByRole('link', { name: /ดูสถิติ/ })).toHaveAttribute('href', '/stats');
+    expect(summaryAPI.get).not.toHaveBeenCalled();
+    expect(rankingsAPI.getList).not.toHaveBeenCalled();
   });
 
   it.each([
     ['missing', {}],
-    ['invalid', { homepage_template: 'custom-layout' }],
-  ])('ranking-first is used when the summary template is %s', async (_label, summary) => {
-    summaryAPI.get.mockResolvedValue({ data: summary });
+    ['invalid', { template: 'custom-layout' }],
+    ['legacy', { template: 'discovery-first' }],
+  ])('uses search-first when public configuration is %s', async (_label, config) => {
+    homepageConfigAPI.get.mockResolvedValue({ data: config });
     const { container } = renderHome();
 
-    await screen.findByRole('heading', { name: 'อันดับที่กำลังจับตา' });
-    expect(container.querySelector('.homepage')).toHaveAttribute('data-template', 'ranking-first');
-    expect(sectionOrder(container)).toEqual(expectedOrders['ranking-first']);
+    expect(await screen.findByRole('heading', { level: 1, name: 'ค้นพบ VTuber ไทย' })).toBeInTheDocument();
+    expect(container.querySelector('.homepage')).toHaveAttribute('data-template', 'search-first');
   });
 
-  it('ranking-first remains active when summary loading fails', async () => {
-    summaryAPI.get.mockRejectedValue(new Error('summary unavailable'));
+  it('uses search-first when config fails while directory succeeds', async () => {
+    homepageConfigAPI.get.mockRejectedValue(new Error('unavailable'));
     const { container } = renderHome();
 
-    await screen.findByRole('status');
-    expect(container.querySelector('.homepage')).toHaveAttribute('data-template', 'ranking-first');
-    expect(screen.getByText('โหลดข้อมูลภาพรวมไม่สำเร็จ')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'อันดับที่กำลังจับตา' })).toBeInTheDocument();
+    await screen.findByRole('link', { name: /Aiko/ });
+    expect(container.querySelector('.homepage')).toHaveAttribute('data-template', 'search-first');
+    expect(summaryAPI.get).not.toHaveBeenCalled();
+    expect(rankingsAPI.getList).not.toHaveBeenCalled();
   });
 
-  it('keeps ranking-first and shows both errors when summary and rankings fail', async () => {
-    summaryAPI.get.mockRejectedValue(new Error('summary unavailable'));
-    rankingsAPI.getList.mockRejectedValue(new Error('rankings unavailable'));
-    const { container } = renderHome();
+  it('uses an Admin override without reading published configuration', async () => {
+    const { container } = renderHome({ templateOverride: 'newest-first', previewMode: true }, '/admin/homepage');
 
-    expect(await screen.findByText('โหลดข้อมูลภาพรวมไม่สำเร็จ')).toBeInTheDocument();
-    expect(await screen.findByText('โหลดอันดับไม่สำเร็จ กรุณาลองอีกครั้ง')).toBeInTheDocument();
-    expect(container.querySelector('.homepage')).toHaveAttribute('data-template', 'ranking-first');
-    expect(screen.getByRole('heading', { name: 'อันดับที่กำลังจับตา' })).toBeInTheDocument();
+    await screen.findByRole('heading', { level: 1, name: 'เพิ่มเข้ารายการล่าสุด' });
+    expect(container.querySelector('.homepage')).toHaveAttribute('data-template', 'newest-first');
+    expect(homepageConfigAPI.get).not.toHaveBeenCalled();
+    expect(summaryAPI.get).not.toHaveBeenCalled();
+    expect(rankingsAPI.getList).not.toHaveBeenCalled();
   });
 
-  it('keeps preview links inside the current Admin route', async () => {
-    render(
-      <MemoryRouter initialEntries={['/admin/homepage']}>
-        <CurrentPath />
-        <HomePage templateOverride="discovery-first" previewMode />
-      </MemoryRouter>,
-    );
-    await screen.findByRole('heading', { name: 'อันดับที่กำลังจับตา' });
+  it('submits a name search to the search route with the query encoded', async () => {
+    renderHome();
+    await screen.findByRole('link', { name: /Aiko/ });
+    fireEvent.change(screen.getByLabelText('ค้นหาชื่อ VTuber'), { target: { value: 'มิกุ' } });
+    fireEvent.submit(screen.getByRole('search'));
+    expect(screen.getByTestId('current-path')).toHaveTextContent('/search?q=%E0%B8%A1%E0%B8%B4%E0%B8%81%E0%B8%B8');
+  });
 
-    fireEvent.click(screen.getAllByRole('link', { name: /ค้นหา VTuber/ })[0]);
-
+  it('keeps preview form and creator links inside the current Admin route', async () => {
+    renderHome({ templateOverride: 'search-first', previewMode: true }, '/admin/homepage');
+    await screen.findByRole('link', { name: /Aiko/ });
+    fireEvent.change(screen.getByLabelText('ค้นหาชื่อ VTuber'), { target: { value: 'Aiko' } });
+    fireEvent.submit(screen.getByRole('search'));
+    fireEvent.click(screen.getByRole('link', { name: /Aiko/ }));
     expect(screen.getByTestId('current-path')).toHaveTextContent('/admin/homepage');
   });
 });

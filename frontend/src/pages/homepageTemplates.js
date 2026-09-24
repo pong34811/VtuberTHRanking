@@ -1,29 +1,20 @@
 import { HOMEPAGE_TEMPLATE_IDS } from '../../../shared/homepage-templates.js';
 
 const templateMetadata = {
-  'ranking-first': {
-    label: 'อันดับเด่น',
-    description: 'เริ่มจากภาพรวมและวิธีจัดอันดับ แล้วดูตารางอันดับ',
-    compactHero: false,
-    sectionOrder: ['summary', 'method', 'rankings', 'discovery'],
+  'search-first': {
+    label: 'ค้นหาก่อน',
+    description: 'เริ่มจากช่องค้นหา พร้อมทางลัดเลือกหมวดหมู่และสังกัด',
   },
-  'discovery-first': {
-    label: 'ค้นพบ VTuber',
-    description: 'ชวนค้นหาและเปรียบเทียบช่อง ก่อนสำรวจอันดับ',
-    compactHero: false,
-    sectionOrder: ['summary', 'discovery', 'rankings', 'method'],
+  'category-first': {
+    label: 'เลือกหมวดหมู่',
+    description: 'สำรวจกลุ่ม VTuber ตามหมวดหมู่ พร้อมจำนวนช่องในแต่ละหมวด',
   },
-  'compact-ranking': {
-    label: 'อันดับแบบกระชับ',
-    description: 'พาไปดูอันดับได้เร็วขึ้น พร้อมข้อมูลและวิธีจัดอันดับ',
-    compactHero: true,
-    sectionOrder: ['summary', 'rankings', 'method', 'discovery'],
+  'newest-first': {
+    label: 'เพิ่มเข้ารายการล่าสุด',
+    description: 'พบช่องที่เพิ่มเข้ารายการล่าสุด โดยแสดงวันที่เพิ่มข้อมูล',
   },
 };
 
 export const HOMEPAGE_TEMPLATES = Object.freeze(Object.fromEntries(
-  HOMEPAGE_TEMPLATE_IDS.map(id => [
-    id,
-    Object.freeze({ ...templateMetadata[id], id, sectionOrder: Object.freeze(templateMetadata[id].sectionOrder) }),
-  ]),
+  HOMEPAGE_TEMPLATE_IDS.map(id => [id, Object.freeze({ ...templateMetadata[id], id })]),
 ));

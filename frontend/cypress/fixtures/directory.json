@@ -1,0 +1,26 @@
+{
+  "results": [
+    {
+      "id": 1,
+      "name": "Aiko",
+      "slug": "aiko",
+      "avatar": "",
+      "category": "gaming",
+      "affiliation": "indie",
+      "created_at": "2026-09-20 00:00:00"
+    },
+    {
+      "id": 2,
+      "name": "Biko",
+      "slug": "biko",
+      "avatar": "",
+      "category": "singing",
+      "affiliation": "agency",
+      "created_at": "2026-09-18 00:00:00"
+    }
+  ],
+  "category_counts": [
+    { "category": "gaming", "count": 1 },
+    { "category": "singing", "count": 1 }
+  ]
+}

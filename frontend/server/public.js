@@ -9,6 +9,13 @@ const api = new Hono();
 api.get('/', (c) => c.json({ status: 'ok', service: 'VTuber Thai Ranking API' }));
 api.route('/directory/', directoryApi);
 
+api.get('/homepage-config/', async c => {
+  if (!c.env.DB) return c.json({ error: 'DB not available' }, 500);
+  const row = await c.env.DB.prepare('SELECT setting_value FROM settings WHERE setting_key = ?').bind('homepage_template').first();
+  c.header('Cache-Control', 'no-store');
+  return c.json({ template: normalizeHomepageTemplate(row?.setting_value) });
+});
+
 api.get('/rankings/', async (c) => {
   const db = c.env.DB;
   if (!db) return c.json({ error: 'DB not available' }, 500);
@@ -172,12 +179,8 @@ api.get('/summary/', async (c) => {
   const topGainer = topGainerResult ? { vtuber: { id: topGainerResult.id, name: topGainerResult.name, slug: topGainerResult.slug }, rank_change: topGainerResult.rank_change } : null;
   const latestUpdateResult = await db.prepare('SELECT recorded_at FROM stats_snapshots ORDER BY recorded_at DESC LIMIT 1').first();
   const latestUpdate = latestUpdateResult?.recorded_at || new Date().toISOString();
-  const templateRow = await db.prepare(
-    'SELECT setting_value FROM settings WHERE setting_key = ?',
-  ).bind('homepage_template').first();
   return c.json({
     total_vtubers: totalVtubers, total_followers_all: totalFollowers, top_gainer: topGainer, latest_update: latestUpdate,
-    homepage_template: normalizeHomepageTemplate(templateRow?.setting_value),
     period_choices: [{ value: 'monthly', label: 'รายเดือน' }, { value: 'alltime', label: 'ทั้งหมด' }],
     category_choices: [{ value: 'followers', label: 'ยอดผู้ติดตาม' }, { value: 'views', label: 'ยอดวิว' }, { value: 'videos', label: 'จำนวนคลิป' }],
   });

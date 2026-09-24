@@ -62,6 +62,14 @@ This endpoint returns active creator profile metadata only. It is separate from 
 
 `total` counts active profiles matching the requested filters; `count` is the number of rows on this page. `category_counts` counts every active profile regardless of the request filters or pagination. Rows expose only `id`, `name`, `slug`, `avatar`, `category`, `affiliation`, and `created_at`; the endpoint does not return snapshot, follower, or ranking metrics. Name sort uses case-insensitive name order with ID as the tie breaker. Newest sort uses valid creation timestamps descending, followed by name and ID; missing and malformed timestamps are placed last. The date means when the profile was added to this directory.
 
+### Public homepage configuration
+
+```
+GET /homepage-config/
+```
+
+Returns the published discovery layout in `{ "template": "search-first" }`. Accepted values are `search-first`, `category-first`, and `newest-first`. Missing, invalid, and legacy IDs normalize to `search-first`. The response uses `Cache-Control: no-store` so a newly published layout is visible on the next Home load. This endpoint reads only the `homepage_template` setting; `/summary/` remains dedicated to ranking statistics and does not include template configuration.
+
 ### 1. ดึงอันดับตามเงื่อนไข
 
 ```
@@ -282,11 +290,13 @@ POST /compare/
 
 ---
 
-### 6. สรุปข้อมูลสำหรับหน้าหลัก
+### 6. สรุปข้อมูลสำหรับหน้าสถิติ
 
 ```
 GET /summary/
 ```
+
+`/stats` uses this endpoint for ranking context. It does not contain the published homepage template; read that from `/homepage-config/`.
 
 **Response:**
 ```json

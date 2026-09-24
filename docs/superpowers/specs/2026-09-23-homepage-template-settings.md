@@ -3,6 +3,8 @@
 **Status:** Proposed for review
 **Date:** 2026-09-23
 
+> Superseded by the approved discovery Home and dedicated Stats design in [2026-09-24-discovery-home-and-stats-design.md](2026-09-24-discovery-home-and-stats-design.md). This September 23 document is retained as a historical proposal.
+
 ## Objective
 
 Let a manager choose a curated Homepage layout, inspect it with current public ranking data, and publish it without changing ranking data or calculation rules. Make the site's purpose clear to new visitors while letting returning visitors reach the ranking table quickly.

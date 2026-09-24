@@ -7,14 +7,14 @@ function emptyData() {
 }
 
 export default function useDiscoveryData(templateId) {
-  const [data, setData] = useState(null);
+  const [snapshot, setSnapshot] = useState({ templateId: null, data: emptyData() });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let active = true;
-    setData({ templateId, ...emptyData() });
+    setSnapshot({ templateId, data: emptyData() });
     setLoading(true);
     setError('');
 
@@ -43,13 +43,15 @@ export default function useDiscoveryData(templateId) {
           results: result.status === 'fulfilled' ? result.value.data.results || [] : [],
           error: result.status === 'rejected' ? 'โหลดรายชื่อในหมวดหมู่นี้ไม่สำเร็จ' : '',
         }));
-        setData({
+        setSnapshot({
           templateId,
-          ...emptyData(),
-          total: base.total ?? 0,
-          results: base.results || [],
-          category_counts: base.category_counts || [],
-          groups,
+          data: {
+            ...emptyData(),
+            total: base.total ?? 0,
+            results: base.results || [],
+            category_counts: base.category_counts || [],
+            groups,
+          },
         });
       } catch {
         if (active) setError('โหลดรายชื่อไม่สำเร็จ กรุณาลองอีกครั้ง');
@@ -62,9 +64,9 @@ export default function useDiscoveryData(templateId) {
     return () => { active = false; };
   }, [templateId, retryCount]);
 
-  const currentTemplate = data?.templateId === templateId;
+  const currentTemplate = snapshot.templateId === templateId;
   return {
-    data: currentTemplate ? data : emptyData(),
+    data: currentTemplate ? snapshot.data : emptyData(),
     loading: loading || !currentTemplate,
     error: currentTemplate ? error : '',
     retry: () => setRetryCount(value => value + 1),

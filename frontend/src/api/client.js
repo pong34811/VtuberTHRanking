@@ -31,4 +31,8 @@ export const summaryAPI = {
   get: () => client.get('/summary/'),
 }
 
+export const homepageConfigAPI = {
+  get: () => client.get('/homepage-config/'),
+}
+
 export default client

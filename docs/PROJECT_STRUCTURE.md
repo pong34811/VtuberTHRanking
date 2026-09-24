@@ -66,7 +66,8 @@ VtuberTHRanking/
 │   │   ├── admin.js                 # admin routes และ database operations
 │   │   ├── auth.js                  # setup, login, logout และ session
 │   │   ├── password.js              # validate, hash และ verify password
-│   │   └── public.js                # public API routes (rankings, vtubers, compare, summary)
+│   │   ├── directory.js             # public profile metadata directory
+│   │   └── public.js                # public API routes (config, rankings, vtubers, compare, summary)
 │   ├── src/
 │   │   ├── admin/
 │   │   │   ├── components/ui/       # UI primitives เฉพาะส่วน admin
@@ -83,6 +84,7 @@ VtuberTHRanking/
 │   │   │   │   ├── AuditTab.jsx     # ประวัติการทำงาน
 │   │   │   │   ├── CategoriesTab.jsx # จัดการหมวดหมู่
 │   │   │   │   ├── ReportsTab.jsx   # สร้าง/ดาวน์โหลดรายงาน
+│   │   │   │   ├── HomepageTemplateTab.jsx # เลือก/preview/publish discovery layout
 │   │   │   │   ├── SettingsTab.jsx  # ตั้งค่าเว็บไซต์
 │   │   │   │   ├── UsersTab.jsx     # จัดการผู้ใช้
 │   │   │   │   └── useList.js       # shared hook โหลดรายการ
@@ -110,7 +112,11 @@ VtuberTHRanking/
 │   │   │   └── utils.js             # utility สำหรับรวม class names
 │   │   ├── pages/
 │   │   │   ├── ComparePage.jsx      # หน้าเปรียบเทียบ VTuber
-│   │   │   ├── HomePage.jsx         # หน้าอันดับหลัก
+│   │   │   ├── HomePage.jsx         # หน้า discovery และโหลด public template config
+│   │   │   ├── StatsPage.jsx        # หน้าอันดับ สรุปสถิติ และ methodology
+│   │   │   ├── homepageTemplates.js # รายละเอียดตัวเลือก homepage ที่ publish ได้
+│   │   │   ├── searchParams.js      # URL helpers สำหรับ query/filter ของ directory
+│   │   │   └── discovery/           # renderer, metadata hook, creator cards และ CSS
 │   │   │   ├── ProfilePage.jsx      # หน้าโปรไฟล์และกราฟย้อนหลัง
 │   │   │   └── SearchPage.jsx       # หน้าค้นหาและกรอง VTuber
 │   │   ├── App.jsx                  # route หลักของแอป
@@ -145,22 +151,24 @@ VtuberTHRanking/
 ### 4.1 Public website
 
 ```text
-Home Search Profile Compare
+Home       Stats       Search Profile Compare
           |
           v
 src/api/client.js
           |
           v
+/api/v1/homepage-config
+/api/v1/directory
 /api/v1/rankings
 /api/v1/vtubers
 /api/v1/compare
-/api/v1/summary
+                  /api/v1/summary (Stats)
           |
           v
 Cloudflare D1
 ```
 
-`App.jsx` กำหนดเส้นทาง `/`, `/search`, `/profile/:slug`, `/compare` และ `/admin/*` หน้า public เรียก API ผ่าน Axios client ส่วน Vite development server จะ proxy `/api` ไปยังระบบที่ตั้งค่าไว้
+`App.jsx` กำหนดเส้นทาง `/`, `/stats`, `/search`, `/profile/:slug`, `/compare` และ `/admin/*`. หน้า Home โหลด layout จาก `/homepage-config/` และ metadata จาก `/directory/`; หน้า Stats ใช้ rankings/summary ส่วนหน้า Search ใช้ `/vtubers/` และยังรองรับ query-prefill. หน้า public เรียก API ผ่าน Axios client ส่วน Vite development server จะ proxy `/api` ไปยังระบบที่ตั้งค่าไว้
 
 ### 4.2 Admin website
 
@@ -203,9 +211,9 @@ worker/updater.js
 
 - มี Cypress 16 พร้อม configuration, fixtures, custom commands และ E2E specs สำหรับ public/admin journeys
 - มี Vitest configuration ที่แบ่งเป็นโปรเจกต์ `node` และ `components` โดยโปรเจกต์ `components` รองรับ automatic JSX transform และ alias `@` เช่นเดียวกับ application
-- ตรวจเมื่อ 18 กันยายน 2026: Vitest 9 test files และ 149 tests ผ่านทั้งหมด ครอบคลุม server, worker, React components/pages และ auth/admin/public API
-- มี Cypress 4 specs และ 9 E2E tests ผ่าน headless ทั้งหมด (public: home, search; admin: login, channels) โดย stub API ผ่าน `cy.intercept` ไม่พึ่ง production backend — รันด้วย `npm run test:e2e` ขณะ dev server ทำงานที่ `http://localhost:5173`
-- ชุดปัจจุบันทดสอบ authentication บางกรณี การบังคับ login, password, admin domain helpers, updater worker บางส่วน, การแสดงผล `RankBadge`, public API (`rankings`, `vtubers`, `compare` และ `summary`), admin channels CRUD/snapshots, YouTube import ทุก branch และ admin tabs/channels (smoke tests)
+- Vitest แบ่ง project เป็น `node` และ `components` ครอบคลุม server, worker, React pages/components และ auth/admin/public API; รันผลปัจจุบันด้วย `npm test`
+- ตรวจเมื่อ 24 กันยายน 2026: Cypress 4 specs ที่เกี่ยวกับ Home/Stats/Search และ Admin homepage template ผ่าน 19 E2E tests แบบ headless โดย stub API ผ่าน `cy.intercept` ไม่พึ่ง production backend — รันด้วย `npm run test:e2e -- --spec "cypress/e2e/public/home.cy.js,cypress/e2e/public/stats.cy.js,cypress/e2e/public/search.cy.js,cypress/e2e/admin/homepage-template.cy.js"`
+- ชุดปัจจุบันทดสอบ authentication บางกรณี การบังคับ login, password, admin domain helpers, updater worker บางส่วน, การแสดงผล `RankBadge`, public API (`homepage-config`, `directory`, `rankings`, `vtubers`, `compare` และ `summary`), admin channels CRUD/snapshots, YouTube import ทุก branch และ admin tabs/channels
 - ยังต้องขยาย updater coverage และ API client; public pages มี component tests บางพฤติกรรมแล้ว
 - ต้องใช้ Node.js `^20.19.0 || >=22.12.0` ตามข้อกำหนดของ Vite และ Vitest โดย `.nvmrc` กำหนดเวอร์ชัน 20.19.0
 - `npm run test:coverage` สร้างรายงาน coverage ได้แล้ว แต่ยังไม่กำหนด threshold จนกว่าจะมี backend และ frontend suites ครบถ้วน

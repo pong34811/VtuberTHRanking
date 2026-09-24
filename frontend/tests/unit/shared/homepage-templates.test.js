@@ -7,15 +7,15 @@ import {
 
 describe('homepage template contract', () => {
   it('registers the agreed preset IDs and default', () => {
-    expect(HOMEPAGE_TEMPLATE_IDS).toEqual(['ranking-first', 'discovery-first', 'compact-ranking']);
-    expect(DEFAULT_HOMEPAGE_TEMPLATE).toBe('ranking-first');
+    expect(HOMEPAGE_TEMPLATE_IDS).toEqual(['search-first', 'category-first', 'newest-first']);
+    expect(DEFAULT_HOMEPAGE_TEMPLATE).toBe('search-first');
   });
 
-  it.each(['ranking-first', 'discovery-first', 'compact-ranking'])('keeps the registered ID %s', id => {
+  it.each(['search-first', 'category-first', 'newest-first'])('keeps the registered ID %s', id => {
     expect(normalizeHomepageTemplate(id)).toBe(id);
   });
 
-  it.each([undefined, null, 'custom-layout'])('falls back to ranking-first for %s', value => {
-    expect(normalizeHomepageTemplate(value)).toBe('ranking-first');
+  it.each([undefined, null, 'custom-layout', 'ranking-first', 'discovery-first', 'compact-ranking'])('falls back to search-first for %s', value => {
+    expect(normalizeHomepageTemplate(value)).toBe('search-first');
   });
 });

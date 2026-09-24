@@ -11,7 +11,7 @@ vi.mock('@/pages/HomePage', () => ({
   ),
 }));
 
-const published = { homepage_template: 'ranking-first' };
+const published = { homepage_template: 'search-first' };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -29,8 +29,8 @@ function getPublishedMarker(label) {
   );
 }
 
-async function chooseDiscovery() {
-  fireEvent.click(await screen.findByRole('button', { name: /ค้นพบ VTuber/ }));
+async function chooseCategory() {
+  fireEvent.click(await screen.findByRole('button', { name: /สำรวจกลุ่ม VTuber/ }));
 }
 
 describe('Homepage template manager', () => {
@@ -38,20 +38,20 @@ describe('Homepage template manager', () => {
     renderTab();
 
     expect(await screen.findByText((_, element) => element?.classList.contains('homepage-template-published')
-      && element.textContent === 'เผยแพร่อยู่: อันดับเด่น')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /อันดับเด่น/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: /ค้นพบ VTuber/ })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: /อันดับแบบกระชับ/ })).toHaveAttribute('aria-pressed', 'false');
+      && element.textContent === 'เผยแพร่อยู่: ค้นหาก่อน')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /ค้นหาก่อน/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /สำรวจกลุ่ม VTuber/ })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: /เพิ่มเข้ารายการล่าสุด/ })).toHaveAttribute('aria-pressed', 'false');
     expect(adminApi).toHaveBeenCalledWith('/settings/homepage-template');
   });
 
   it('draft preset updates the preview but keeps the published marker unchanged', async () => {
     renderTab();
-    await chooseDiscovery();
+    await chooseCategory();
 
     expect(screen.getByText('ตัวอย่าง — ยังไม่เผยแพร่')).toBeInTheDocument();
-    expect(getPublishedMarker('อันดับเด่น')).toBeInTheDocument();
-    expect(screen.getByTestId('homepage-preview')).toHaveAttribute('data-template-override', 'discovery-first');
+    expect(getPublishedMarker('ค้นหาก่อน')).toBeInTheDocument();
+    expect(screen.getByTestId('homepage-preview')).toHaveAttribute('data-template-override', 'category-first');
     expect(screen.getByTestId('homepage-preview')).toHaveAttribute('data-preview-mode', 'true');
     expect(adminApi).toHaveBeenCalledTimes(1);
   });
@@ -60,13 +60,13 @@ describe('Homepage template manager', () => {
     const user = userEvent.setup();
     renderTab();
 
-    const compact = await screen.findByRole('button', { name: /อันดับแบบกระชับ/ });
-    compact.focus();
+    const newest = await screen.findByRole('button', { name: /เพิ่มเข้ารายการล่าสุด/ });
+    newest.focus();
     await user.keyboard('{Enter}');
 
-    expect(compact).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('homepage-preview')).toHaveAttribute('data-template-override', 'compact-ranking');
-    expect(getPublishedMarker('อันดับเด่น')).toBeInTheDocument();
+    expect(newest).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('homepage-preview')).toHaveAttribute('data-template-override', 'newest-first');
+    expect(getPublishedMarker('ค้นหาก่อน')).toBeInTheDocument();
   });
 
   it('retries after the published template fails to load', async () => {
@@ -78,7 +78,7 @@ describe('Homepage template manager', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Template settings unavailable');
     fireEvent.click(screen.getByRole('button', { name: 'ลองโหลดอีกครั้ง' }));
     expect(await screen.findByText((_, element) => element?.classList.contains('homepage-template-published')
-      && element.textContent === 'เผยแพร่อยู่: อันดับเด่น')).toBeInTheDocument();
+      && element.textContent === 'เผยแพร่อยู่: ค้นหาก่อน')).toBeInTheDocument();
     expect(adminApi).toHaveBeenCalledTimes(2);
   });
 
@@ -89,18 +89,18 @@ describe('Homepage template manager', () => {
   });
 
   it('saves a draft with the CSRF token and updates the published marker', async () => {
-    adminApi.mockResolvedValueOnce(published).mockResolvedValueOnce({ ok: true, homepage_template: 'discovery-first' });
+    adminApi.mockResolvedValueOnce(published).mockResolvedValueOnce({ ok: true, homepage_template: 'category-first' });
     renderTab();
-    await chooseDiscovery();
+    await chooseCategory();
     fireEvent.click(screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' }));
 
     await waitFor(() => expect(adminApi).toHaveBeenCalledWith('/settings/homepage-template', {
       method: 'PUT',
       csrfToken: 'csrf-test-token',
-      body: { homepage_template: 'discovery-first' },
+      body: { homepage_template: 'category-first' },
     }));
     expect(await screen.findByRole('status')).toHaveTextContent('บันทึกหน้าแรกแล้ว');
-    expect(getPublishedMarker('ค้นพบ VTuber')).toBeInTheDocument();
+    expect(getPublishedMarker('เลือกหมวดหมู่')).toBeInTheDocument();
     expect(screen.queryByText('ตัวอย่าง — ยังไม่เผยแพร่')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' })).toBeDisabled();
   });
@@ -109,28 +109,43 @@ describe('Homepage template manager', () => {
     let finishSave;
     adminApi.mockResolvedValueOnce(published).mockImplementationOnce(() => new Promise(resolve => { finishSave = resolve; }));
     renderTab();
-    await chooseDiscovery();
+    await chooseCategory();
     const save = screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' });
     fireEvent.click(save);
     fireEvent.click(save);
 
     expect(save).toBeDisabled();
     expect(adminApi).toHaveBeenCalledTimes(2);
-    await act(async () => finishSave({ ok: true, homepage_template: 'discovery-first' }));
+    await act(async () => finishSave({ ok: true, homepage_template: 'category-first' }));
     expect(await screen.findByText((_, element) => element?.classList.contains('homepage-template-published')
-      && element.textContent === 'เผยแพร่อยู่: ค้นพบ VTuber')).toBeInTheDocument();
+      && element.textContent === 'เผยแพร่อยู่: เลือกหมวดหมู่')).toBeInTheDocument();
+  });
+
+  it('preserves a newer draft selected while publishing the previous draft', async () => {
+    let finishSave;
+    adminApi.mockResolvedValueOnce(published).mockImplementationOnce(() => new Promise(resolve => { finishSave = resolve; }));
+    renderTab();
+    await chooseCategory();
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' }));
+    fireEvent.click(screen.getByRole('button', { name: /เพิ่มเข้ารายการล่าสุด/ }));
+
+    await act(async () => finishSave({ ok: true, homepage_template: 'category-first' }));
+    expect(getPublishedMarker('เลือกหมวดหมู่')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /เพิ่มเข้ารายการล่าสุด/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('homepage-preview')).toHaveAttribute('data-template-override', 'newest-first');
+    expect(screen.getByText('ตัวอย่าง — ยังไม่เผยแพร่')).toBeInTheDocument();
   });
 
   it('preserves the published preset and draft preview after save fails', async () => {
     adminApi.mockResolvedValueOnce(published).mockRejectedValueOnce(new Error('Save unavailable'));
     renderTab();
-    await chooseDiscovery();
+    await chooseCategory();
     fireEvent.click(screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Save unavailable');
     expect(screen.getByText('ตัวอย่าง — ยังไม่เผยแพร่')).toBeInTheDocument();
-    expect(getPublishedMarker('อันดับเด่น')).toBeInTheDocument();
-    expect(screen.getByTestId('homepage-preview')).toHaveAttribute('data-template-override', 'discovery-first');
+    expect(getPublishedMarker('ค้นหาก่อน')).toBeInTheDocument();
+    expect(screen.getByTestId('homepage-preview')).toHaveAttribute('data-template-override', 'category-first');
     expect(screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' })).toBeEnabled();
   });
 });
