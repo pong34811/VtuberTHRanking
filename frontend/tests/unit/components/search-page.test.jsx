@@ -6,7 +6,6 @@ import SearchPage from '@/pages/SearchPage';
 
 vi.mock('@/api/client', () => ({
   vtubersAPI: { getList: vi.fn(), getBySlug: vi.fn(), getHistory: vi.fn() },
-  compareAPI: { post: vi.fn() },
 }));
 
 beforeEach(() => {

@@ -25,7 +25,7 @@ Cloudflare D1      YouTube Data API
    +--- Updater Worker -+
 ```
 
-ส่วน public ใช้แสดงอันดับ ค้นหา โปรไฟล์ และเปรียบเทียบ VTuber ส่วน admin ใช้จัดการช่อง สถิติ อันดับ รายงาน การตั้งค่า และผู้ใช้งาน โดยมี session cookie และ CSRF token ป้องกันคำขอที่เปลี่ยนข้อมูล
+ส่วน public ใช้แสดงหน้า discovery สถิติ ค้นหา และโปรไฟล์ VTuber ส่วน admin ใช้จัดการช่อง สถิติ อันดับ รายงาน การตั้งค่า และผู้ใช้งาน โดยมี session cookie และ CSRF token ป้องกันคำขอที่เปลี่ยนข้อมูล
 
 ## 2 เทคโนโลยีหลัก
 
@@ -111,7 +111,6 @@ VtuberTHRanking/
 │   │   ├── lib/
 │   │   │   └── utils.js             # utility สำหรับรวม class names
 │   │   ├── pages/
-│   │   │   ├── ComparePage.jsx      # หน้าเปรียบเทียบ VTuber
 │   │   │   ├── HomePage.jsx         # หน้า discovery และโหลด public template config
 │   │   │   ├── StatsPage.jsx        # หน้าอันดับ สรุปสถิติ และ methodology
 │   │   │   ├── homepageTemplates.js # รายละเอียดตัวเลือก homepage ที่ publish ได้
@@ -168,7 +167,7 @@ src/api/client.js
 Cloudflare D1
 ```
 
-`App.jsx` กำหนดเส้นทาง `/`, `/stats`, `/search`, `/profile/:slug`, `/compare` และ `/admin/*`. หน้า Home โหลด layout จาก `/homepage-config/` และ metadata จาก `/directory/`; หน้า Stats ใช้ rankings/summary ส่วนหน้า Search ใช้ `/vtubers/` และยังรองรับ query-prefill. หน้า public เรียก API ผ่าน Axios client ส่วน Vite development server จะ proxy `/api` ไปยังระบบที่ตั้งค่าไว้
+`App.jsx` กำหนดเส้นทาง `/`, `/stats`, `/search`, `/profile/:slug` และ `/admin/*`. เส้นทางเก่าที่ไม่รองรับ เช่น `/compare` จะแสดงหน้าไม่พบข้อมูล. หน้า Home โหลด layout จาก `/homepage-config/` และ metadata จาก `/directory/`; หน้า Stats ใช้ rankings/summary ส่วนหน้า Search ใช้ `/vtubers/` และยังรองรับ query-prefill. หน้า public เรียก API ผ่าน Axios client ส่วน Vite development server จะ proxy `/api` ไปยังระบบที่ตั้งค่าไว้
 
 ### 4.2 Admin website
 
@@ -297,7 +296,6 @@ Cypress รับผิดชอบการทดสอบ user journey ผ่�
 | Public home | เปิดเว็บ โหลดอันดับ เปลี่ยนช่วงเวลาและหมวด |
 | Search | ค้นหา กรอง เปิดโปรไฟล์ และจัดการผลลัพธ์ว่าง |
 | Profile | แสดงข้อมูลล่าสุด อันดับ และประวัติกราฟ |
-| Compare | เลือก VTuber 2 ถึง 3 คน เปรียบเทียบ และตรวจ validation |
 | Authentication | setup, login, session restore, logout และ unauthorized state |
 | Channels | สร้าง แก้ไข ดู snapshot และ import YouTube |
 | Rankings | เลือกเงื่อนไข คำนวณอันดับ และตรวจผลลัพธ์ |
@@ -305,7 +303,7 @@ Cypress รับผิดชอบการทดสอบ user journey ผ่�
 | Settings | โหลดและบันทึกค่าระบบ |
 | Users | สร้างและแก้ไขผู้ใช้ รวมข้อจำกัดสิทธิ์ manager |
 
-หมายเหตุ: UI ปัจจุบันจำกัดการเปรียบเทียบไว้ที่ 2–3 คน ขณะที่ API รองรับได้ถึง 5 คน ความแตกต่างนี้เป็นประเด็น product decision ที่ต้องกำหนดก่อนขยาย E2E journey หรือปรับ UI/API ให้สอดคล้องกัน
+หมายเหตุ: API `/compare/` ยังอยู่เพื่อรองรับ integration แต่ public UI ไม่มีหน้าเปรียบเทียบแล้ว
 
 ## 7 หลักการจัดเก็บ Cypress
 
@@ -351,7 +349,7 @@ npm run test:coverage
 
 1. แยกและขยาย test ให้ครอบคลุม public API, API client และ component behavior
 2. เพิ่ม D1 mock หรือ test database helper ที่ให้ผลลัพธ์สม่ำเสมอสำหรับชุด integration ที่กว้างขึ้น
-3. ขยาย Cypress specs สำหรับ profile, compare และ admin journeys ที่เหลือจาก configuration, fixtures และ commands ที่มีแล้ว
+3. ขยาย Cypress specs สำหรับ profile และ admin journeys ที่เหลือจาก configuration, fixtures และ commands ที่มีแล้ว
 4. ตั้ง CI ให้รัน build, Vitest และ Cypress โดยไม่แตะ production data
 5. เก็บ test artifacts จาก CI เฉพาะเมื่อทดสอบล้มเหลวเพื่อช่วยวิเคราะห์ปัญหา
 

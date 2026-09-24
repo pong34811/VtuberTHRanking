@@ -23,10 +23,6 @@ export const vtubersAPI = {
     client.get(`/vtubers/${slug}/history/`, { params: { months } }),
 }
 
-export const compareAPI = {
-  post: (data) => client.post('/compare/', data),
-}
-
 export const summaryAPI = {
   get: () => client.get('/summary/'),
 }
