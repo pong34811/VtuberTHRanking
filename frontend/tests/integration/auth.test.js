@@ -94,6 +94,17 @@ describe('initial administrator setup', () => {
 });
 
 describe('login attempt limits', () => {
+  it('accepts the 64-character usernames that managers can create', async () => {
+    const username = 'a'.repeat(64);
+    const { response, calls } = await postAuth('/login', { username, password: 'wrong-password' }, [null, { count: 1 }, null, { count: 1 }, null]);
+    expect(response.status).toBe(401);
+    expect(calls.some(call => call.sql.includes('SELECT * FROM users WHERE username=?') && call.values[0] === username)).toBe(true);
+
+    const tooLong = await postAuth('/login', { username: `${username}a`, password: 'wrong-password' });
+    expect(tooLong.response.status).toBe(401);
+    expect(tooLong.calls).toHaveLength(0);
+  });
+
   it('stops before allocating a username counter when the IP has exhausted its limit', async () => {
     const { response, calls } = await postAuth('/login', { username: 'new-user', password: 'anything' }, [null, { count: 31 }]);
     expect(response.status).toBe(429);

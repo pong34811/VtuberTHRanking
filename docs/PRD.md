@@ -31,7 +31,7 @@
 
 ## การไหลของข้อมูล
 
-YouTube Data API → Updater Worker → D1 stats_snapshots
+YouTube Data API → Updater Worker → D1 stats_snapshots → D1 rankings
 
 Admin คำนวณอันดับ → Hono → D1 rankings → Public API → React
 
@@ -39,13 +39,13 @@ Admin คำนวณอันดับ → Hono → D1 rankings → Public API 
 
 Worker ถูกเรียกทุกต้นชั่วโมงด้วย cron 0 * * * * แล้วตรวจ ranking_update_frequency และ snapshot ล่าสุดก่อนดึงจริง ค่า manual จะข้าม และ monthly หมายถึง 30 วัน
 
-การดึงสถิติไม่คำนวณอันดับอัตโนมัติ manager ต้องเรียกผ่าน admin ปัจจุบันจำกัด 90 ช่องต่อ batch ส่วน Twitch เก็บลิงก์ได้แต่ updater ดึงเฉพาะ YouTube
+เมื่อดึงสถิติครบทุกช่องที่รองรับ Worker จะบันทึก snapshots และคำนวณอันดับอัตโนมัติ manager ยังสั่งคำนวณใหม่ผ่าน admin ได้ จำกัด 90 ช่อง YouTube ที่พร้อมดึงข้อมูลต่อ batch ส่วนช่อง Twitch/Bilibili เก็บลิงก์ไว้ได้แต่ไม่เข้า batch นี้
 
 ## งานคงเหลือ
 
 - ตัวกรองช่วงผู้ติดตามและเรียงผลค้นหาเพิ่มเติม
 - ทำสถานะ NEW ให้สอดคล้องกับ rank_change
-- กำหนดการคำนวณอันดับหลัง sync และรองรับเกิน 90 ช่อง
+- รองรับการ sync เกิน 90 ช่องต่อ batch
 - ขยาย Cypress, เพิ่ม CI และ smoke test บน API/ฐานข้อมูลทดสอบจริง
 - ตรวจ admin หลัง login และ responsive/accessibility เพิ่มเติม
 

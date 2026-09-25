@@ -60,6 +60,16 @@ export async function updateAll(env, force = false, metadata = {}) {
     return { ok: true, skipped: 'not due', freq: frequency, last_run: lastSuccess.completed_at };
   }
 
+  const { results: activeChannels = [] } = await env.DB.prepare('SELECT id,platform,youtube_url,channel_url FROM vtubers WHERE is_active=1 ORDER BY id').all();
+  const youtubeChannels = activeChannels
+    .filter(channel => (channel.platform ?? 'youtube') === 'youtube')
+    .map(channel => ({ ...channel, youtubeId: channelId(channel) }));
+  const channels = youtubeChannels.filter(channel => channel.youtubeId);
+  const skippedChannels = youtubeChannels
+    .filter(channel => !channel.youtubeId)
+    .map(channel => channelFailure(channel.id, 'no YouTube channel ID'));
+  if (activeChannels.length && !youtubeChannels.length) return { ok: true, skipped: 'no YouTube channels', freq: frequency };
+
   const run = {
     id: crypto.randomUUID(),
     triggerSource,
@@ -79,31 +89,35 @@ export async function updateAll(env, force = false, metadata = {}) {
       throw error;
     }
 
-    const { results = [] } = await env.DB.prepare('SELECT id,youtube_url,channel_url FROM vtubers WHERE is_active=1 ORDER BY id').all();
-    channelsTotal = results.length;
-    if (channelsTotal > 90) {
+    channelsTotal = youtubeChannels.length;
+    if (channels.length > 90) {
       const error = new Error('Ranking publication supports at most 90 channels per batch; no changes were saved');
       error.code = 'RANKING_CHANNEL_LIMIT';
       throw error;
     }
-    if (!channelsTotal) {
+    if (!activeChannels.length) {
       const error = new Error('No active channels');
       error.code = 'NO_ACTIVE_CHANNELS';
       throw error;
     }
 
+    if (!channels.length) {
+      const result = {
+        status: 'partial', channelsTotal, snapshotsWritten: 0, rankingsPublished: 0,
+        errors: skippedChannels,
+        errorSummary: `ข้าม ${skippedChannels.length} ช่องที่ไม่มี YouTube channel ID; ยังไม่มีช่องที่ดึงสถิติได้`,
+      };
+      await completeRun(env.DB, run.id, result).run();
+      return { ok: false, runId: run.id, status: result.status, updated: 0, rankingsPublished: 0, errors: skippedChannels };
+    }
+
     const now = new Date().toISOString();
     const snapshots = [];
-    for (const channel of results) {
-      const id = channelId(channel);
-      if (!id) {
-        errors.push(channelFailure(channel.id, 'no YouTube channel ID'));
-        continue;
-      }
+    for (const channel of channels) {
       try {
         const url = new URL('https://www.googleapis.com/youtube/v3/channels');
         url.searchParams.set('part', 'statistics');
-        url.searchParams.set('id', id);
+        url.searchParams.set('id', channel.youtubeId);
         url.searchParams.set('key', env.YOUTUBE_API_KEY);
         const response = await fetch(url, { headers: { Referer: 'https://vtuberthai-ranking.pages.dev' } });
         if (!response.ok) {
@@ -128,10 +142,11 @@ export async function updateAll(env, force = false, metadata = {}) {
     }
 
     if (errors.length) {
-      const summary = `${errors.length} จาก ${channelsTotal} ช่องดึงสถิติไม่สำเร็จ จึงยังไม่เผยแพร่อันดับ`;
-      const result = { status: 'partial', channelsTotal, snapshotsWritten: 0, rankingsPublished: 0, errors, errorSummary: summary };
+      const summary = `${errors.length} จาก ${channels.length} ช่องดึงสถิติไม่สำเร็จ จึงยังไม่เผยแพร่อันดับ${skippedChannels.length ? `; ข้าม ${skippedChannels.length} ช่องที่ไม่มี YouTube channel ID` : ''}`;
+      const allErrors = [...skippedChannels, ...errors];
+      const result = { status: 'partial', channelsTotal, snapshotsWritten: 0, rankingsPublished: 0, errors: allErrors, errorSummary: summary };
       await completeRun(env.DB, run.id, result).run();
-      return { ok: false, runId: run.id, status: result.status, updated: 0, rankingsPublished: 0, errors };
+      return { ok: false, runId: run.id, status: result.status, updated: 0, rankingsPublished: 0, errors: allErrors };
     }
 
     await env.DB.batch(snapshots);
@@ -144,9 +159,13 @@ export async function updateAll(env, force = false, metadata = {}) {
       }
     }
 
-    const result = { status: 'succeeded', channelsTotal, snapshotsWritten, rankingsPublished, errors: [], errorSummary: '' };
+    const result = {
+      status: 'succeeded', channelsTotal, snapshotsWritten, rankingsPublished,
+      errors: skippedChannels,
+      errorSummary: skippedChannels.length ? `ข้าม ${skippedChannels.length} ช่องที่ไม่มี YouTube channel ID` : '',
+    };
     await completeRun(env.DB, run.id, result).run();
-    return { ok: true, runId: run.id, status: result.status, updated: snapshotsWritten, rankingsPublished, errors: [] };
+    return { ok: true, runId: run.id, status: result.status, updated: snapshotsWritten, rankingsPublished, errors: skippedChannels };
   } catch (error) {
     const summary = safeFailure(error);
     const result = {
@@ -165,12 +184,14 @@ export async function updateAll(env, force = false, metadata = {}) {
 }
 
 export default {
-  // API-key-gated endpoint for a manager-initiated refresh.
+  // Bearer-token-gated endpoint for a manager-initiated refresh.
   async fetch(request, env) {
-    const url = new URL(request.url);
-    if (!env.YOUTUBE_API_KEY || !await matchesSecret(url.searchParams.get('run') || '', env.YOUTUBE_API_KEY)) {
+    if (request.method !== 'POST') return Response.json({ ok: false }, { status: 405, headers: { Allow: 'POST' } });
+    const token = request.headers.get('Authorization')?.match(/^Bearer (\S+)$/)?.[1];
+    if (!env.UPDATER_RUN_TOKEN || !token || !await matchesSecret(token, env.UPDATER_RUN_TOKEN)) {
       return Response.json({ ok: false }, { status: 403 });
     }
+    const url = new URL(request.url);
     const result = await updateAll(env, url.searchParams.get('force') === '1', { triggerSource: 'manual' });
     return Response.json(result);
   },

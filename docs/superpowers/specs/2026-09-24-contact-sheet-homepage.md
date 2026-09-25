@@ -1,14 +1,14 @@
 # VTuber Thai Ranking — Contact-sheet Homepage
 
 **Date:** 2026-09-24
-**Status:** Implemented and accepted by the finish review; deployment status is tracked separately.
+**Status:** Implemented and accepted by the finish review; deployed to production on 2026-09-25.
 **Scope:** The public discovery homepage and its existing Admin draft preview.
 
 ## Overview
 
-The user selected `contact-sheet` with the `code` build path in [the recorded decision](../../../.impeccable/questions/086abb39.answer.json). This choice supersedes the provisional fan-zine cover composition. The selected direction was implemented from code; the decision's `comp` field is a choice reference, not evidence of a generated visual comp.
+The user selected `contact-sheet` with the `code` build path during the design review. This choice supersedes the provisional fan-zine cover composition. The selected direction was implemented from code; the design option did not produce a generated visual comp.
 
-This brief records a page composition within the existing VTuber Thai Ranking identity. It supplements the approved [discovery homepage and stats design](2026-09-24-discovery-home-and-stats-design.md) and the [surface contract](../../../.impeccable/build/spec.json). Their data, route, publishing, and permission requirements continue to apply. The contact sheet is a homepage decision and does not establish a replacement global identity.
+This brief records a page composition within the existing VTuber Thai Ranking identity. It supplements the approved [discovery homepage and stats design](2026-09-24-discovery-home-and-stats-design.md). Its data, route, publishing, and permission requirements continue to apply. The contact sheet is a homepage decision and does not establish a replacement global identity.
 
 Real creator portraits are the main browsing content. A compact Thai heading, search, directory count, and statistics link support visitors who arrive with a particular creator in mind. The surrounding presentation uses thin rules and compact captions so the portraits remain prominent.
 
@@ -62,6 +62,6 @@ Square portraits have minimal rounding (`4px`). Search has a slightly softer out
 - **Don't** interpret directory-added dates as debut dates, or introduce live-status, performance, or recommendation claims into gallery captions.
 - **Don't** promote this homepage's index, grid, or local accent choices into rules for every product surface.
 
-The completion handoff reports 41 targeted homepage, Admin, and template tests passing, along with the production build. Browser checks found no horizontal page overflow at viewport widths of `1440px`, `791px`, and `390px`, and a public search for Amelie returned a matching result. The finish reviewer accepted the desktop, mobile, and user captures in `.impeccable/review/contact-sheet-{desktop,mobile,user}.png` with no material fixes required. These are implementation and review results; they do not establish that a new deployment has completed.
+The completion handoff reports 41 targeted homepage, Admin, and template tests passing, along with the production build. Browser checks found no horizontal page overflow at viewport widths of `1440px`, `791px`, and `390px`, and a public search for Amelie returned a matching result. The finish reviewer accepted the desktop, mobile, and user captures with no material fixes required. Cloudflare Pages deployed the page to [production](https://vtuberthai-ranking.pages.dev) on 2026-09-25.
 
 Source evidence: `frontend/src/pages/discovery/DiscoveryHome.jsx`, `CreatorCard.jsx`, and `discovery.css`. No global design document or design sidecar update is required for this page-specific decision.

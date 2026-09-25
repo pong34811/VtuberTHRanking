@@ -3,6 +3,7 @@
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
+worker/.updater-run-token
 
 # Node
 node_modules/
@@ -15,6 +16,9 @@ cypress/downloads/
 
 # Wrangler
 .wrangler/
+
+# Local design review artifacts
+.impeccable/
 
 # Isolated Superpowers worktrees
 .worktrees/

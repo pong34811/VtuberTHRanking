@@ -54,7 +54,7 @@ api.get('/rankings/', async (c) => {
   const total = countResult?.total || 0;
 
   const query = `SELECT r.rank, r.score, r.rank_change, r.video_count, v.id, v.name, v.slug, v.avatar, v.category as vtuber_category, v.affiliation
-    FROM rankings r JOIN vtubers v ON r.vtuber_id = v.id ${whereClause} ORDER BY r.rank ASC LIMIT ? OFFSET ?`;
+    FROM rankings r JOIN vtubers v ON r.vtuber_id = v.id ${whereClause} ORDER BY r.rank ASC, r.vtuber_id ASC LIMIT ? OFFSET ?`;
 
   const { results } = await db.prepare(query).bind(...params, limit, offset).all();
 
@@ -186,8 +186,8 @@ api.get('/summary/', async (c) => {
   const totalFollowers = followersResult?.total || 0;
   const topGainerResult = await db.prepare(`SELECT v.id, v.name, v.slug, r.rank_change FROM rankings r JOIN vtubers v ON r.vtuber_id = v.id WHERE v.is_active = 1 AND r.status = 'active' AND r.period = 'monthly' AND r.rank_change > 0 ORDER BY r.rank_change DESC LIMIT 1`).first();
   const topGainer = topGainerResult ? { vtuber: { id: topGainerResult.id, name: topGainerResult.name, slug: topGainerResult.slug }, rank_change: topGainerResult.rank_change } : null;
-  const latestUpdateResult = await db.prepare('SELECT recorded_at FROM stats_snapshots ORDER BY recorded_at DESC LIMIT 1').first();
-  const latestUpdate = latestUpdateResult?.recorded_at || new Date().toISOString();
+  const latestUpdateResult = await db.prepare('SELECT s.recorded_at FROM stats_snapshots s JOIN vtubers v ON v.id = s.vtuber_id WHERE v.is_active = 1 ORDER BY s.recorded_at DESC LIMIT 1').first();
+  const latestUpdate = latestUpdateResult?.recorded_at ?? null;
   return c.json({
     total_vtubers: totalVtubers, total_followers_all: totalFollowers, top_gainer: topGainer, latest_update: latestUpdate,
     period_choices: [{ value: 'monthly', label: 'รายเดือน' }, { value: 'alltime', label: 'ทั้งหมด' }],

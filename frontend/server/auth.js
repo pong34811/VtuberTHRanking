@@ -5,6 +5,7 @@ import { DUMMY_PASSWORD_HASH, hashPassword, validatePassword, verifyPassword } f
 
 const auth = new Hono();
 const lifetime = 8 * 60 * 60;
+const usernamePattern = /^[a-z0-9_.-]{3,64}$/i;
 const now = () => Math.floor(Date.now() / 1000);
 const digest = value => createHash('sha256').update(value).digest('hex');
 const token = () => randomBytes(32).toString('hex');
@@ -82,7 +83,7 @@ auth.post('/setup', async c => {
   try { body=await jsonBody(c); } catch { return c.json({message:'ข้อมูลไม่ถูกต้อง'},400); }
   if (!equal(body.setupToken,c.env.ADMIN_SETUP_TOKEN)) return c.json({message:'รหัสตั้งค่าไม่ถูกต้อง'},403);
   const {username,password}=body;
-  if (typeof username!=='string' || !/^[a-zA-Z0-9_.-]{3,40}$/.test(username)) return c.json({message:'ชื่อผู้ใช้ไม่ถูกต้อง'},400);
+  if (typeof username!=='string' || !usernamePattern.test(username)) return c.json({message:'ชื่อผู้ใช้ไม่ถูกต้อง'},400);
   try { validatePassword(password); } catch(err) { return c.json({message:err.message},400); }
   const user={id:crypto.randomUUID(),username:username.toLowerCase(),display_name:username,email:`${username}@admin.local`,role:'manager',status:'active'};
   const hash=await hashPassword(password);
@@ -99,7 +100,7 @@ auth.post('/login', async c => {
   let body;
   try {body=await jsonBody(c);} catch {return c.json({message:'ข้อมูลไม่ถูกต้อง'},400);}
   const username=typeof body.username==='string'?body.username.trim().toLowerCase():'';
-  if (!/^[a-z0-9_.-]{3,40}$/.test(username) || typeof body.password!=='string' || body.password.length>128) return c.json({message:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'},401);
+  if (!usernamePattern.test(username) || typeof body.password!=='string' || body.password.length>128) return c.json({message:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'},401);
   const ip=c.req.header('CF-Connecting-IP') || 'local';
   if (!await consumeAttempt(c,`login-ip:${ip}`,30) || !await consumeAttempt(c,`login-user:${username}`,10)) return c.json({message:'เข้าสู่ระบบถี่เกินไป กรุณาลองใหม่ในอีก 15 นาที'},429);
   const user=await c.env.DB.prepare('SELECT * FROM users WHERE username=?').bind(username).first();

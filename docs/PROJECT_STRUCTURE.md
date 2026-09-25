@@ -199,9 +199,10 @@ Cloudflare cron หรือ manual request
               v
 worker/updater.js
               |
-              +--> อ่านช่องที่ active จาก D1
+              +--> อ่านช่อง YouTube ที่ active และมี channel ID จาก D1
               +--> เรียก YouTube Data API
               +--> บันทึก stats_snapshots ลง D1
+              +--> คำนวณและเผยแพร่ rankings
 ```
 
 รอบการอัปเดตอ่านจาก `ranking_update_frequency` และรองรับ manual, hourly, daily, weekly และ monthly

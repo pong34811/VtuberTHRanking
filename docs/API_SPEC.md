@@ -324,6 +324,8 @@ GET /summary/
 }
 ```
 
+`latest_update` เป็น `null` เมื่อยังไม่มี snapshot ของ VTuber ที่เปิดใช้งาน
+
 ---
 
 ## Error Responses

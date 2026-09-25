@@ -351,6 +351,18 @@ describe('public compare', () => {
 });
 
 describe('public summary', () => {
+  it('reports no update when active creators have no snapshots', async () => {
+    const { response } = await publicRequest('/summary/', [
+      { count: 1 },
+      { total: null },
+      null,
+      null,
+    ]);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ latest_update: null });
+  });
+
   it('returns totals, choices and the latest update', async () => {
     const { response, calls } = await publicRequest('/summary/', [
       { count: 3 },

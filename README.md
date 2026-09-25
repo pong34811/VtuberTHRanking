@@ -37,7 +37,7 @@ npm run test:coverage    # ทดสอบพร้อมรายงาน cove
 npm run test:e2e         # Cypress E2E (ต้องรัน dev server ก่อน)
 ```
 
-ตรวจเมื่อ 25 กันยายน 2026: Vitest 270 tests ผ่านใน 20 files, production build ผ่าน และตรวจ setup/login, CSRF, การซ่อนช่องที่ปิดใช้งาน และ migrations กับ API/D1 ในเครื่องแล้ว Cypress ใช้ API stubs และไม่ได้รันซ้ำในรอบนี้ ยังไม่มี coverage threshold บังคับ
+ตรวจเมื่อ 25 กันยายน 2026: Vitest 277 tests ผ่านใน 20 files, production build ผ่าน และตรวจ setup/login, CSRF, การซ่อนช่องที่ปิดใช้งาน, updater และ migrations กับ API/D1 ในเครื่องแล้ว Cypress ใช้ API stubs และไม่ได้รันซ้ำในรอบนี้ ยังไม่มี coverage threshold บังคับ
 
 เอกสารพัฒนา: [ข้อกำหนดผลิตภัณฑ์](docs/PRD.md), [ฐานข้อมูล D1](docs/DATABASE.md), [API](docs/API_SPEC.md), [วิธีคำนวณอันดับ](docs/RANKING_ALGORITHM.md)
 
@@ -51,13 +51,22 @@ npx wrangler pages deploy dist --project-name vtuberthai-ranking --branch main
 
 ก่อน deploy ให้ใช้ D1 migrations ให้ครบ และตั้ง `ADMIN_SETUP_TOKEN` เป็น secret ใน Cloudflare Pages สำหรับการสร้างผู้ดูแลครั้งแรก หากไม่มี secret นี้ API จะปฏิเสธการตั้งค่าด้วย 503
 
+Updater Worker deploy แยกจาก Pages:
+
+```bash
+cd frontend
+npx wrangler deploy --config ../worker/wrangler.toml
+```
+
+Worker ใช้ secret `YOUTUBE_API_KEY` สำหรับดึงสถิติ และ `UPDATER_RUN_TOKEN` สำหรับคำขออัปเดตด้วยตนเอง คำขอด้วยตนเองต้องเป็น `POST` พร้อม `Authorization: Bearer <UPDATER_RUN_TOKEN>`; cron ไม่ต้องใช้ token นี้
+
 ## URL หลัก
 
 | หน้า | URL |
 |------|-----|
 | Frontend | https://vtuberthai-ranking.pages.dev |
 | Admin | https://vtuberthai-ranking.pages.dev/admin |
-| API | https://vtuberthai-ranking.pages.dev/api/v1/ |
+| API | https://vtuberthai-ranking.pages.dev/api/v1 |
 
 ## API Endpoints
 
