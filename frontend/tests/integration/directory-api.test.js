@@ -10,7 +10,7 @@ async function request(path, responses = []) {
 
 describe('metadata directory API', () => {
   it('returns only directory fields and global category counts', async () => {
-    const creator = { id: 1, name: 'Aiko', slug: 'aiko', avatar: '', category: 'gaming', affiliation: 'indie', created_at: '2026-09-01 00:00:00' };
+    const creator = { id: 1, name: 'Aiko', slug: 'aiko', avatar: '', category: 'gaming', affiliation: 'agency', agency_name: 'PIXELA', created_at: '2026-09-01 00:00:00' };
     const { response, calls } = await request('/directory/?limit=1', [
       { total: 3 },
       { results: [{ ...creator, followers: 999, notes: 'private' }] },
@@ -27,6 +27,7 @@ describe('metadata directory API', () => {
       category_counts: [{ category: 'gaming', count: 3 }],
     });
     expect(calls.map(call => call.sql).join(' ')).not.toMatch(/stats_snapshots|rankings|followers|rank_change/);
+    expect(calls.find(call => call.operation === 'all').sql).toContain('v.agency_name');
   });
 
   it.each(['category=unknown', 'affiliation=unknown'])('rejects %s before querying', async query => {

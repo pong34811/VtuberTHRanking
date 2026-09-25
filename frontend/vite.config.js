@@ -11,28 +11,14 @@ export default defineConfig(({ mode }) => ({
     },
   },
   server: {
-    host: '0.0.0.0',
+    host: '127.0.0.1',
     port: 5173,
-    // ponytail: dev ยิง /api/v1 ผ่าน proxy ไป production ตรงๆ ไม่ต้องรัน backend เอง
-    // Browser tests stub every API request. Do not let an unmatched request hit production.
+    // Pages dev uses local D1. Preserve the browser Host and Origin for CSRF checks.
+    // Browser tests stub every API request and do not use the proxy.
     proxy: mode === 'e2e' ? undefined : {
       '/api': {
-        target: 'https://vtuberthai-ranking.pages.dev',
-        changeOrigin: true,
-        configure(proxy) {
-          proxy.on('proxyReq', proxyReq => {
-            proxyReq.setHeader('Origin', 'https://vtuberthai-ranking.pages.dev')
-            const cookie = proxyReq.getHeader('cookie')
-            if (typeof cookie === 'string') proxyReq.setHeader('cookie', cookie.replace(/\bvt_admin=/g, '__Host-vt_admin='))
-          })
-          proxy.on('proxyRes', proxyRes => {
-            const cookies = proxyRes.headers['set-cookie']
-            if (!cookies) return
-            proxyRes.headers['set-cookie'] = cookies.map(cookie =>
-              cookie.replace(/^__Host-vt_admin=/, 'vt_admin=').replace(/;\s*Secure/gi, ''),
-            )
-          })
-        },
+        target: 'http://127.0.0.1:8788',
+        changeOrigin: false,
       },
     },
   },

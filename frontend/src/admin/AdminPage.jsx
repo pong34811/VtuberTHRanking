@@ -58,6 +58,7 @@ function AdminNav({ tabs, managerStart }) {
 
 export default function AdminPage() {
   const [session, setSession] = useState(null),
+    [setupRequired, setSetupRequired] = useState(false),
     [checking, setChecking] = useState(true),
     [passwordOpen, setPasswordOpen] = useState(false),
     [logoutError, setLogoutError] = useState("");
@@ -65,8 +66,11 @@ export default function AdminPage() {
   const check = () => {
     setChecking(true);
     authApi("/me")
-      .then(setSession)
-      .catch(() => setSession(null))
+      .then((data) => { setSession(data); setSetupRequired(false); })
+      .catch((error) => {
+        setSession(null);
+        setSetupRequired(error.status === 401 && error.data?.setupRequired === true);
+      })
       .finally(() => setChecking(false));
   };
   useEffect(() => {
@@ -77,7 +81,7 @@ export default function AdminPage() {
   }, []);
   if (checking)
     return <div className="admin-boot">กำลังตรวจสอบการเข้าสู่ระบบ…</div>;
-  if (!session?.user) return <AuthScreen onAuthenticated={setSession} />;
+  if (!session?.user) return <AuthScreen setupRequired={setupRequired} onAuthenticated={(data) => { setSession(data); setSetupRequired(false); }} />;
   const { user, csrfToken } = session,
     isManager = user.role === "manager",
     tabs = isManager ? [...baseTabs, ...managerTabs] : baseTabs;
@@ -190,7 +194,8 @@ function PasswordForm({ csrfToken, onClose }) {
           <input
             type="password"
             autoComplete="new-password"
-            minLength="4"
+            minLength="12"
+            maxLength="128"
             required
             value={form.newPassword}
             onChange={(e) => setForm({ ...form, newPassword: e.target.value })}

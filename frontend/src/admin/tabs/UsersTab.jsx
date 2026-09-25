@@ -184,7 +184,8 @@ export function UserForm({ value, csrfToken, onClose, onSaved }) {
             <input
               type="password"
               autoComplete="new-password"
-              minLength="4"
+              minLength="12"
+              maxLength="128"
               required={!isEdit}
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}

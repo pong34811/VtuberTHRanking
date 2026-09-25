@@ -55,4 +55,4 @@ Worker ถูกเรียกทุกต้นชั่วโมงด้ว�
 
 [README](../README.md), [PROJECT_STRUCTURE](PROJECT_STRUCTURE.md), [DATABASE](DATABASE.md), [API_SPEC](API_SPEC.md), [RANKING_ALGORITHM](RANKING_ALGORITHM.md)
 
-Dev server ปัจจุบัน proxy API ไป production; ชุดทดสอบใช้ mock/stub
+Dev server proxy API ไป Pages dev ที่ 127.0.0.1:8788 โดยใช้ D1 ในเครื่อง; ชุดทดสอบใช้ mock/stub

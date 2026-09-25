@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowUpRight } from 'lucide-react';
 import { affiliationLabel, categoryLabel } from '../../components/channelLabels';
 
 export function directoryAddedDate(raw) {
@@ -27,17 +28,28 @@ export function directoryAddedDate(raw) {
 export function CreatorCard({ creator, showAddedDate = false }) {
   const [failed, setFailed] = useState(false);
   const added = showAddedDate ? directoryAddedDate(creator.created_at) : null;
+  const agencyName = typeof creator.agency_name === 'string' ? creator.agency_name.trim() : '';
+  const affiliation = creator.affiliation === 'agency' && agencyName
+    ? `${affiliationLabel(creator.affiliation)} ${agencyName}`
+    : affiliationLabel(creator.affiliation);
 
   useEffect(() => setFailed(false), [creator.avatar]);
 
   return (
-    <Link className="discovery-card" to={`/profile/${encodeURIComponent(creator.slug)}`}>
-      {creator.avatar && !failed
-        ? <img src={creator.avatar} alt="" loading="lazy" onError={() => setFailed(true)} />
-        : <span className="discovery-avatar-fallback" aria-hidden="true">{(creator.name || '?').slice(0, 1)}</span>}
-      <h3>{creator.name}</h3>
-      <p>{categoryLabel(creator.category)} · {affiliationLabel(creator.affiliation)}</p>
-      {added && <p>เพิ่มเข้ารายการ <time dateTime={added.iso}>{added.label}</time></p>}
+    <Link className="discovery-card" to={`/profile/${encodeURIComponent(creator.slug)}`} aria-label={`${creator.name} · ${categoryLabel(creator.category)} · ${affiliation}`}>
+      <div className="discovery-card-media">
+        {creator.avatar && !failed
+          ? <img src={creator.avatar} alt="" loading="lazy" onError={() => setFailed(true)} />
+          : <span className="discovery-avatar-fallback" aria-hidden="true">{(creator.name || '?').slice(0, 1)}</span>}
+        <span className="discovery-card-open" aria-hidden="true"><ArrowUpRight /></span>
+      </div>
+      <div className="discovery-card-body">
+        <h3>{creator.name}</h3>
+        <p className="discovery-card-meta">
+          <span>{categoryLabel(creator.category)}</span><span className="discovery-card-separator" aria-hidden="true">·</span><span className="discovery-card-affiliation">{affiliation}</span>
+        </p>
+        {added && <p className="discovery-card-meta">เพิ่มเข้าทำเนียบ <time dateTime={added.iso}>{added.label}</time></p>}
+      </div>
     </Link>
   );
 }

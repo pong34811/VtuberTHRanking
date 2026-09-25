@@ -1,0 +1,4 @@
+# Copy to .dev.vars and choose a private setup token before starting npm run dev:api.
+ADMIN_SETUP_TOKEN="replace-with-a-long-random-setup-token"
+# Optional: required only for YouTube imports in the local admin.
+# YOUTUBE_API_KEY=""

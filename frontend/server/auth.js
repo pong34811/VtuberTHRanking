@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { hashPassword, validatePassword, verifyPassword } from './password.js';
+import { DUMMY_PASSWORD_HASH, hashPassword, validatePassword, verifyPassword } from './password.js';
 
 const auth = new Hono();
 const lifetime = 8 * 60 * 60;
@@ -27,6 +27,7 @@ export async function jsonBody(c) {
 async function setupRequired(c) { return !(await c.env.DB.prepare('SELECT id FROM bootstrap_lock WHERE id=1').first()); }
 async function consumeAttempt(c, key, limit) {
   const time = now();
+  await c.env.DB.prepare('DELETE FROM auth_attempts WHERE window_start < ?').bind(time - 900).run();
   const result = await c.env.DB.prepare(`INSERT INTO auth_attempts(key,count,window_start) VALUES (?,1,?)
     ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window_start < ? THEN 1 ELSE count+1 END,
     window_start=CASE WHEN window_start < ? THEN excluded.window_start ELSE window_start END RETURNING count`)
@@ -73,13 +74,13 @@ auth.use('*', async (c,next) => {
 });
 auth.get('/me', requireUser, c => c.json({user:c.get('user'),csrfToken:c.get('session').csrf_token}));
 auth.post('/setup', async c => {
+  if (!c.env.ADMIN_SETUP_TOKEN?.trim()) return c.json({message:'ยังไม่ได้กำหนดรหัสตั้งค่าผู้ดูแลบนเซิร์ฟเวอร์'},503);
   const ip=c.req.header('CF-Connecting-IP') || 'local';
   if (!await consumeAttempt(c,`setup:${ip}`,10)) return c.json({message:'ลองใหม่ในอีก 15 นาที'},429);
   if (!await setupRequired(c)) return c.json({message:'ระบบมีผู้ดูแลแล้ว'},409);
   let body;
   try { body=await jsonBody(c); } catch { return c.json({message:'ข้อมูลไม่ถูกต้อง'},400); }
-  // ponytail: ง่ายสุด — ถ้าไม่ได้ตั้ง ADMIN_SETUP_TOKEN ก็ข้ามการตรวจ token ไปเลย เหลือแค่ username+password
-  if (c.env.ADMIN_SETUP_TOKEN && !equal(body.setupToken,c.env.ADMIN_SETUP_TOKEN)) return c.json({message:'รหัสตั้งค่าไม่ถูกต้อง'},403);
+  if (!equal(body.setupToken,c.env.ADMIN_SETUP_TOKEN)) return c.json({message:'รหัสตั้งค่าไม่ถูกต้อง'},403);
   const {username,password}=body;
   if (typeof username!=='string' || !/^[a-zA-Z0-9_.-]{3,40}$/.test(username)) return c.json({message:'ชื่อผู้ใช้ไม่ถูกต้อง'},400);
   try { validatePassword(password); } catch(err) { return c.json({message:err.message},400); }
@@ -100,13 +101,10 @@ auth.post('/login', async c => {
   const username=typeof body.username==='string'?body.username.trim().toLowerCase():'';
   if (!/^[a-z0-9_.-]{3,40}$/.test(username) || typeof body.password!=='string' || body.password.length>128) return c.json({message:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'},401);
   const ip=c.req.header('CF-Connecting-IP') || 'local';
-  const ipOK=await consumeAttempt(c,`login-ip:${ip}`,30);
-  const userOK=await consumeAttempt(c,`login-user:${username}`,10);
-  if (!ipOK || !userOK) return c.json({message:'เข้าสู่ระบบถี่เกินไป กรุณาลองใหม่ในอีก 15 นาที'},429);
+  if (!await consumeAttempt(c,`login-ip:${ip}`,30) || !await consumeAttempt(c,`login-user:${username}`,10)) return c.json({message:'เข้าสู่ระบบถี่เกินไป กรุณาลองใหม่ในอีก 15 นาที'},429);
   const user=await c.env.DB.prepare('SELECT * FROM users WHERE username=?').bind(username).first();
   // A fixed valid-shaped dummy hash makes nonexistent users take the same KDF path.
-  const dummy='pbkdf2-sha256$600000$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000';
-  const valid=await verifyPassword(body.password,user?.password_hash||dummy);
+  const valid=await verifyPassword(body.password,user?.password_hash||DUMMY_PASSWORD_HASH);
   if (!valid || user?.status!=='active') return c.json({message:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'},401);
   return startSession(c,user);
 });

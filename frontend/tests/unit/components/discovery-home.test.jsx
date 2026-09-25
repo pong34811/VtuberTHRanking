@@ -45,8 +45,8 @@ describe('Discovery home renderer', () => {
     expect(await screen.findByRole('link', { name: /Aiko/ })).toBeInTheDocument();
     expect(directoryAPI.getList).toHaveBeenCalledWith({ sort: 'created_at_desc', limit: 12, offset: 0 });
     expect(screen.getByRole('heading', { name: 'เพิ่มเข้ารายการล่าสุด' })).toBeInTheDocument();
-    expect(screen.getByText('วันที่ด้านล่างคือวันที่เพิ่มช่องเข้ารายการ ไม่ใช่วันเดบิวต์')).toBeInTheDocument();
-    expect(screen.getByText('เพิ่มเข้ารายการ')).toBeInTheDocument();
+    expect(screen.getByText('วันที่แสดงคือวันที่เพิ่มช่องเข้าทำเนียบ')).toBeInTheDocument();
+    expect(screen.getByText(directoryAddedDate(aiko.created_at).label)).toHaveAttribute('datetime', '2026-09-01T00:00:00.000Z');
   });
 
   it('requests each nonempty category independently of the first result page', async () => {

@@ -4,10 +4,10 @@ import { pbkdf2Sync, randomBytes, timingSafeEqual } from 'node:crypto';
 // which made every login/setup call 500. Lowered to 100000 — still slow enough to
 // resist offline brute force, and matches the Workers runtime ceiling.
 const ITERATIONS = 100000;
+export const DUMMY_PASSWORD_HASH = `pbkdf2-sha256$${ITERATIONS}$${'0'.repeat(32)}$${'0'.repeat(64)}`;
 export function validatePassword(password) {
-  // ponytail: ง่ายสุดแค่ username+password ยาว >=4 ก็พอ
-  if (typeof password !== 'string' || password.length < 4 || password.length > 128) {
-    throw new Error('รหัสผ่านต้องยาว 4–128 ตัวอักษร');
+  if (typeof password !== 'string' || password.length < 12 || password.length > 128) {
+    throw new Error('รหัสผ่านต้องยาว 12–128 ตัวอักษร');
   }
   return password;
 }

@@ -10,7 +10,7 @@
 
 API ใช้ Hono บน Cloudflare Pages Functions และ Cloudflare D1
 Production: https://vtuberthai-ranking.pages.dev/api/v1
-Local: http://localhost:5173/api/v1 (Vite proxy ไป production ตาม frontend/vite.config.js)
+Local: http://127.0.0.1:5173/api/v1 (Vite proxy ไป Pages dev ที่ http://127.0.0.1:8788 ซึ่งใช้ D1 ในเครื่อง)
 โค้ดอ้างอิง: frontend/server/public.js; auth/admin ดู frontend/AUTH.md
 
 ## Endpoints
@@ -50,6 +50,7 @@ This endpoint returns active creator profile metadata only. It is separate from 
       "avatar": "/media/avatars/a.png",
       "category": "gaming",
       "affiliation": "indie",
+      "agency_name": "",
       "created_at": "2026-09-20 00:00:00"
     }
   ],
@@ -60,7 +61,7 @@ This endpoint returns active creator profile metadata only. It is separate from 
 }
 ```
 
-`total` counts active profiles matching the requested filters; `count` is the number of rows on this page. `category_counts` counts every active profile regardless of the request filters or pagination. Rows expose only `id`, `name`, `slug`, `avatar`, `category`, `affiliation`, and `created_at`; the endpoint does not return snapshot, follower, or ranking metrics. Name sort uses case-insensitive name order with ID as the tie breaker. Newest sort uses valid creation timestamps descending, followed by name and ID; missing and malformed timestamps are placed last. The date means when the profile was added to this directory.
+`total` counts active profiles matching the requested filters; `count` is the number of rows on this page. `category_counts` counts every active profile regardless of the request filters or pagination. Rows expose only `id`, `name`, `slug`, `avatar`, `category`, `affiliation`, `agency_name`, and `created_at`; the endpoint does not return snapshot, follower, or ranking metrics. `agency_name` is the stored agency display name, synchronized by Admin channel and agency edits; it may be empty or null. Homepage cards display it for agency-affiliated creators when available. Name sort uses case-insensitive name order with ID as the tie breaker. Newest sort uses valid creation timestamps descending, followed by name and ID; missing and malformed timestamps are placed last. The date means when the profile was added to this directory.
 
 ### Public homepage configuration
 
@@ -75,6 +76,8 @@ Returns the published discovery layout in `{ "template": "search-first" }`. Acce
 ```
 GET /rankings/
 ```
+
+คืนเฉพาะอันดับที่มีสถานะ active ของช่องที่เปิดใช้งาน ทั้ง `total` และรายการใช้เงื่อนไขเดียวกัน ช่องที่ปิดใช้งานจะหายจากรายการทันที โดยเลขอันดับของช่องที่เหลือคงเดิมจนกว่าจะคำนวณใหม่
 
 **Query Parameters:**
 
@@ -176,7 +179,7 @@ GET /vtubers/{slug}/history/
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| months | int | 否 | จำนวนเดือนย้อนหลัง (default: 6, max: 12) |
+| months | int | 否 | จำนวนเดือนย้อนหลัง (default: 6, ปรับให้อยู่ในช่วง 1-12; ค่าที่ไม่ใช่จำนวนเต็มตอบ 400) |
 
 **Response:**
 ```json
@@ -258,6 +261,8 @@ POST /compare/
   "months": 6
 }
 ```
+
+`months` ต้องเป็นจำนวนเต็ม (ค่าเริ่มต้น 6 และปรับให้อยู่ในช่วง 1-12 เช่นเดียวกับ history) ค่าผิดรูปแบบหรือ body ที่ไม่ใช่ JSON object ตอบ 400
 
 **Response:**
 ```json

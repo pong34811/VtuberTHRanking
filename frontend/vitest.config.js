@@ -33,9 +33,6 @@ export default defineConfig({
       },
       {
         extends: true,
-        esbuild: {
-          jsx: 'automatic',
-        },
         plugins: [react({ jsxRuntime: 'automatic' })],
         resolve: {
           alias: {

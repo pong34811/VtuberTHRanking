@@ -14,6 +14,7 @@ SQL ใน [frontend/migrations](../frontend/migrations/) เป็นแหล�
 | 0004_channel_notes.sql | notes ภายใน |
 | 0005_agencies.sql | agencies, agency_id และเชื่อมข้อมูลสังกัดเดิม |
 | 0006_ranking_pipeline_runs.sql | ประวัติผลการเก็บสถิติและเผยแพร่อันดับ |
+| 0007_auth_attempts_expiry.sql | ดัชนีสำหรับล้างตัวนับการเข้าสู่ระบบที่หมดช่วงเวลา |
 
 ## ตารางหลัก
 
@@ -53,6 +54,7 @@ settings เริ่มต้นมี site_name, site_status, current_ranking_
 - partial unique index rankings_alltime_unique ป้องกัน alltime ซ้ำเมื่อ month IS NULL
 - snapshots_latest ใช้ vtuber_id, recorded_at DESC, id DESC
 - มีดัชนี sessions_user, sessions_expiry, audit_logs_time, vtubers_agency_id
+- auth_attempts_window_start รองรับการลบตัวนับที่เก่ากว่า 15 นาทีเมื่อมี auth attempt ใหม่
 - เวลาส่วนใหญ่เก็บ TEXT; session และ auth_attempts เก็บเวลา INTEGER ตามโค้ด auth
 
 ## การพัฒนา

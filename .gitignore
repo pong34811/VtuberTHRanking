@@ -1,5 +1,8 @@
 # Local environment
 .env
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 
 # Node
 node_modules/

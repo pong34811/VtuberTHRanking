@@ -214,7 +214,7 @@ worker/updater.js
 - ตรวจเมื่อ 24 กันยายน 2026: Cypress 4 specs ที่เกี่ยวกับ Home/Stats/Search และ Admin homepage template ผ่าน 19 E2E tests แบบ headless โดย stub API ผ่าน `cy.intercept` ไม่พึ่ง production backend — รันด้วย `npm run test:e2e -- --spec "cypress/e2e/public/home.cy.js,cypress/e2e/public/stats.cy.js,cypress/e2e/public/search.cy.js,cypress/e2e/admin/homepage-template.cy.js"`
 - ชุดปัจจุบันทดสอบ authentication บางกรณี การบังคับ login, password, admin domain helpers, updater worker บางส่วน, การแสดงผล `RankBadge`, public API (`homepage-config`, `directory`, `rankings`, `vtubers`, `compare` และ `summary`), admin channels CRUD/snapshots, YouTube import ทุก branch และ admin tabs/channels
 - ยังต้องขยาย updater coverage และ API client; public pages มี component tests บางพฤติกรรมแล้ว
-- ต้องใช้ Node.js `^20.19.0 || >=22.12.0` ตามข้อกำหนดของ Vite และ Vitest โดย `.nvmrc` กำหนดเวอร์ชัน 20.19.0
+- ต้องใช้ Node.js `>=22.12.0` สำหรับ Vite, Vitest และ Wrangler โดย `.nvmrc` กำหนดเวอร์ชัน 22.12.0
 - `npm run test:coverage` สร้างรายงาน coverage ได้แล้ว แต่ยังไม่กำหนด threshold จนกว่าจะมี backend และ frontend suites ครบถ้วน
 - ตัวเลข coverage เดิมไม่ใช่ผลยืนยันของโค้ดล่าสุด ต้องรัน `npm run test:coverage` เพื่อสร้างรายงานใหม่
 
@@ -334,7 +334,7 @@ Cypress รับผิดชอบการทดสอบ user journey ผ่�
 
 ## 9 คำสั่งทดสอบ
 
-รันจากโฟลเดอร์ `frontend/` ด้วย Node.js `^20.19.0 || >=22.12.0` (`.nvmrc` ใช้ 20.19.0):
+รันจากโฟลเดอร์ `frontend/` ด้วย Node.js `>=22.12.0` (`.nvmrc` ใช้ 22.12.0):
 
 ```bash
 npm test

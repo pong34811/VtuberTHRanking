@@ -40,13 +40,13 @@ api.get('/', async c => {
 
   const totalRow = await db.prepare(`SELECT COUNT(*) AS total FROM vtubers v ${where}`).bind(...values).first();
   const { results: rows } = await db.prepare(
-    `SELECT v.id, v.name, v.slug, v.avatar, v.category, v.affiliation, v.created_at FROM vtubers v ${where} ORDER BY ${order} LIMIT ? OFFSET ?`,
+    `SELECT v.id, v.name, v.slug, v.avatar, v.category, v.affiliation, v.agency_name, v.created_at FROM vtubers v ${where} ORDER BY ${order} LIMIT ? OFFSET ?`,
   ).bind(...values, limit, offset).all();
   const { results: categoryCounts } = await db.prepare(
     'SELECT category, COUNT(*) AS count FROM vtubers WHERE is_active = 1 GROUP BY category ORDER BY category',
   ).all();
 
-  const fields = ['id', 'name', 'slug', 'avatar', 'category', 'affiliation', 'created_at'];
+  const fields = ['id', 'name', 'slug', 'avatar', 'category', 'affiliation', 'agency_name', 'created_at'];
   const directoryRows = rows.map(row => Object.fromEntries(fields.map(field => [field, row[field] ?? null])));
   return c.json({
     total: totalRow?.total || 0,

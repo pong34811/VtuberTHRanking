@@ -8,7 +8,7 @@
 
 ### 1. ตั้งค่า Environment Variable
 
-ตั้งค่า `ADMIN_SETUP_TOKEN` ใน Cloudflare Pages:
+ตั้งค่า `ADMIN_SETUP_TOKEN` เป็น secret ใน Cloudflare Pages (จำเป็นสำหรับการตั้งค่าครั้งแรก):
 
 ```
 Cloudflare Dashboard → Pages → vtuberthai-ranking → Settings → Environment variables
@@ -19,7 +19,9 @@ Cloudflare Dashboard → Pages → vtuberthai-ranking → Settings → Environme
 เข้าไปที่ `/admin` แล้วกรอก:
 - รหัสตั้งค่า (ADMIN_SETUP_TOKEN)
 - ชื่อผู้ใช้ (username)
-- รหัสผ่าน (password) - ต้องยาว 4-128 ตัวอักษร
+- รหัสผ่าน (password) - ต้องยาว 12-128 ตัวอักษร
+
+หน้า `/admin` แสดงฟอร์มตั้งค่าเมื่อ `/api/v1/auth/me` ตอบ `setupRequired: true` การตั้งค่าจะถูกปฏิเสธด้วย 503 หากยังไม่มี `ADMIN_SETUP_TOKEN` และ 403 หากรหัสไม่ตรงกัน สำหรับ local ให้คัดลอก `.dev.vars.example` เป็น `.dev.vars` แล้วกำหนดรหัสก่อนรัน `npm run dev:api`
 
 ## API Endpoints
 
@@ -99,6 +101,7 @@ Cloudflare Dashboard → Pages → vtuberthai-ranking → Settings → Environme
 - Setup: 10 ครั้งต่อ IP ต่อ 15 นาที
 - Login (IP): 30 ครั้งต่อ 15 นาที
 - Login (username): 10 ครั้งต่อ 15 นาที
+- แถวที่หมดช่วงเวลา 15 นาทีจะถูกลบเมื่อมีการลองเข้าสู่ระบบหรือตั้งค่าครั้งถัดไป หาก IP เกินโควตาจะไม่สร้างตัวนับชื่อผู้ใช้เพิ่ม
 
 ### Session Management
 - Session ใช้ HTTP-only cookie
@@ -106,9 +109,10 @@ Cloudflare Dashboard → Pages → vtuberthai-ranking → Settings → Environme
 - CSRF token ตรวจสอบทุก POST/PUT/DELETE request
 
 ### Password Hashing
-- PBKDF2-SHA256, 600,000 iterations
+- PBKDF2-SHA256, 100,000 iterations ตามข้อจำกัดของ Workers runtime
 - Random salt 16 bytes
 - Timing-safe comparison
+- รหัสผ่านที่สร้างหรือเปลี่ยนใหม่ต้องยาว 12-128 ตัวอักษร บัญชีเดิมยังเข้าสู่ระบบด้วยรหัสผ่านเดิมได้
 
 ### Origin Checking
 - ตรวจสอบ Origin header สำหรับทุก non-GET request
@@ -172,5 +176,5 @@ CREATE TABLE auth_attempts (
 
 | Variable | Description |
 |----------|-------------|
-| `ADMIN_SETUP_TOKEN` | รหัสสำหรับตั้งค่า admin ครั้งแรก (ถ้าไม่ตั้ง จะข้ามการตรวจ token เหลือแค่ username+password) |
+| `ADMIN_SETUP_TOKEN` | รหัสที่จำเป็นสำหรับตั้งค่า admin ครั้งแรก หากไม่ตั้ง API จะปฏิเสธการตั้งค่า |
 | `ENVIRONMENT` | production/development |

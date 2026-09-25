@@ -16,10 +16,16 @@
 
 ```bash
 cd frontend && npm install
-npm run dev          # http://localhost:5173 (เรียก API production ผ่าน proxy)
+npm run build
+npm run db:migrate:local
+npm run dev:api      # Pages Functions + D1 ในเครื่อง ที่ http://127.0.0.1:8788
 ```
 
-ต้องใช้ Node.js `^20.19.0 || >=22.12.0` สำหรับ Vite และ Vitest (ไฟล์ `.nvmrc` ใช้ Node.js 20.19.0)
+ก่อนเริ่ม API ให้คัดลอก `frontend/.dev.vars.example` เป็น `frontend/.dev.vars` และเปลี่ยน `ADMIN_SETUP_TOKEN` เป็นรหัสส่วนตัว ไฟล์นี้ไม่ถูกเก็บใน Git
+
+เปิดอีก terminal แล้วรัน `cd frontend` และ `npm run dev` เพื่อเปิดเว็บที่ http://127.0.0.1:5173 โดย Vite ส่ง `/api` ไปยัง API ในเครื่อง ข้อมูล D1 เก็บใน `frontend/.wrangler/state` และแยกจาก production เมื่อเปิด `/admin` ครั้งแรก ระบบจะแสดงฟอร์มสร้างผู้ดูแลโดยใช้รหัสตั้งค่าข้างต้นและรหัสผ่านอย่างน้อย 12 ตัวอักษร
+
+ต้องใช้ Node.js `>=22.12.0` สำหรับ Vite, Vitest และ Wrangler (ไฟล์ `.nvmrc` ใช้ Node.js 22.12.0)
 
 คำสั่งตรวจสอบชุดทดสอบ (รันจากโฟลเดอร์ `frontend/`):
 
@@ -31,7 +37,7 @@ npm run test:coverage    # ทดสอบพร้อมรายงาน cove
 npm run test:e2e         # Cypress E2E (ต้องรัน dev server ก่อน)
 ```
 
-ตรวจเมื่อ 18 กันยายน 2026: Vitest 149 tests ผ่านใน 9 files ส่วน Cypress มี 4 specs ครอบคลุม public: home, search และ admin: login, channels โดย stub API ทั้งหมด (ไม่ได้รัน Cypress ซ้ำในรอบนี้) ยังไม่มี coverage threshold บังคับ
+ตรวจเมื่อ 25 กันยายน 2026: Vitest 270 tests ผ่านใน 20 files, production build ผ่าน และตรวจ setup/login, CSRF, การซ่อนช่องที่ปิดใช้งาน และ migrations กับ API/D1 ในเครื่องแล้ว Cypress ใช้ API stubs และไม่ได้รันซ้ำในรอบนี้ ยังไม่มี coverage threshold บังคับ
 
 เอกสารพัฒนา: [ข้อกำหนดผลิตภัณฑ์](docs/PRD.md), [ฐานข้อมูล D1](docs/DATABASE.md), [API](docs/API_SPEC.md), [วิธีคำนวณอันดับ](docs/RANKING_ALGORITHM.md)
 
@@ -42,6 +48,8 @@ cd frontend
 npm run build
 npx wrangler pages deploy dist --project-name vtuberthai-ranking --branch main
 ```
+
+ก่อน deploy ให้ใช้ D1 migrations ให้ครบ และตั้ง `ADMIN_SETUP_TOKEN` เป็น secret ใน Cloudflare Pages สำหรับการสร้างผู้ดูแลครั้งแรก หากไม่มี secret นี้ API จะปฏิเสธการตั้งค่าด้วย 503
 
 ## URL หลัก
 

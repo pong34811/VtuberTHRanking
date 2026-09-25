@@ -38,7 +38,7 @@ api.get('/rankings/', async (c) => {
     }
   }
 
-  let whereClause = 'WHERE r.period = ? AND r.category = ?';
+  let whereClause = "WHERE v.is_active = 1 AND r.status = 'active' AND r.period = ? AND r.category = ?";
   const params = [period, category];
 
   if (period === 'alltime') {
@@ -49,7 +49,7 @@ api.get('/rankings/', async (c) => {
   }
 
   const countResult = await db.prepare(
-    `SELECT COUNT(*) as total FROM rankings r ${whereClause}`
+    `SELECT COUNT(*) as total FROM rankings r JOIN vtubers v ON r.vtuber_id = v.id ${whereClause}`
   ).bind(...params).first();
   const total = countResult?.total || 0;
 
@@ -133,12 +133,18 @@ api.get('/vtubers/:slug/', async (c) => {
   return c.json({ ...publicVtuber, current_rank: currentRank, latest_stats: latestStats || null });
 });
 
+function historyMonths(raw = 6) {
+  if (typeof raw !== 'number' && (typeof raw !== 'string' || !/^-?\d+$/.test(raw))) return null;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) ? Math.min(12, Math.max(1, value)) : null;
+}
+
 api.get('/vtubers/:slug/history/', async (c) => {
   const db = c.env.DB;
   if (!db) return c.json({ error: 'DB not available' }, 500);
   const slug = c.req.param('slug');
-  let months = parseInt(c.req.query('months') || '6', 10);
-  if (months > 12) months = 12; if (months < 1) months = 1;
+  const months = historyMonths(c.req.query('months') || '6');
+  if (months === null) return c.json({ error: true, status: 400, message: 'months must be an integer' }, 400);
   const vtuber = await db.prepare(`SELECT id, name, slug FROM vtubers WHERE slug = ? AND is_active = 1`).bind(slug).first();
   if (!vtuber) return c.json({ error: true, status: 404, message: 'VTuber not found' }, 404);
   const now = new Date(), start = new Date(now.getFullYear(), now.getMonth() - months, 1);
@@ -152,7 +158,10 @@ api.post('/compare/', async (c) => {
   const db = c.env.DB;
   if (!db) return c.json({ error: 'DB not available' }, 500);
   let body; try { body = await c.req.json(); } catch { return c.json({ error: true, status: 400, message: 'Invalid JSON' }, 400); }
-  const { vtubers, category = 'followers', months = 6 } = body;
+  if (!body || Array.isArray(body) || typeof body !== 'object') return c.json({ error: true, status: 400, message: 'Expected JSON object' }, 400);
+  const { vtubers, category = 'followers' } = body;
+  const months = historyMonths(body.months);
+  if (months === null) return c.json({ error: true, status: 400, message: 'months must be an integer' }, 400);
   if (!Array.isArray(vtubers) || vtubers.length < 2 || vtubers.length > 5) return c.json({ error: true, status: 400, message: 'vtubers must be 2-5 IDs' }, 400);
   if (!['followers', 'views', 'videos'].includes(category)) return c.json({ error: true, status: 400, message: 'Invalid category' }, 400);
   const now = new Date(), start = new Date(now.getFullYear(), now.getMonth() - months, 1);
@@ -175,7 +184,7 @@ api.get('/summary/', async (c) => {
   const totalVtubers = totalResult?.count || 0;
   const followersResult = await db.prepare(`SELECT MAX(followers) as total FROM stats_snapshots WHERE vtuber_id IN (SELECT id FROM vtubers WHERE is_active = 1)`).first();
   const totalFollowers = followersResult?.total || 0;
-  const topGainerResult = await db.prepare(`SELECT v.id, v.name, v.slug, r.rank_change FROM rankings r JOIN vtubers v ON r.vtuber_id = v.id WHERE r.period = 'monthly' AND r.rank_change > 0 ORDER BY r.rank_change DESC LIMIT 1`).first();
+  const topGainerResult = await db.prepare(`SELECT v.id, v.name, v.slug, r.rank_change FROM rankings r JOIN vtubers v ON r.vtuber_id = v.id WHERE v.is_active = 1 AND r.status = 'active' AND r.period = 'monthly' AND r.rank_change > 0 ORDER BY r.rank_change DESC LIMIT 1`).first();
   const topGainer = topGainerResult ? { vtuber: { id: topGainerResult.id, name: topGainerResult.name, slug: topGainerResult.slug }, rank_change: topGainerResult.rank_change } : null;
   const latestUpdateResult = await db.prepare('SELECT recorded_at FROM stats_snapshots ORDER BY recorded_at DESC LIMIT 1').first();
   const latestUpdate = latestUpdateResult?.recorded_at || new Date().toISOString();

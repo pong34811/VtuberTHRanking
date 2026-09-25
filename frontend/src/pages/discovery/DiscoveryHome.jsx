@@ -9,7 +9,7 @@ import useDiscoveryData from './useDiscoveryData';
 import './discovery.css';
 
 const templates = {
-  'search-first': { title: 'ค้นพบ VTuber ไทย', description: 'ค้นหาช่องจากชื่อ ประเภทเนื้อหา หรือสังกัด แล้วเลือกช่องที่อยากรู้จักต่อ' },
+  'search-first': { title: 'ค้นพบ VTuber ไทย', description: 'สำรวจภาพและโปรไฟล์ VTuber ไทย แล้วเลือกค้นหาต่อจากชื่อ หมวด หรือสังกัด' },
   'category-first': { title: 'ค้นพบผ่านหมวดหมู่', description: 'เลือกหมวดที่สนใจ แล้วสำรวจช่อง VTuber ไทยในแบบของคุณ' },
   'newest-first': { title: 'เพิ่มเข้ารายการล่าสุด', description: 'รายชื่อเรียงตามวันที่เพิ่มเข้าระบบ แสดงเมื่อข้อมูลวันที่ถูกต้อง' },
 };
@@ -19,13 +19,26 @@ function containPreviewLink(event) {
 }
 
 function CategoryLink({ category, count }) {
-  return <Link className="discovery-category" to={directorySearchHref({ category })}>
+  return <Link className={`discovery-category discovery-category--${category}`} to={directorySearchHref({ category })}>
     <span>{categoryLabel(category)}</span><strong>{count.toLocaleString('th-TH')}</strong>
   </Link>;
 }
 
 function CreatorGrid({ results, showAddedDate = false }) {
   return <div className="discovery-grid">{results.map(creator => <CreatorCard key={creator.id} creator={creator} showAddedDate={showAddedDate} />)}</div>;
+}
+
+function LoadingGallery() {
+  return <>
+    <p className="discovery-status sr-only" role="status">กำลังโหลดรายชื่อ VTuber…</p>
+    <div className="discovery-grid discovery-grid--loading" aria-hidden="true">
+      {Array.from({ length: 8 }, (_, index) => <div className="discovery-skeleton-card" key={index}>
+        <div className="discovery-skeleton-image" />
+        <div className="discovery-skeleton-line discovery-skeleton-line--name" />
+        <div className="discovery-skeleton-line discovery-skeleton-line--meta" />
+      </div>)}
+    </div>
+  </>;
 }
 
 export default function DiscoveryHome({ templateId = 'search-first', previewMode = false }) {
@@ -46,48 +59,63 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
 
   return (
     <div className="homepage discovery-home" data-template={templateId} onClickCapture={previewMode ? containPreviewLink : undefined}>
-      <header className="discovery-header">
-        <div>
-          <p className="discovery-eyebrow">VTUBER THAILAND · DISCOVER</p>
+      <div className="discovery-layout">
+      <header className={`discovery-header discovery-header--${templateId}`}>
+        <div className="discovery-heading">
           <h1>{template.title}</h1>
           <p>{template.description}</p>
         </div>
-        <Link className="discovery-stats-link" to="/stats">ดูสถิติ <ArrowUpRight aria-hidden="true" /></Link>
+        <div className="discovery-header-tools">
+          {templateId === 'search-first' && <form className="discovery-search" role="search" onSubmit={submitSearch}>
+            <div className="discovery-search-row">
+              <Search aria-hidden="true" />
+              <label className="sr-only" htmlFor={searchId}>ค้นหาชื่อ VTuber</label>
+              <input id={searchId} type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="ค้นหาชื่อ VTuber" />
+              <button type="submit" aria-label="ค้นหา"><ArrowUpRight aria-hidden="true" /></button>
+            </div>
+          </form>}
+          <div className="discovery-header-meta">
+            <Link className="discovery-stats-link" to="/stats">ดูสถิติ <ArrowUpRight aria-hidden="true" /></Link>
+            <span className="discovery-count-stamp">{loading ? 'กำลังโหลดรายชื่อ' : <><strong>{data.total.toLocaleString('th-TH')}</strong> ช่องในทำเนียบ</>}</span>
+          </div>
+        </div>
       </header>
 
       {templateId === 'search-first' && <>
-        <form className="discovery-search" role="search" onSubmit={submitSearch}>
-          <label htmlFor={searchId}>ค้นหาชื่อ VTuber</label>
-          <div className="discovery-search-row">
-            <input id={searchId} type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="เช่น Aiko, Miku..." />
-            <button type="submit"><Search aria-hidden="true" />ค้นหา</button>
-          </div>
-        </form>
         <section className="discovery-category-section" aria-label="เลือกตามหมวดหมู่">
-          <div className="discovery-category-list">
-            {counts.map(item => <CategoryLink key={item.category} {...item} />)}
+          <Link className="discovery-index-all" to="/search"><span>รายชื่อทั้งหมด</span><ArrowUpRight aria-hidden="true" /></Link>
+          <div className="discovery-filter-group">
+            <h2>เลือกดูตามแนว</h2>
+            <div className="discovery-category-list">
+              {counts.map(item => <CategoryLink key={item.category} {...item} />)}
+            </div>
           </div>
-          <div className="discovery-shortcuts">
-            <Link to={directorySearchHref({ affiliation: 'indie' })}>{affiliationLabel('indie')}</Link>
-            <Link to={directorySearchHref({ affiliation: 'agency' })}>{affiliationLabel('agency')}</Link>
+          <div className="discovery-filter-group discovery-filter-group--affiliation">
+            <h2>สังกัด</h2>
+            <div className="discovery-shortcuts">
+              <Link to={directorySearchHref({ affiliation: 'indie' })}>{affiliationLabel('indie')} <ArrowUpRight aria-hidden="true" /></Link>
+              <Link to={directorySearchHref({ affiliation: 'agency' })}>{affiliationLabel('agency')} <ArrowUpRight aria-hidden="true" /></Link>
+            </div>
           </div>
         </section>
       </>}
 
       {templateId === 'category-first' && <section className="discovery-category-section" aria-label="หมวดหมู่ VTuber">
-        <h2>เลือกหมวดที่สนใจ</h2>
-        <div className="discovery-category-list">
-          {counts.map(item => <CategoryLink key={item.category} {...item} />)}
+        <div className="discovery-filter-group">
+          <h2>เลือกดูตามแนว</h2>
+          <div className="discovery-category-list">
+            {counts.map(item => <CategoryLink key={item.category} {...item} />)}
+          </div>
         </div>
       </section>}
 
       {templateId === 'newest-first' && <>
-        <div className="discovery-date-note">วันที่ด้านล่างคือวันที่เพิ่มช่องเข้ารายการ ไม่ใช่วันเดบิวต์</div>
+        <div className="discovery-date-note">วันที่แสดงคือวันที่เพิ่มช่องเข้าทำเนียบ</div>
         <Link className="discovery-search-all" to="/search">ค้นหารายชื่อทั้งหมด <ArrowUpRight aria-hidden="true" /></Link>
       </>}
 
       <section className="discovery-content" aria-label="รายชื่อ VTuber" aria-busy={loading}>
-        {loading ? <p className="discovery-status" role="status">กำลังโหลดรายชื่อ VTuber…</p> : error ? (
+        {loading ? <LoadingGallery /> : error ? (
           <div className="discovery-error" role="alert"><p>{error}</p><button type="button" onClick={retry}>ลองอีกครั้ง</button></div>
         ) : data.total === 0 ? (
           <div className="discovery-empty"><h2>ยังไม่มีรายชื่อให้แสดง</h2><p>ลองค้นหาช่อง VTuber ที่คุณสนใจ</p><Link to="/search">ไปหน้าค้นหา</Link></div>
@@ -107,11 +135,15 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
           </div>
         ) : (
           <>
-            <div className="discovery-content-heading"><h2>{templateId === 'newest-first' ? 'ช่องที่เพิ่มล่าสุด' : 'ช่องที่น่าค้นพบ'}</h2><span>{data.total.toLocaleString('th-TH')} ช่องในรายการ</span></div>
+            <div className="discovery-content-heading">
+              <h2>{templateId === 'newest-first' ? 'เพิ่มเข้าทำเนียบล่าสุด' : 'เริ่มสำรวจแกลเลอรี'}</h2>
+              <Link to="/search">ดูรายชื่อทั้งหมด <ArrowUpRight aria-hidden="true" /></Link>
+            </div>
             <CreatorGrid results={data.results} showAddedDate={templateId === 'newest-first'} />
           </>
         )}
       </section>
+      </div>
     </div>
   );
 }

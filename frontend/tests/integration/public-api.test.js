@@ -242,6 +242,12 @@ describe('public vtuber detail', () => {
 });
 
 describe('public vtuber history', () => {
+  it.each(['abc', '2.5', '1x', '9007199254740992'])('rejects invalid months %s before querying D1', async months => {
+    const { response, calls } = await publicRequest(`/vtubers/aiko/history/?months=${months}`);
+    expect(response.status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
   it('returns 404 for an unknown slug', async () => {
     const { response } = await publicRequest('/vtubers/unknown/history/', [null]);
 
@@ -277,6 +283,16 @@ describe('public vtuber history', () => {
 });
 
 describe('public compare', () => {
+  it.each(['abc', 1.5, null, true, {}, 9007199254740992])('rejects invalid comparison months %s', async months => {
+    const { response, calls } = await publicRequest('/compare/', [], {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vtubers: [1, 2], months }),
+    });
+    expect(response.status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
   it('rejects invalid JSON', async () => {
     const { response } = await publicRequest('/compare/', [], {
       method: 'POST',
