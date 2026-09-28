@@ -1,6 +1,6 @@
 # GitHub CI and Local D1 Smoke Test
 
-**Status:** Conversational design approved on 2026-09-28; awaiting written-spec review.
+**Status:** Conversational design and written spec approved on 2026-09-28.
 **Date:** 2026-09-28
 
 ## Objective
@@ -17,7 +17,7 @@ Run the existing frontend checks for every GitHub push and pull request, then ex
 
 ## Design
 
-Add one GitHub Actions workflow at `.github/workflows/ci.yml`. It runs on `push` and `pull_request` with read-only repository permissions, on Ubuntu, using Node from `frontend/.nvmrc` and `npm ci` from `frontend/`.
+Add one GitHub Actions workflow at `.github/workflows/ci.yml`. It runs on `push` and `pull_request` with read-only repository permissions, on Ubuntu, using Node from `.nvmrc` and `npm ci` from `frontend/`.
 
 The job runs the existing checks in this order:
 
@@ -47,7 +47,7 @@ The initial smoke test uses the empty database after migrations. It verifies tha
 ## Acceptance criteria
 
 1. Pushes and pull requests run the workflow.
-2. The workflow uses the Node version in `frontend/.nvmrc` and installs from the lockfile.
+2. The workflow uses the Node version in `.nvmrc` and installs from the lockfile.
 3. Vitest, production build, and the current fixture-backed Cypress suite all run.
 4. Wrangler applies migrations to local D1 and the Pages API smoke request reaches that local database.
 5. A migration error, SQL/API error, invalid JSON response, or non-200 status makes the job fail.
