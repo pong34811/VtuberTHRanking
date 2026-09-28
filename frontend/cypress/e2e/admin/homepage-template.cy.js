@@ -90,7 +90,7 @@ describe('Admin homepage templates', () => {
     cy.visit('/admin/homepage');
     cy.wait(['@getMe', '@getHomepageTemplate', '@getDirectory']);
     cy.contains('button', 'เพิ่มเข้ารายการล่าสุด').click();
-    cy.get('[data-testid="homepage-preview"] .discovery-date-note').should('contain.text', 'ไม่ใช่วันเดบิวต์');
+    cy.get('[data-testid="homepage-preview"] .discovery-date-note').should('contain.text', 'วันที่แสดงคือวันที่เพิ่มช่องเข้าทำเนียบ');
     cy.contains('.homepage-template-draft-label', 'ตัวอย่าง — ยังไม่เผยแพร่').should('exist');
     cy.get('@saveHomepageTemplate.all').should('have.length', 0);
 
@@ -158,8 +158,8 @@ describe('Admin homepage templates', () => {
     cy.document().its('documentElement.scrollWidth').should('be.lte', 1280);
     cy.get('.discovery-home form[role="search"] input').focus();
     cy.focused().should('match', 'input');
-    cy.focused().then($input => {
-      expect(getComputedStyle($input[0]).outlineStyle).not.to.equal('none');
+    cy.get('.discovery-search-row').should($row => {
+      expect(getComputedStyle($row[0]).boxShadow).not.to.equal('none');
     });
 
     cy.viewport(390, 844);

@@ -50,7 +50,10 @@ describe('Public discovery Home', () => {
       expect($card[0].getBoundingClientRect().top).to.be.lessThan(844);
     });
     cy.document().its('documentElement.scrollWidth').should('be.lte', 390);
-    cy.get('.discovery-search input').focus().should('have.css', 'outline-style', 'solid');
+    cy.get('.discovery-search input').focus();
+    cy.get('.discovery-search-row').should($row => {
+      expect(getComputedStyle($row[0]).boxShadow).not.to.equal('none');
+    });
 
     cy.viewport(1280, 720);
     cy.document().its('documentElement.scrollWidth').should('be.lte', 1280);
