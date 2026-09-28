@@ -55,7 +55,7 @@ jobs:
             }
           }
           if (!response) throw new Error(`Pages API did not start: ${lastError}`);
-          if (!response.ok) throw new Error(`Pages API returned HTTP ${response.status}`);
+          if (response.status !== 200) throw new Error(`Pages API returned HTTP ${response.status}`);
           const body = await response.json();
           if (!Number.isSafeInteger(body.total) || !Array.isArray(body.results) || !Array.isArray(body.category_counts)) {
             throw new Error('Pages API returned an invalid directory response');
