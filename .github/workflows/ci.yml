@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:e2e
+      - name: Apply local D1 migrations
+        run: npx wrangler d1 migrations apply vtuberthai-db --local
+      - name: Smoke Pages API against local D1
+        shell: bash
+        run: |
+          log_file="$(mktemp)"
+          ./node_modules/.bin/wrangler pages dev dist --ip 127.0.0.1 --port 8788 >"$log_file" 2>&1 &
+          server_pid=$!
+          smoke_ok=0
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+            if [ "$smoke_ok" -ne 1 ]; then cat "$log_file"; fi
+            rm -f "$log_file"
+          }
+          trap cleanup EXIT
+          node --input-type=module <<'NODE'
+          const url = 'http://127.0.0.1:8788/api/v1/directory/';
+          const deadline = Date.now() + 30_000;
+          let response;
+          let lastError;
+          while (Date.now() < deadline) {
+            try {
+              response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+              break;
+            } catch (error) {
+              lastError = error;
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+          if (!response) throw new Error(`Pages API did not start: ${lastError}`);
+          if (!response.ok) throw new Error(`Pages API returned HTTP ${response.status}`);
+          const body = await response.json();
+          if (!Number.isSafeInteger(body.total) || !Array.isArray(body.results) || !Array.isArray(body.category_counts)) {
+            throw new Error('Pages API returned an invalid directory response');
+          }
+          console.log(`D1 smoke passed: ${body.total} matching profiles`);
+          NODE
+          smoke_ok=1
