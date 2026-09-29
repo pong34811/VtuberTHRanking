@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Public visitors use the directory to discover Thai VTubers. The homepage should support visitors who prefer browsing creator portraits and visitors who arrive with a name or category in mind. Managers and staff maintain channel records and settings in the existing admin area.
+Public visitors see the Thai VTuber ranking on `/` and `/home`, with menus for all, independent, and agency channels. Visitors can browse creator portraits on `/discover` or search by name and category. Managers and staff maintain channel records and settings in the existing admin area.
 
 ## Product Purpose
 
@@ -16,17 +16,17 @@ VTuber Thai Ranking maintains a searchable directory of Thai VTuber channels alo
 
 ## Positioning
 
-The product combines a Thai VTuber directory with profile-level historical YouTube statistics. Directory discovery is based on creator metadata; ranking and performance data have their own statistics experience.
+The product combines rankings from recorded YouTube statistics with a Thai VTuber directory. Directory discovery is based on creator metadata; ranking filters use the existing published ranks.
 
 ## Operating Context
 
-The public web experience includes the homepage, searchable directory, creator profiles, and `/stats`. Managers and staff maintain records through the existing admin area. Statistics are collected periodically and are not real-time.
+The public web experience includes ranking pages at `/`, `/home`, and `/stats`, the discovery gallery at `/discover`, searchable directory, and creator profiles. Managers and staff maintain records through the existing admin area. Statistics are collected periodically and are not real-time.
 
 ## Capabilities and Constraints
 
 - Creator records provide names, profile slugs, avatars, content categories, affiliations, and directory-added dates where available.
 - Directory search and category or affiliation filters use existing profile metadata.
-- Public performance rankings and their methodology remain on `/stats`.
+- Public performance rankings and their methodology are available on `/`, `/home`, and `/stats`; the `/home` menu filters by affiliation and numbers ranks within each group while retaining the overall rank as secondary context.
 - Preserve existing routes, profile links, search behavior, homepage template publishing, admin permissions, and data APIs.
 - Do not fabricate live status, debut dates, recommendations, social proof, or performance claims. “Recently added” refers only to the directory-added date.
 - This homepage redesign does not change data providers, collection schedules, ranking formulas, or database schemas.
@@ -45,7 +45,7 @@ The product name is VTuber Thai Ranking. Existing user-facing copy is primarily 
 ## Product Principles
 
 - Use real creator records and metadata as the basis for discovery.
-- Keep ranking metrics separate from homepage curation.
+- Keep ranking metrics separate from the curated discovery gallery.
 - Make search, category navigation, and creator profiles easy to reach.
 - Preserve clear recovery and accessible keyboard interaction states.
 

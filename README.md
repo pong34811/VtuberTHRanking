@@ -65,6 +65,10 @@ Worker ใช้ secret `YOUTUBE_API_KEY` สำหรับดึงสถิ�
 | หน้า | URL |
 |------|-----|
 | Frontend | https://vtuberthai-ranking.pages.dev |
+| อันดับรวม | https://vtuberthai-ranking.pages.dev/home |
+| อันดับอิสระ | https://vtuberthai-ranking.pages.dev/home?affiliation=indie |
+| อันดับสังกัด | https://vtuberthai-ranking.pages.dev/home?affiliation=agency |
+| ค้นพบ VTuber | https://vtuberthai-ranking.pages.dev/discover |
 | Admin | https://vtuberthai-ranking.pages.dev/admin |
 | API | https://vtuberthai-ranking.pages.dev/api/v1 |
 

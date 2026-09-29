@@ -85,24 +85,24 @@ describe('Homepage template manager', () => {
   it('disables save while the draft matches the published preset', async () => {
     renderTab();
 
-    expect(await screen.findByRole('button', { name: 'บันทึกเป็นหน้าแรก' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'บันทึกเป็นหน้าค้นพบ' })).toBeDisabled();
   });
 
   it('saves a draft with the CSRF token and updates the published marker', async () => {
     adminApi.mockResolvedValueOnce(published).mockResolvedValueOnce({ ok: true, homepage_template: 'category-first' });
     renderTab();
     await chooseCategory();
-    fireEvent.click(screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' }));
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกเป็นหน้าค้นพบ' }));
 
     await waitFor(() => expect(adminApi).toHaveBeenCalledWith('/settings/homepage-template', {
       method: 'PUT',
       csrfToken: 'csrf-test-token',
       body: { homepage_template: 'category-first' },
     }));
-    expect(await screen.findByRole('status')).toHaveTextContent('บันทึกหน้าแรกแล้ว');
+    expect(await screen.findByRole('status')).toHaveTextContent('บันทึกหน้าค้นพบแล้ว');
     expect(getPublishedMarker('เลือกหมวดหมู่')).toBeInTheDocument();
     expect(screen.queryByText('ตัวอย่าง — ยังไม่เผยแพร่')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'บันทึกเป็นหน้าค้นพบ' })).toBeDisabled();
   });
 
   it('prevents duplicate saves while a request is pending', async () => {
@@ -110,7 +110,7 @@ describe('Homepage template manager', () => {
     adminApi.mockResolvedValueOnce(published).mockImplementationOnce(() => new Promise(resolve => { finishSave = resolve; }));
     renderTab();
     await chooseCategory();
-    const save = screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' });
+    const save = screen.getByRole('button', { name: 'บันทึกเป็นหน้าค้นพบ' });
     fireEvent.click(save);
     fireEvent.click(save);
 
@@ -126,7 +126,7 @@ describe('Homepage template manager', () => {
     adminApi.mockResolvedValueOnce(published).mockImplementationOnce(() => new Promise(resolve => { finishSave = resolve; }));
     renderTab();
     await chooseCategory();
-    fireEvent.click(screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' }));
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกเป็นหน้าค้นพบ' }));
     fireEvent.click(screen.getByRole('button', { name: /เพิ่มเข้ารายการล่าสุด/ }));
 
     await act(async () => finishSave({ ok: true, homepage_template: 'category-first' }));
@@ -140,12 +140,12 @@ describe('Homepage template manager', () => {
     adminApi.mockResolvedValueOnce(published).mockRejectedValueOnce(new Error('Save unavailable'));
     renderTab();
     await chooseCategory();
-    fireEvent.click(screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' }));
+    fireEvent.click(screen.getByRole('button', { name: 'บันทึกเป็นหน้าค้นพบ' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Save unavailable');
     expect(screen.getByText('ตัวอย่าง — ยังไม่เผยแพร่')).toBeInTheDocument();
     expect(getPublishedMarker('ค้นหาก่อน')).toBeInTheDocument();
     expect(screen.getByTestId('homepage-preview')).toHaveAttribute('data-template-override', 'category-first');
-    expect(screen.getByRole('button', { name: 'บันทึกเป็นหน้าแรก' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'บันทึกเป็นหน้าค้นพบ' })).toBeEnabled();
   });
 });

@@ -1,9 +1,8 @@
 import { Link } from "react-router-dom";
 import ChangeIndicator from "./ChangeIndicator";
-import { useState } from "react";
 import { affiliationLabel, categoryLabel } from "./channelLabels";
+import RetryAvatar from "./RetryAvatar";
 export default function VTuberCard({ vtuber, rank, score, rankChange, isNew, videoCount, followers }) {
-  const [failed, setFailed] = useState(false);
   return (
     <Link to={`/profile/${vtuber.slug}`} className="ranking-row">
       {typeof rank === "number" && (
@@ -11,17 +10,7 @@ export default function VTuberCard({ vtuber, rank, score, rankChange, isNew, vid
           {String(rank).padStart(2, "0")}
         </span>
       )}
-      {vtuber.avatar && !failed ? (
-        <img
-          className="avatar"
-          src={vtuber.avatar}
-          alt=""
-          loading="lazy"
-          onError={() => setFailed(true)}
-        />
-      ) : (
-        <span className="avatar">{vtuber.name.charAt(0)}</span>
-      )}
+      <RetryAvatar src={vtuber.avatar} className="avatar" alt="" loading="lazy" fallback={<span className="avatar" aria-hidden="true">{vtuber.name.charAt(0)}</span>} />
       <div className="flex-1 min-w-0">
         <p className="font-medium truncate">{vtuber.name}</p>
         <p className="text-xs text-[var(--muted-foreground)] truncate">

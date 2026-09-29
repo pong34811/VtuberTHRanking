@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { currentMonth } from './ranking-period.js';
 import { normalizeHomepageTemplate } from '../../shared/homepage-templates.js';
+import { DIRECTORY_AFFILIATIONS } from '../../shared/directory.js';
 import directoryApi from './directory.js';
 import { pageInteger } from './pagination.js';
 
@@ -22,6 +23,10 @@ api.get('/rankings/', async (c) => {
 
   let period = c.req.query('period') || 'monthly';
   let category = c.req.query('category') || 'followers';
+  const affiliation = c.req.query('affiliation') || '';
+  if (affiliation && !DIRECTORY_AFFILIATIONS.includes(affiliation)) {
+    return c.json({ error: true, status: 400, message: 'Invalid ranking affiliation' }, 400);
+  }
   const monthStr = c.req.query('month');
   const limit = pageInteger(c.req.query('limit'), 50, 1, 100);
   const offset = pageInteger(c.req.query('offset'), 0, 0);
@@ -47,13 +52,18 @@ api.get('/rankings/', async (c) => {
     whereClause += ' AND r.month = ?';
     params.push(monthDate);
   }
+  if (affiliation) {
+    whereClause += ' AND v.affiliation = ?';
+    params.push(affiliation);
+  }
 
   const countResult = await db.prepare(
     `SELECT COUNT(*) as total FROM rankings r JOIN vtubers v ON r.vtuber_id = v.id ${whereClause}`
   ).bind(...params).first();
   const total = countResult?.total || 0;
 
-  const query = `SELECT r.rank, r.score, r.rank_change, r.video_count, v.id, v.name, v.slug, v.avatar, v.category as vtuber_category, v.affiliation
+  const rankExpression = affiliation ? 'RANK() OVER (ORDER BY r.score DESC)' : 'r.rank';
+  const query = `SELECT ${rankExpression} AS rank, r.rank AS overall_rank, r.score, r.rank_change, r.video_count, v.id, v.name, v.slug, v.avatar, v.category as vtuber_category, v.affiliation
     FROM rankings r JOIN vtubers v ON r.vtuber_id = v.id ${whereClause} ORDER BY r.rank ASC, r.vtuber_id ASC LIMIT ? OFFSET ?`;
 
   const { results } = await db.prepare(query).bind(...params, limit, offset).all();
@@ -61,19 +71,22 @@ api.get('/rankings/', async (c) => {
   const pageLink = (pageOffset) => {
     const query = new URLSearchParams({ period, category, limit: String(limit), offset: String(pageOffset) });
     if (monthDate) query.set('month', monthDate.slice(0, 7));
+    if (affiliation) query.set('affiliation', affiliation);
     return `/api/v1/rankings/?${query}`;
   };
 
   return c.json({
     period, category,
+    ...(affiliation && { affiliation }),
     month: monthDate ? monthDate.slice(0, 7) : null,
     total, count: results.length,
     next: offset + limit < total ? pageLink(offset + limit) : null,
     previous: offset > 0 ? pageLink(Math.max(0, offset - limit)) : null,
     results: results.map(row => ({
       rank: row.rank,
+      ...(affiliation && { overall_rank: row.overall_rank }),
       vtuber: { id: row.id, name: row.name, slug: row.slug, avatar: row.avatar, category: row.vtuber_category, affiliation: row.affiliation, video_count: row.video_count },
-      score: row.score, rank_change: row.rank_change,
+      score: row.score, rank_change: affiliation ? null : row.rank_change,
     })),
   });
 });

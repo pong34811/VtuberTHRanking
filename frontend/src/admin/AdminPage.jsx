@@ -30,7 +30,7 @@ const baseTabs = [
 const managerTabs = [
   ["users", "ผู้ใช้งาน", "US"],
   ["history", "ประวัติการทำงาน", "LG"],
-  ["homepage", "หน้าแรก", "HP"],
+  ["homepage", "หน้าค้นพบ", "HP"],
   ["settings", "ตั้งค่าระบบ", "ST"],
 ];
 

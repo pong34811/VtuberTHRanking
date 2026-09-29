@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import "./stats.css";
 import { rankingsAPI, summaryAPI } from "../api/client";
@@ -20,11 +20,15 @@ const categories = [
   { value: "videos", label: "จำนวนคลิป" },
 ];
 
-export default function StatsPage() {
+export default function StatsPage({ defaultPeriod = "alltime" }) {
+  const { search } = useLocation();
+  const requestedAffiliation = new URLSearchParams(search).get("affiliation");
+  const affiliation = ["indie", "agency"].includes(requestedAffiliation) ? requestedAffiliation : "";
+  const groupLabel = affiliation === "indie" ? "วีทูปเบอร์อิสระ" : affiliation === "agency" ? "วีทูปเบอร์สังกัด" : "วีทูปเบอร์ไทยทั้งหมด";
   const [rankings, setRankings] = useState([]);
-  const [totalRankings, setTotalRankings] = useState(0);
+  const [totalRankings, setTotalRankings] = useState(null);
   const [summary, setSummary] = useState(null);
-  const [period, setPeriod] = useState("monthly");
+  const [period, setPeriod] = useState(defaultPeriod);
   const [category, setCategory] = useState("followers");
   const [rankingLoading, setRankingLoading] = useState(true);
   const [summaryLoading, setSummaryLoading] = useState(true);
@@ -33,17 +37,33 @@ export default function StatsPage() {
   const [rankingRetry, setRankingRetry] = useState(0);
   const [summaryRetry, setSummaryRetry] = useState(0);
 
+  useEffect(() => setPeriod(defaultPeriod), [defaultPeriod]);
+
   useEffect(() => {
     let active = true;
     setRankingLoading(true);
     setRankingError("");
+    setRankings([]);
+    setTotalRankings(null);
 
-    rankingsAPI
-      .getList({ period, category, limit: 50 })
-      .then((response) => {
+    async function loadRankings() {
+      const results = [];
+      let total = 0;
+      while (true) {
+        const response = await rankingsAPI.getList({ period, category, ...(affiliation && { affiliation }), limit: 100, offset: results.length });
+        const page = response.data.results || [];
+        results.push(...page);
+        total = response.data.total ?? results.length;
+        if (!page.length || results.length >= total) break;
+      }
+      return { results, total };
+    }
+
+    loadRankings()
+      .then(({ results, total }) => {
         if (!active) return;
-        setRankings(response.data.results || []);
-        setTotalRankings(response.data.total ?? response.data.results?.length ?? 0);
+        setRankings(results);
+        setTotalRankings(total);
       })
       .catch(() => {
         if (active) setRankingError("โหลดอันดับไม่สำเร็จ กรุณาลองอีกครั้ง");
@@ -55,7 +75,7 @@ export default function StatsPage() {
     return () => {
       active = false;
     };
-  }, [period, category, rankingRetry]);
+  }, [period, category, affiliation, rankingRetry]);
 
   useEffect(() => {
     let active = true;
@@ -87,9 +107,9 @@ export default function StatsPage() {
   const summarySection = (
     <section className="home-summary" aria-label="ข้อมูลของรายการ VTuber" aria-busy={summaryLoading}>
       <article className="home-fact">
-        <span className="home-fact-label">ช่องที่ร่วมจัดอันดับ</span>
-        <strong>{summary?.total_vtubers?.toLocaleString("th-TH") ?? "—"}</strong>
-        <span className="home-fact-note">ช่อง VTuber ไทย</span>
+        <span className="home-fact-label">ช่องในอันดับที่เลือก</span>
+        <strong>{totalRankings?.toLocaleString("th-TH") ?? "—"}</strong>
+        <span className="home-fact-note">{groupLabel}</span>
       </article>
       <article className="home-fact">
         <span className="home-fact-label">แหล่งข้อมูล</span>
@@ -128,11 +148,10 @@ export default function StatsPage() {
     <section id="rankings" className="home-rankings" aria-label="ตารางอันดับ VTuber" aria-busy={rankingLoading}>
       <div className="home-section-heading">
         <div>
-          <p className="home-section-kicker">LEADERBOARD</p>
-          <h2>อันดับที่กำลังจับตา</h2>
-          <p>เลือกช่วงเวลาและสถิติ เพื่อสำรวจช่องที่คุณสนใจ</p>
+          <h2>ตารางอันดับ</h2>
+          <p>เลือกช่วงเวลาและสถิติ เพื่อสำรวจอันดับที่คุณสนใจ</p>
         </div>
-        <Link className="home-text-link" to="/search">ดูรายชื่อทั้งหมด <ArrowUpRight aria-hidden="true" /></Link>
+        <Link className="home-text-link" to="/search">ค้นหาช่อง <ArrowUpRight aria-hidden="true" /></Link>
       </div>
 
       <div className="ranking-toolbar">
@@ -157,9 +176,11 @@ export default function StatsPage() {
       ) : rankingError ? (
         <Feedback error={rankingError} retry={() => setRankingRetry((value) => value + 1)} />
       ) : (
-        <LeaderboardTable rankings={rankings} metric={metric} />
+        <LeaderboardTable rankings={rankings} metric={metric} showChange={!affiliation} />
       )}
-      <p className="home-endnote">↑ ขึ้นอันดับ · ↓ ลดอันดับ · — อันดับเท่าเดิม · NEW ไม่มีอันดับในรอบก่อน</p>
+      <p className="home-endnote">{affiliation
+        ? "อันดับในตารางนับเฉพาะกลุ่ม · อันดับรวมแสดงใต้ชื่อช่อง"
+        : "↑ ขึ้นอันดับ · ↓ ลดอันดับ · — อันดับเท่าเดิม · NEW ไม่มีอันดับในรอบก่อน"}</p>
     </section>
   );
 
@@ -167,11 +188,10 @@ export default function StatsPage() {
     <div className="homepage stats-page">
       <header className="home-section-heading">
         <div>
-          <p className="home-section-kicker">VTUBER THAILAND</p>
-          <h1>สถิติ VTuber ไทย</h1>
+          <h1>อันดับ{groupLabel}</h1>
           <p>สำรวจอันดับจากข้อมูล YouTube ที่บันทึกไว้ในระบบ</p>
         </div>
-        <Link className="home-text-link" to="/">ค้นพบ VTuber <ArrowUpRight aria-hidden="true" /></Link>
+        <Link className="home-text-link" to="/discover">ค้นพบ VTuber <ArrowUpRight aria-hidden="true" /></Link>
       </header>
       {summarySection}
       {methodSection}

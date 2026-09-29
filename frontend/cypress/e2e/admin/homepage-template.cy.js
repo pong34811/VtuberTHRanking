@@ -49,8 +49,8 @@ function stubPublicApi(readPublished) {
   cy.intercept({ method: 'GET', pathname: '/api/v1/rankings/' }, { fixture: 'rankings.json' }).as('getRankings');
 }
 
-describe('Admin homepage templates', () => {
-  it('previews a category draft, saves it, and publishes it on the public Home', () => {
+describe('Admin discovery templates', () => {
+  it('previews a category draft, saves it, and publishes it on the public discovery page', () => {
     let publishedTemplate = 'search-first';
     cy.loginAs('manager');
     stubTemplateSettings(() => publishedTemplate, value => { publishedTemplate = value; });
@@ -68,12 +68,12 @@ describe('Admin homepage templates', () => {
     cy.contains('.homepage-template-draft-label', 'ตัวอย่าง — ยังไม่เผยแพร่').should('exist');
     cy.contains('.homepage-template-published', 'เผยแพร่อยู่: ค้นหาก่อน').should('exist');
 
-    cy.contains('button', 'บันทึกเป็นหน้าแรก').click();
+    cy.contains('button', 'บันทึกเป็นหน้าค้นพบ').click();
     cy.wait('@saveHomepageTemplate').its('request.body.homepage_template').should('eq', 'category-first');
     cy.contains('.homepage-template-published', 'เผยแพร่อยู่: เลือกหมวดหมู่').should('exist');
     cy.contains('.homepage-template-draft-label').should('not.exist');
 
-    cy.visit('/');
+    cy.visit('/discover');
     cy.wait(['@getHomepageConfig', '@getDirectory']);
     cy.get('.homepage').should('have.attr', 'data-template', 'category-first');
     cy.contains('.discovery-group', 'Biko').should('be.visible');
@@ -81,7 +81,7 @@ describe('Admin homepage templates', () => {
     cy.get('@getRankings.all').should('have.length', 0);
   });
 
-  it('keeps an unsaved newest draft unpublished on the public Home', () => {
+  it('keeps an unsaved newest draft unpublished on the public discovery page', () => {
     let publishedTemplate = 'search-first';
     cy.loginAs('manager');
     stubTemplateSettings(() => publishedTemplate, value => { publishedTemplate = value; });
@@ -94,7 +94,7 @@ describe('Admin homepage templates', () => {
     cy.contains('.homepage-template-draft-label', 'ตัวอย่าง — ยังไม่เผยแพร่').should('exist');
     cy.get('@saveHomepageTemplate.all').should('have.length', 0);
 
-    cy.visit('/');
+    cy.visit('/discover');
     cy.wait(['@getHomepageConfig', '@getDirectory']);
     cy.get('.homepage').should('have.attr', 'data-template', 'search-first');
     cy.get('@saveHomepageTemplate.all').should('have.length', 0);
@@ -143,7 +143,7 @@ describe('Admin homepage templates', () => {
     for (const template of ['search-first', 'category-first', 'newest-first']) {
       cy.then(() => { publicTemplate = template; });
       cy.viewport(390, 844);
-      cy.visit('/');
+      cy.visit('/discover');
       cy.wait(['@getHomepageConfig', '@getDirectory']);
       cy.get('.homepage').should('have.attr', 'data-template', template);
       cy.get('.discovery-card').first().should('be.visible');
@@ -152,7 +152,7 @@ describe('Admin homepage templates', () => {
 
     cy.then(() => { publicTemplate = 'search-first'; });
     cy.viewport(1280, 720);
-    cy.visit('/');
+    cy.visit('/discover');
     cy.wait(['@getHomepageConfig', '@getDirectory']);
     cy.get('.homepage').should('have.attr', 'data-template', 'search-first');
     cy.document().its('documentElement.scrollWidth').should('be.lte', 1280);

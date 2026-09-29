@@ -1,13 +1,13 @@
 describe('Public stats journey', () => {
   beforeEach(() => {
     cy.stubPublicApi();
-    cy.visit('/stats');
+    cy.visit('/home');
     cy.wait(['@getRankings', '@getSummary']);
   });
 
   it('explains the site and shows summary figures and stubbed channels', () => {
-    cy.contains('h1', 'สถิติ VTuber ไทย').should('exist');
-    cy.contains('.home-fact', 'ช่องที่ร่วมจัดอันดับ').contains('strong', '2');
+    cy.contains('h1', 'อันดับวีทูปเบอร์ไทยทั้งหมด').should('exist');
+    cy.contains('.home-fact', 'ช่องในอันดับที่เลือก').contains('strong', '2');
     cy.contains('Aiko').should('exist');
     cy.contains('Biko').should('exist');
     cy.get('.home-method summary').click();
@@ -22,11 +22,24 @@ describe('Public stats journey', () => {
     cy.contains('Aiko').should('exist');
   });
 
-  it('navigates from the directory to the stats page', () => {
-    cy.get('nav[aria-label="เมนูหลัก"]').contains('a', 'หน้าแรก').click();
-    cy.get('nav[aria-label="เมนูหลัก"]').contains('a', 'สถิติ').click();
-    cy.location('pathname').should('eq', '/stats');
-    cy.contains('h1', 'สถิติ VTuber ไทย').should('be.visible');
+  it('shows only channels from the selected ranking menu', () => {
+    cy.get('nav[aria-label="เมนูหลัก"]').contains('a', 'วีทูปเบอร์อิสระ').click();
+    cy.get('@getRankings.all').should(requests => {
+      expect(requests.some(({ request }) => request.url.includes('affiliation=indie'))).to.be.true;
+    });
+    cy.contains('h1', 'อันดับวีทูปเบอร์อิสระ').should('be.visible');
+    cy.contains('.home-table', 'Aiko').should('exist');
+    cy.contains('.home-table', 'Biko').should('not.exist');
+
+    cy.get('nav[aria-label="เมนูหลัก"]').contains('a', 'วีทูปเบอร์สังกัด').click();
+    cy.get('@getRankings.all').should(requests => {
+      expect(requests.some(({ request }) => request.url.includes('affiliation=agency'))).to.be.true;
+    });
+    cy.contains('h1', 'อันดับวีทูปเบอร์สังกัด').should('be.visible');
+    cy.contains('.home-table', 'Biko').should('exist');
+    cy.contains('.home-table', 'Aiko').should('not.exist');
+    cy.get('.home-table tbody .home-rank').should('have.text', '01');
+    cy.contains('.home-table', 'อันดับรวม #2').should('exist');
   });
 
   it('fits the public navigation and ranking table on mobile', () => {

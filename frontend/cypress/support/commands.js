@@ -17,7 +17,15 @@ Cypress.Commands.add('stubPublicApi', () => {
         category_counts: directory.category_counts,
       });
   }).as('getDirectory');
-  cy.intercept({ method: 'GET', pathname: '/api/v1/rankings/' }, { fixture: 'rankings.json' }).as('getRankings');
+  cy.fixture('rankings.json').then(rankings => {
+    cy.intercept({ method: 'GET', pathname: '/api/v1/rankings/' }, req => {
+      const filtered = rankings.results.filter(row => !req.query.affiliation || row.vtuber.affiliation === req.query.affiliation);
+      const results = req.query.affiliation
+        ? filtered.map((row, index) => ({ ...row, rank: index + 1, overall_rank: row.rank, rank_change: null }))
+        : filtered;
+      req.reply({ ...rankings, total: results.length, count: results.length, results });
+    }).as('getRankings');
+  });
   cy.intercept({ method: 'GET', pathname: '/api/v1/summary/' }, { fixture: 'summary.json' }).as('getSummary');
   cy.intercept({ method: 'GET', pathname: '/api/v1/vtubers/' }, { fixture: 'vtubers.json' }).as('getVtubers');
 });

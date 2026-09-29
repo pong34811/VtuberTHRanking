@@ -69,7 +69,7 @@ This endpoint returns active creator profile metadata only. It is separate from 
 GET /homepage-config/
 ```
 
-Returns the published discovery layout in `{ "template": "search-first" }`. Accepted values are `search-first`, `category-first`, and `newest-first`. Missing, invalid, and legacy IDs normalize to `search-first`. The response uses `Cache-Control: no-store` so a newly published layout is visible on the next Home load. This endpoint reads only the `homepage_template` setting; `/summary/` remains dedicated to ranking statistics and does not include template configuration.
+Returns the published `/discover` layout in `{ "template": "search-first" }`. Accepted values are `search-first`, `category-first`, and `newest-first`. Missing, invalid, and legacy IDs normalize to `search-first`. The response uses `Cache-Control: no-store` so a newly published layout is visible on the next discovery load. This endpoint reads only the `homepage_template` setting; `/summary/` remains dedicated to ranking statistics and does not include template configuration.
 
 ### 1. ดึงอันดับตามเงื่อนไข
 
@@ -85,6 +85,7 @@ GET /rankings/
 |-----------|------|----------|-------------|
 | period | string | 否 | `monthly` หรือ `alltime` (default: `monthly`) |
 | category | string | 否 | `followers`, `views` หรือ `videos` (default: `followers`) |
+| affiliation | string | 否 | `indie` หรือ `agency`; กรองช่องก่อนนับและแบ่งหน้า โดย `rank` นับใหม่ในกลุ่ม, `overall_rank` คืออันดับรวม และ `rank_change` เป็น `null` |
 | month | string | 否 | เดือนที่ต้องการ เช่น `2026-08` (default: เดือนปัจจุบัน) |
 | limit | int | 否 | จำนวนรายการ (default: 50, min: 1, max: 100); ค่าผิดรูปแบบใช้ค่าเริ่มต้น |
 | offset | int | 否 | ตำแหน่งเริ่มต้น (default: 0) |

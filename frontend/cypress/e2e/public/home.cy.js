@@ -1,7 +1,7 @@
 describe('Public discovery Home', () => {
   beforeEach(() => {
     cy.stubPublicApi();
-    cy.visit('/');
+    cy.visit('/discover');
     cy.wait(['@getHomepageConfig', '@getDirectory']);
   });
 
@@ -40,7 +40,7 @@ describe('Public discovery Home', () => {
     cy.get('.discovery-stats-link').click();
     cy.location('pathname').should('eq', '/stats');
     cy.wait(['@getSummary', '@getRankings']);
-    cy.contains('h1', 'สถิติ VTuber ไทย').should('be.visible');
+    cy.contains('h1', 'อันดับวีทูปเบอร์ไทยทั้งหมด').should('be.visible');
   });
 
   it('keeps the main discovery path visible and within mobile and desktop widths', () => {

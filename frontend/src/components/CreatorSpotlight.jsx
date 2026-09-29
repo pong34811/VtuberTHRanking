@@ -1,20 +1,15 @@
 import { Link } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
-import { useState } from "react";
+import RetryAvatar from "./RetryAvatar";
 
 function SpotlightCard({ item, metric }) {
   const { vtuber } = item;
-  const [failed, setFailed] = useState(false);
   return (
     <Link to={`/profile/${vtuber.slug}`} className="spotlight-card">
       <div className="spotlight-art">
         <span className="spotlight-rank">อันดับ {String(item.rank).padStart(2, "0")}</span>
         <span className="spotlight-orbit" aria-hidden="true" />
-        {vtuber.avatar && !failed ? (
-          <img src={vtuber.avatar} alt="" onError={() => setFailed(true)} />
-        ) : (
-          <span className="spotlight-initial" aria-hidden="true">{vtuber.name.charAt(0)}</span>
-        )}
+        <RetryAvatar src={vtuber.avatar} alt="" fallback={<span className="spotlight-initial" aria-hidden="true">{vtuber.name.charAt(0)}</span>} />
         <span className="spotlight-open" aria-hidden="true"><ArrowUpRight size={20} /></span>
       </div>
       <div className="spotlight-info">

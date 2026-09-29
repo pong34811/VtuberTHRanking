@@ -5,6 +5,7 @@ import Feedback from "../components/Feedback";
 import LoadingSpinner from "../components/LoadingSpinner";
 import TrendChart from "../components/TrendChart";
 import { affiliationLabel, categoryLabel } from "../components/channelLabels";
+import RetryAvatar from "../components/RetryAvatar";
 
 export default function ProfilePage() {
   const { slug } = useParams();
@@ -16,7 +17,6 @@ export default function ProfilePage() {
   const [historyError, setHistoryError] = useState("");
   const [profileRetry, setProfileRetry] = useState(0);
   const [historyRetry, setHistoryRetry] = useState(0);
-  const [failedAvatar, setFailedAvatar] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -57,11 +57,7 @@ export default function ProfilePage() {
     <div className="space-y-6">
       <Link to="/search" className="inline-flex min-h-11 items-center text-sm text-[var(--primary)]">← กลับไปสำรวจ VTuber</Link>
       <div className="flex items-start gap-4 p-6 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
-        {vtuber.avatar && failedAvatar !== vtuber.avatar ? (
-          <img src={vtuber.avatar} alt="" className="w-16 h-16 shrink-0 rounded-full object-cover" onError={() => setFailedAvatar(vtuber.avatar)} />
-        ) : (
-          <div className="w-16 h-16 shrink-0 rounded-full bg-[var(--primary)]/20 flex items-center justify-center text-2xl font-bold text-[var(--primary)]">{vtuber.name.charAt(0)}</div>
-        )}
+        <RetryAvatar src={vtuber.avatar} alt="" className="w-16 h-16 shrink-0 rounded-full object-cover" fallback={<div className="w-16 h-16 shrink-0 rounded-full bg-[var(--primary)]/20 flex items-center justify-center text-2xl font-bold text-[var(--primary)]" aria-hidden="true">{vtuber.name.charAt(0)}</div>} />
         <div className="flex-1 min-w-0 break-words">
           <h1 className="text-xl font-bold">{vtuber.name}</h1>
           <p className="text-sm whitespace-pre-line text-[var(--muted-foreground)]">{vtuber.bio}</p>

@@ -28,7 +28,7 @@ export function HomepageTemplateTab({ csrfToken }) {
         setDraftId(selected);
       })
       .catch(error => {
-        if (active) setLoadError(error?.message || 'โหลดการตั้งค่าแม่แบบหน้าแรกไม่สำเร็จ');
+        if (active) setLoadError(error?.message || 'โหลดการตั้งค่าแม่แบบหน้าค้นพบไม่สำเร็จ');
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -55,20 +55,20 @@ export function HomepageTemplateTab({ csrfToken }) {
       const savedId = normalizeHomepageTemplate(response?.homepage_template ?? savingId);
       setPublishedId(savedId);
       setDraftId(current => current === savingId ? savedId : current);
-      setSuccess('บันทึกหน้าแรกแล้ว');
+      setSuccess('บันทึกหน้าค้นพบแล้ว');
     } catch (error) {
-      setSaveError(error?.message || 'บันทึกหน้าแรกไม่สำเร็จ กรุณาลองอีกครั้ง');
+      setSaveError(error?.message || 'บันทึกหน้าค้นพบไม่สำเร็จ กรุณาลองอีกครั้ง');
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <p className="admin-state" role="status">กำลังโหลดการตั้งค่าแม่แบบหน้าแรก…</p>;
+  if (loading) return <p className="admin-state" role="status">กำลังโหลดการตั้งค่าแม่แบบหน้าค้นพบ…</p>;
   if (loadError) {
     return (
       <section className="admin-card homepage-template-manager" aria-labelledby="homepage-template-title">
-        <h2 id="homepage-template-title">เลือกแม่แบบหน้าแรก</h2>
-        <div className="homepage-template-feedback" role="alert">โหลดการตั้งค่าแม่แบบหน้าแรกไม่สำเร็จ: {loadError}</div>
+        <h2 id="homepage-template-title">เลือกแม่แบบหน้าค้นพบ</h2>
+        <div className="homepage-template-feedback" role="alert">โหลดการตั้งค่าแม่แบบหน้าค้นพบไม่สำเร็จ: {loadError}</div>
         <button type="button" onClick={() => setRetry(value => value + 1)}>ลองโหลดอีกครั้ง</button>
       </section>
     );
@@ -82,15 +82,15 @@ export function HomepageTemplateTab({ csrfToken }) {
     <section className="admin-card homepage-template-manager" aria-labelledby="homepage-template-title">
       <header className="homepage-template-header">
         <div>
-          <h2 id="homepage-template-title">เลือกแม่แบบหน้าแรก</h2>
-          <p>เลือกรูปแบบที่เหมาะกับผู้เข้าชม แล้วตรวจดูตัวอย่างก่อนเผยแพร่</p>
+          <h2 id="homepage-template-title">เลือกแม่แบบหน้าค้นพบ</h2>
+          <p>เลือกรูปแบบของ /discover แล้วตรวจดูตัวอย่างก่อนเผยแพร่</p>
         </div>
         <p className="homepage-template-published" aria-live="polite">
           เผยแพร่อยู่: <strong>{publishedTemplate.label}</strong>
         </p>
       </header>
 
-      <div className="homepage-template-options" role="group" aria-label="แม่แบบหน้าแรก">
+      <div className="homepage-template-options" role="group" aria-label="แม่แบบหน้าค้นพบ">
         {templates.map(template => (
           <button
             key={template.id}
@@ -130,7 +130,7 @@ export function HomepageTemplateTab({ csrfToken }) {
       {hasDraft && <p className="homepage-template-draft-label">ตัวอย่าง — ยังไม่เผยแพร่</p>}
       <section
         className="homepage-template-preview"
-        aria-label="ตัวอย่างหน้าแรก"
+        aria-label="ตัวอย่างหน้าค้นพบ"
         data-testid="homepage-preview"
         data-template-override={draftId}
         data-preview-mode="true"
@@ -148,7 +148,7 @@ export function HomepageTemplateTab({ csrfToken }) {
           disabled={!hasDraft || saving}
           aria-busy={saving}
         >
-          {saving ? 'กำลังบันทึก…' : 'บันทึกเป็นหน้าแรก'}
+          {saving ? 'กำลังบันทึก…' : 'บันทึกเป็นหน้าค้นพบ'}
         </button>
       </div>
     </section>
