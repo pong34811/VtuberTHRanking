@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "./cn";
 
 export function Avatar({ src, name, className }) {
   const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
   const initial = (name || "?").charAt(0).toUpperCase();
   if (src && !failed) {
     return (

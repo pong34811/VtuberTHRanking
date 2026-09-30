@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import "./stats.css";
 import { rankingsAPI, summaryAPI } from "../api/client";
@@ -21,15 +21,16 @@ const categories = [
 ];
 
 export default function StatsPage({ defaultPeriod = "alltime" }) {
-  const { search } = useLocation();
-  const requestedAffiliation = new URLSearchParams(search).get("affiliation");
+  const [params, setParams] = useSearchParams();
+  const requestedAffiliation = params.get("affiliation");
   const affiliation = ["indie", "agency"].includes(requestedAffiliation) ? requestedAffiliation : "";
   const groupLabel = affiliation === "indie" ? "วีทูปเบอร์อิสระ" : affiliation === "agency" ? "วีทูปเบอร์สังกัด" : "วีทูปเบอร์ไทยทั้งหมด";
   const [rankings, setRankings] = useState([]);
   const [totalRankings, setTotalRankings] = useState(null);
   const [summary, setSummary] = useState(null);
-  const [period, setPeriod] = useState(defaultPeriod);
-  const [category, setCategory] = useState("followers");
+  const period = ["monthly", "alltime"].includes(params.get("period")) ? params.get("period") : defaultPeriod;
+  const category = ["followers", "views", "videos"].includes(params.get("category")) ? params.get("category") : "followers";
+  const month = period === "monthly" && /^\d{4}-(0[1-9]|1[0-2])$/.test(params.get("month") || "") ? params.get("month") : "";
   const [rankingLoading, setRankingLoading] = useState(true);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [rankingError, setRankingError] = useState("");
@@ -37,7 +38,12 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
   const [rankingRetry, setRankingRetry] = useState(0);
   const [summaryRetry, setSummaryRetry] = useState(0);
 
-  useEffect(() => setPeriod(defaultPeriod), [defaultPeriod]);
+  const updateFilter = (key, value) => {
+    const next = new URLSearchParams(params);
+    next.set(key, value);
+    next.delete("offset");
+    setParams(next);
+  };
 
   useEffect(() => {
     let active = true;
@@ -50,7 +56,7 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
       const results = [];
       let total = 0;
       while (true) {
-        const response = await rankingsAPI.getList({ period, category, ...(affiliation && { affiliation }), limit: 100, offset: results.length });
+        const response = await rankingsAPI.getList({ period, category, ...(month && { month }), ...(affiliation && { affiliation }), limit: 100, offset: results.length });
         const page = response.data.results || [];
         results.push(...page);
         total = response.data.total ?? results.length;
@@ -75,7 +81,7 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
     return () => {
       active = false;
     };
-  }, [period, category, affiliation, rankingRetry]);
+  }, [period, category, month, affiliation, rankingRetry]);
 
   useEffect(() => {
     let active = true;
@@ -99,7 +105,12 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
     };
   }, [summaryRetry]);
 
-  const metric = categories.find((item) => item.value === category)?.label || "อันดับ";
+  const metricChoices = summary?.category_choices || categories;
+  const metric = metricChoices.find((item) => item.value === category)?.label || "อันดับ";
+  const calendarMonth = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit" }).format(new Date());
+  const selectedMonth = month || summary?.ranking_month || calendarMonth;
+  const monthChoices = [...new Set([selectedMonth, ...(summary?.available_months || [])])]
+    .filter(value => /^\d{4}-(0[1-9]|1[0-2])$/.test(value)).sort().reverse();
   const updated = summary?.latest_update ? new Date(summary.latest_update) : null;
   const updateLabel = updated && !Number.isNaN(updated.getTime())
     ? updated.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })
@@ -157,16 +168,22 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
       <div className="ranking-toolbar">
         <div role="group" aria-label="ช่วงเวลา">
           <span className="home-control-label">ช่วงเวลา</span>
-          <PeriodSelector value={period} onChange={setPeriod} choices={summary?.period_choices || periods} />
+          <PeriodSelector value={period} onChange={(value) => updateFilter("period", value)} choices={summary?.period_choices || periods} />
         </div>
         <div role="group" aria-label="จัดอันดับตาม">
           <span className="home-control-label">จัดอันดับตาม</span>
-          <CategorySelector value={category} onChange={setCategory} choices={summary?.category_choices || categories} />
+          <CategorySelector value={category} onChange={(value) => updateFilter("category", value)} choices={summary?.category_choices || categories} />
         </div>
+        {period === "monthly" && <div>
+          <label className="home-control-label" htmlFor="ranking-month">เดือนอันดับ</label>
+          <select id="ranking-month" value={selectedMonth} onChange={(event) => updateFilter("month", event.target.value)}>
+            {monthChoices.map(value => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </div>}
       </div>
 
       <div className="home-table-heading">
-        <h3>{metric} <span>/ {period === "monthly" ? "อันดับประจำเดือน" : "ยอดสะสมทั้งหมด"}</span></h3>
+        <h3>{metric} <span>/ {period === "monthly" ? `ยอดสะสม ณ เดือน ${selectedMonth}` : "ยอดสะสมทั้งหมด"}</span></h3>
         <span aria-live="polite">
           {rankingLoading ? "กำลังโหลด…" : rankingError ? "โหลดไม่สำเร็จ" : `แสดง ${rankings.length.toLocaleString("th-TH")} จาก ${totalRankings.toLocaleString("th-TH")} ช่อง`}
         </span>

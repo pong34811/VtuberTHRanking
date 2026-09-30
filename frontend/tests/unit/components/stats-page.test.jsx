@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '@/App';
 import { rankingsAPI, summaryAPI } from '@/api/client';
@@ -11,7 +11,13 @@ vi.mock('@/api/client', () => ({
 vi.mock('@/components/ThemeSelector', () => ({ default: () => null }));
 
 function renderStats(path = '/stats') {
-  return render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[path]}><Navigation /><App /></MemoryRouter>);
+}
+
+function Navigation() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  return <><output data-testid="ranking-url">{location.pathname + location.search}</output><button onClick={() => navigate(-1)}>ย้อนกลับ</button></>;
 }
 
 beforeEach(() => {
@@ -30,6 +36,36 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Stats page', () => {
+  it('restores a shared metric, period, archive month and affiliation from the URL', async () => {
+    renderStats('/home?period=monthly&category=views&month=2026-08&affiliation=agency');
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'agency', limit: 100, offset: 0 }));
+    expect(screen.getByRole('button', { name: 'ยอดวิว' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'รายเดือน' })).toHaveAttribute('aria-pressed', 'true');
+  });
+  it('updates shareable filters and restores them on browser back', async () => {
+    renderStats('/stats?affiliation=indie&month=2026-08');
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'ยอดวิว' }));
+    expect(screen.getByTestId('ranking-url')).toHaveTextContent('category=views');
+    fireEvent.click(screen.getByRole('button', { name: 'ทั้งหมด' }));
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'alltime', category: 'views', affiliation: 'indie', limit: 100, offset: 0 }));
+    fireEvent.click(screen.getByRole('button', { name: 'ย้อนกลับ' }));
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'indie', limit: 100, offset: 0 }));
+  });
+
+  it('offers published archive months and keeps the selected filters when switching group', async () => {
+    summaryAPI.get.mockResolvedValue({ data: {
+      ranking_month: '2026-09', available_months: ['2026-09', '2026-08'],
+      category_choices: [{ value: 'views', label: 'ยอดวิวรวม' }],
+    } });
+    renderStats('/stats?period=monthly&category=views&affiliation=agency');
+    const month = await screen.findByLabelText('เดือนอันดับ');
+    fireEvent.change(month, { target: { value: '2026-08' } });
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'agency', limit: 100, offset: 0 }));
+    fireEvent.click(screen.getByRole('link', { name: 'วีทูปเบอร์อิสระ' }));
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'indie', limit: 100, offset: 0 }));
+    expect(screen.getByRole('heading', { name: /ยอดสะสม ณ เดือน 2026-08/ })).toBeInTheDocument();
+  });
   it('keeps ranking controls usable when the summary fails', async () => {
     summaryAPI.get.mockRejectedValue(new Error('summary unavailable'));
     renderStats();

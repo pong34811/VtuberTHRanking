@@ -99,3 +99,21 @@ it('redirects legacy search URLs with their filters and removes the duplicate me
   expect(screen.queryByRole('link', { name: 'ค้นหา' })).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'ค้นพบ' })).toHaveAttribute('aria-current', 'page');
 });
+
+it('combines affiliation and category shortcuts with the submitted name filter', async () => {
+  render(<MemoryRouter initialEntries={['/discover?q=Aiko&category=gaming&offset=24']}><Navigation /><DiscoveryHome /></MemoryRouter>);
+  await screen.findByRole('link', { name: /Aiko/ });
+  fireEvent.click(screen.getByRole('link', { name: /^อิสระ / }));
+
+  await waitFor(() => expect(directoryAPI.getList).toHaveBeenLastCalledWith({ q: 'Aiko', category: 'gaming', affiliation: 'indie', sort: 'name', limit: 12, offset: 0 }));
+  expect(screen.getByTestId('location')).toHaveTextContent('/discover?q=Aiko&category=gaming&affiliation=indie');
+  expect(screen.getByLabelText('ค้นหาชื่อ VTuber')).toHaveValue('Aiko');
+});
+
+it('explains directory coverage and uncategorized records without claiming completeness', async () => {
+  directoryAPI.getList.mockResolvedValue({ data: { ...page, category_counts: [{ category: 'other', count: 1 }] } });
+  render(<MemoryRouter><DiscoveryHome /></MemoryRouter>);
+  await screen.findByRole('link', { name: /Aiko/ });
+  expect(screen.getByText(/ไม่ใช่รายชื่อ VTuber ไทยทั้งหมด/)).toBeInTheDocument();
+  expect(screen.getByText(/หมวดอื่นๆ รวมช่องที่ยังไม่ได้จำแนกแนวหลัก/)).toBeInTheDocument();
+});

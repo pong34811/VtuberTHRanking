@@ -6,17 +6,12 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Alert, Check, Field, FormActions, Input, Select, Textarea } from "../components/ui/field";
 import { Avatar } from "../components/ui/feedback";
+import { useList } from "../tabs/useList";
 
 export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
-  const [form, setForm] = useState(value),
-    [agencies, setAgencies] = useState([]),
-    [agencyError, setAgencyError] = useState(""),
-    isEdit = Boolean(value.id);
-  useEffect(() => {
-    adminApi("/agencies")
-      .then((data) => setAgencies(data.results || []))
-      .catch((error) => setAgencyError(error.message));
-  }, []);
+  const [form, setForm] = useState(value), isEdit = Boolean(value.id);
+  const { rows: agencies, error: agencyError, load: reloadAgencies } = useList("/agencies");
+  useEffect(() => setForm(value), [value]);
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
   // API ปฏิเสธ key นอก channel contract (เช่น id, created_at) ส่งเฉพาะฟิลด์ที่แก้ไขได้
   const payload = Object.fromEntries(
@@ -30,11 +25,12 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
         csrfToken,
       }),
     onSaved,
+    value,
   );
   return (
     <form onSubmit={submit} className="channel-form">
       <Alert>{error}</Alert>
-      <Alert>{agencyError}</Alert>
+      {agencyError && <Alert>{agencyError} <Button type="button" onClick={reloadAgencies}>ลองอีกครั้ง</Button></Alert>}
       <div className="channel-form-preview">
         <Avatar src={form.avatar} name={form.name} className="h-14 w-14" />
         <div>

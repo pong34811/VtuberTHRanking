@@ -1,20 +1,25 @@
 import { useState } from "react";
 import { adminApi, downloadReport } from "../api";
 import { useList } from "./useList";
-import { Button, Card, Empty, Field, Loading, Notice, fmtDate, useSubmit } from "../ui";
+import { useRankingCategories } from "./useRankingCategories";
+import { Button, Card, Empty, Field, ListState, Loading, Notice, fmtDate, useSubmit } from "../ui";
 
 export function ReportsTab({ csrfToken }) {
   const list = useList("/reports"),
-    now = new Date(),
+    now = new Date(Date.now() + 7 * 60 * 60 * 1000),
     [form, setForm] = useState({
       period: "monthly",
-      month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
-      category: "followers",
+      month: `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`,
+      category: "",
     }),
     [downloadError, setDownloadError] = useState("");
+  const configuration = useRankingCategories();
+  const category = configuration.choices.find(item => item.id === form.category)?.id || configuration.choices[0]?.id || "";
+  const selection = { ...form, category };
   const save = useSubmit(
-    () => adminApi("/reports", { method: "POST", body: form, csrfToken }),
+    () => category && adminApi("/reports", { method: "POST", body: selection, csrfToken }),
     list.load,
+    JSON.stringify(selection),
   );
   const download = async (id) => {
     setDownloadError("");
@@ -24,6 +29,10 @@ export function ReportsTab({ csrfToken }) {
       setDownloadError(e.message);
     }
   };
+  const periodLabel = report => report.report_type === "alltime" ? "ตลอดกาล" : "รายเดือน";
+  const metricLabel = report => configuration.categories.find(item => item.id === report.category_id)?.name || report.category_id;
+  const monthLabel = report => report.report_type === "alltime" ? "ทุกช่วงเวลา" : report.report_period;
+  const reportLabel = report => `${periodLabel(report)} · ${metricLabel(report)} · ${monthLabel(report)}`;
   return (
     <Card title="รายงาน">
       <form className="toolbar" onSubmit={save.submit}>
@@ -48,27 +57,27 @@ export function ReportsTab({ csrfToken }) {
         )}
         <Field label="ตัวชี้วัด">
           <select
-            value={form.category}
+            value={category}
+            disabled={!category}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
           >
-            <option value="followers">ผู้ติดตาม</option>
-            <option value="views">ยอดดู</option>
-            <option value="videos">จำนวนคลิป</option>
+            {configuration.choices.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </Field>
-        <Button className="primary" busy={save.busy}>
+        <Button className="primary" busy={save.busy} disabled={!category}>
           สร้างรายงาน
         </Button>
       </form>
-      <Notice>{list.error || save.error || downloadError}</Notice>
-      {list.loading ? (
-        <Loading />
-      ) : list.rows.length ? (
+      {configuration.loading ? <Loading /> : configuration.error ? <Notice>{configuration.error} <Button type="button" onClick={configuration.load}>ลองโหลดตัวชี้วัดอีกครั้ง</Button></Notice> : !category ? <Empty>ไม่มีตัวชี้วัดที่เปิดใช้งาน</Empty> : null}
+      <Notice>{save.error || downloadError}</Notice>
+      <ListState list={list}>
         <div className="admin-table-wrap">
           <table>
             <thead>
               <tr>
-                <th>รายงาน</th>
+                <th>ช่วงเวลา</th>
+                <th>ตัวชี้วัด</th>
+                <th>เดือน</th>
                 <th>จำนวนช่อง</th>
                 <th>สร้างเมื่อ</th>
                 <th />
@@ -78,13 +87,14 @@ export function ReportsTab({ csrfToken }) {
               {list.rows.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    <strong>{r.report_type || r.category_id}</strong>
-                    <small>{r.report_period}</small>
+                    <strong>{periodLabel(r)}</strong>
                   </td>
+                  <td>{metricLabel(r)}</td>
+                  <td>{monthLabel(r)}</td>
                   <td>{r.total_vtubers}</td>
                   <td>{fmtDate(r.generated_at)}</td>
                   <td>
-                    <button onClick={() => download(r.id)}>
+                    <button type="button" aria-label={`ดาวน์โหลด CSV ${reportLabel(r)} (${r.id})`} onClick={() => download(r.id)}>
                       ดาวน์โหลด CSV
                     </button>
                   </td>
@@ -93,9 +103,7 @@ export function ReportsTab({ csrfToken }) {
             </tbody>
           </table>
         </div>
-      ) : (
-        <Empty />
-      )}
+      </ListState>
     </Card>
   );
 }

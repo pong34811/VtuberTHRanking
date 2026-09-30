@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { adminApi } from "../api";
 import { useList } from "./useList";
-import { Button, Card, Field, Loading, Modal, Notice, useSubmit } from "../ui";
+import { Button, Card, Field, ListState, Modal, Notice, useSubmit } from "../ui";
 
 export function CategoriesTab({ csrfToken, isManager = false }) {
   const list = useList("/categories"),
@@ -9,10 +9,7 @@ export function CategoriesTab({ csrfToken, isManager = false }) {
   return (
     <>
       <Card title="หมวดหมู่อันดับ">
-        <Notice>{list.error}</Notice>
-        {list.loading ? (
-          <Loading />
-        ) : (
+        <ListState list={list}>
           <div className="admin-table-wrap">
             <table>
               <thead>
@@ -35,17 +32,18 @@ export function CategoriesTab({ csrfToken, isManager = false }) {
                     <td>{r.sort_order}</td>
                     <td>{r.status}</td>
                     <td>
-                      {isManager && <button onClick={() => setEditing(r)}>แก้ไข</button>}
+                      {isManager && <button aria-label={`แก้ไขหมวดหมู่ ${r.name}`} onClick={() => setEditing(r)}>แก้ไข</button>}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        )}
+        </ListState>
       </Card>
       {editing && (
         <CategoryForm
+          key={editing.id}
           value={editing}
           csrfToken={csrfToken}
           onClose={() => setEditing(null)}
@@ -64,10 +62,11 @@ function CategoryForm({ value, csrfToken, onClose, onSaved }) {
     () =>
       adminApi(`/categories/${value.id}`, {
         method: "PUT",
-        body: Object.fromEntries(["name", "slug", "description", "sort_order", "status"].map(key => [key, form[key]])),
+        body: { ...Object.fromEntries(["name", "description", "sort_order", "status"].map(key => [key, form[key]])), slug: value.slug },
         csrfToken,
       }),
     onSaved,
+    value.id,
   );
   return (
     <Modal title="แก้ไขหมวดหมู่" onClose={onClose}>
@@ -81,11 +80,10 @@ function CategoryForm({ value, csrfToken, onClose, onSaved }) {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
           </Field>
-          <Field label="Slug">
+          <Field label="Slug" hint="รหัสตัวชี้วัดคงที่ ไม่สามารถเปลี่ยนได้">
             <input
-              required
-              value={form.slug}
-              onChange={(e) => setForm({ ...form, slug: e.target.value })}
+              readOnly
+              value={value.slug}
             />
           </Field>
           <Field label="ลำดับ">

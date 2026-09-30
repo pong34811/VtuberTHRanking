@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import admin from '../../server/admin.js';
 import publicApi from '../../server/public.js';
 import { createD1Stub } from '../helpers/d1.js';
+import { withPublicConfig } from '../helpers/public-config.js';
 
 const manager = { id: 'manager-1', role: 'manager', status: 'active' };
 const staff = { id: 'staff-1', role: 'staff', status: 'active' };
@@ -23,7 +24,7 @@ async function requestAdmin(path, { user = manager, responses = [], init = {} } 
 
 async function requestPublic(path, responses = []) {
   const { calls, db } = createD1Stub(responses);
-  const response = await publicApi.fetch(new Request(`https://example.com${path}`), { DB: db });
+  const response = await publicApi.fetch(new Request(`https://example.com${path}`), { DB: withPublicConfig(db) });
   return { calls, response };
 }
 

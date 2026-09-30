@@ -65,7 +65,7 @@ export function SettingsTab({ csrfToken }) {
         <header>
           <div>
             <h3 id="pipeline-runs-title">สถานะรอบอัปเดตอันดับ</h3>
-            <small>สำเร็จเมื่อเก็บสถิติและเผยแพร่ครบ 6 ชุดอันดับ</small>
+            <small>สำเร็จเมื่อเก็บสถิติและเผยแพร่ครบตามจำนวนที่กำหนด</small>
           </div>
           {!runsLoading && <Button type="button" onClick={() => setRunsRetry((value) => value + 1)}>รีเฟรช</Button>}
         </header>
@@ -82,7 +82,7 @@ export function SettingsTab({ csrfToken }) {
               <dl>
                 <div><dt>ช่องที่พบ</dt><dd>{run.channels_total ?? 0}</dd></div>
                 <div><dt>บันทึกสถิติ</dt><dd>{run.snapshots_written ?? 0}</dd></div>
-                <div><dt>ชุดอันดับที่เผยแพร่</dt><dd>{run.rankings_published ?? 0}/6</dd></div>
+                <div><dt>ชุดอันดับที่เผยแพร่</dt><dd>{run.rankings_published ?? 0}/{run.rankings_expected ?? 6}</dd></div>
               </dl>
               {run.error_summary && <p className="pipeline-error">{run.error_summary}</p>}
             </article>
@@ -108,7 +108,7 @@ export function SettingsTab({ csrfToken }) {
                 }
               />
             </Field>
-            <Field label="สถานะเว็บไซต์">
+            <Field label="สถานะเว็บไซต์" hint="API สาธารณะจะแสดงสถานะเว็บไซต์นี้">
               <select
                 value={form.site_status}
                 onChange={(e) =>
@@ -119,7 +119,7 @@ export function SettingsTab({ csrfToken }) {
                 <option value="maintenance">ปิดปรับปรุง</option>
               </select>
             </Field>
-            <Field label="เดือนอันดับปัจจุบัน">
+            <Field label="เดือนอันดับปัจจุบัน" hint="เดือนเริ่มต้นสำหรับอันดับรายเดือน">
               <input
                 type="month"
                 required
@@ -129,7 +129,7 @@ export function SettingsTab({ csrfToken }) {
                 }
               />
             </Field>
-            <Field label="ความถี่การอัปเดต">
+            <Field label="ความถี่การอัปเดต" hint="เก็บสถิติตามรอบที่เลือก รอบ 30 วันใช้เดือนปฏิทิน">
               <select
                 value={form.ranking_update_frequency}
                 onChange={(e) =>

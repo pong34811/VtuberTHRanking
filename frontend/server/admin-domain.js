@@ -1,6 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { currentMonth } from './ranking-period.js';
 import { competitionRanks, nextMonthBoundary, previousMonth } from '../../shared/ranking.js';
+import { readJsonObject, JSON_BODY_LIMIT } from './request-body.js';
 
 export { currentMonth, competitionRanks, nextMonthBoundary, previousMonth };
 
@@ -24,22 +25,8 @@ export function csvCell(value) {
   if (/^[\s\u0000-\u001f]*[=+@-]/.test(text) || /^[\t\r\n]/.test(text)) text = "'" + text;
   return '"' + text.replaceAll('"', '""') + '"';
 }
-export async function body(c, allowed) {
-  if (!c.req.header('Content-Type')?.toLowerCase().startsWith('application/json')) fail('JSON body required', 415);
-  let size = 0; const chunks = []; const reader = c.req.raw.body?.getReader();
-  if (!reader) fail('JSON body required');
-  while (true) {
-    const { done, value } = await reader.read(); if (done) break;
-    size += value.byteLength;
-    if (size > 32768) { await reader.cancel(); fail('Request body too large', 413); }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(size); let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  let parsed; try { parsed = JSON.parse(new TextDecoder().decode(bytes)); } catch { fail('Invalid JSON'); }
-  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') fail('Expected JSON object');
-  if (Object.keys(parsed).some(key => !allowed.includes(key))) fail('Unknown field');
-  return parsed;
+export async function body(c, allowed, maxBytes = JSON_BODY_LIMIT) {
+  return readJsonObject(c, { allowed, maxBytes });
 }
 export function url(value, field) {
   const text = str(value ?? '', field, 2048);

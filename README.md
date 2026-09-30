@@ -37,7 +37,7 @@ npm run test:coverage    # ทดสอบพร้อมรายงาน cove
 npm run test:e2e         # Cypress E2E (ต้องรัน dev server ก่อน)
 ```
 
-ตรวจเมื่อ 25 กันยายน 2026: Vitest 277 tests ผ่านใน 20 files, production build ผ่าน และตรวจ setup/login, CSRF, การซ่อนช่องที่ปิดใช้งาน, updater และ migrations กับ API/D1 ในเครื่องแล้ว Cypress ใช้ API stubs และไม่ได้รันซ้ำในรอบนี้ ยังไม่มี coverage threshold บังคับ
+ตรวจเมื่อ 30 กันยายน 2026: Vitest 440 tests ผ่านใน 42 files, production build ผ่าน และตรวจ setup/login, CSRF, การซ่อนช่องที่ปิดใช้งาน, updater, migrations (รวมสาย 0001–0009 บน D1 จริง) กับ API/D1 ในเครื่องแล้ว Cypress ใช้ API stubs และไม่ได้รันซ้ำในรอบนี้ ยังไม่มี coverage threshold บังคับ
 
 เอกสารพัฒนา: [ข้อกำหนดผลิตภัณฑ์](docs/PRD.md), [ฐานข้อมูล D1](docs/DATABASE.md), [API](docs/API_SPEC.md), [วิธีคำนวณอันดับ](docs/RANKING_ALGORITHM.md)
 

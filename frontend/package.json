@@ -45,6 +45,7 @@
     "@vitest/coverage-v8": "4.1.11",
     "cypress": "^16.1.0",
     "jsdom": "26.1.0",
+    "miniflare": "5.20260923.0-alpha",
     "tailwindcss": "^4.3.0",
     "vite": "^8.2.0",
     "vitest": "4.1.11",

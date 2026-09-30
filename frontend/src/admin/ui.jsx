@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog as DialogPrimitive } from "radix-ui";
+import { useDialogFocus } from "./useDialogFocus";
+import { Field as AccessibleField } from "./components/ui/field";
 
 export function Notice({ type = "error", children }) {
   return children ? (
@@ -17,13 +19,13 @@ export function Loading() {
 export function Empty({ children = "ยังไม่มีข้อมูล" }) {
   return <div className="admin-state">{children}</div>;
 }
-export function Field({ label, children, wide = false }) {
-  return (
-    <label className={wide ? "wide" : ""}>
-      <span>{label}</span>
-      {children}
-    </label>
-  );
+export function ListState({ list, children, loading = <Loading />, empty = <Empty /> }) {
+  if (list.loading) return loading;
+  if (list.error) return <Notice>{list.error} <Button type="button" onClick={list.load}>ลองอีกครั้ง</Button></Notice>;
+  return list.rows.length ? children : empty;
+}
+export function Field({ wide = false, ...props }) {
+  return <AccessibleField {...props} wide={wide} className={wide ? "wide" : ""} />;
 }
 export function Button({ busy, children, ...props }) {
   return (
@@ -44,10 +46,11 @@ export function Card({ title, actions, children }) {
   );
 }
 export function Modal({ title, onClose, children }) {
+  const restoreFocus = useDialogFocus(true);
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogPrimitive.Overlay className="admin-modal">
-        <DialogPrimitive.Content className="admin-modal-panel" aria-describedby={undefined}>
+        <DialogPrimitive.Content className="admin-modal-panel" aria-describedby={undefined} onCloseAutoFocus={restoreFocus}>
           <header>
             <DialogPrimitive.Title asChild><h2>{title}</h2></DialogPrimitive.Title>
             <DialogPrimitive.Close className="ghost" aria-label="ปิด">×</DialogPrimitive.Close>
@@ -59,22 +62,39 @@ export function Modal({ title, onClose, children }) {
   );
 }
 
-export function useSubmit(action, onSuccess) {
+export function useSubmit(action, onSuccess, identity) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const active = useRef(false);
+  const operation = useRef(0);
+  const pending = useRef(false);
+  const owner = useRef(identity);
+  if (owner.current !== identity) {
+    owner.current = identity;
+    operation.current += 1;
+    pending.current = false;
+  }
+  useEffect(() => {
+    active.current = true;
+    setBusy(false);
+    setError("");
+    return () => { active.current = false; operation.current += 1; pending.current = false; };
+  }, [identity]);
   const submit = async (event) => {
     event?.preventDefault();
+    if (pending.current || !active.current) return;
+    const id = ++operation.current;
+    const current = () => active.current && operation.current === id;
+    pending.current = true;
     setBusy(true);
     setError("");
     try {
       const result = await action();
-      await onSuccess?.(result);
+      if (current()) await onSuccess?.(result);
     } catch (err) {
-      setError(err.message || "บันทึกไม่สำเร็จ");
-      if (err.status === 401)
-        window.dispatchEvent(new Event("admin:unauthorized"));
+      if (current() && err.name !== "AbortError") setError(err.message || "บันทึกไม่สำเร็จ");
     } finally {
-      setBusy(false);
+      if (current()) { pending.current = false; setBusy(false); }
     }
   };
   return { busy, error, setError, submit };

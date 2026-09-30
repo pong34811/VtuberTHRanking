@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { adminApi } from "../api";
 import { useList } from "./useList";
-import { Button, Card, Field, Loading, Modal, Notice, fmtDate, useSubmit } from "../ui";
+import { Button, Card, Field, ListState, Modal, Notice, fmtDate, useSubmit } from "../ui";
 
 const blankUser = {
   username: "",
@@ -27,10 +27,7 @@ export function UsersTab({ csrfToken, currentUser }) {
           </button>
         }
       >
-        <Notice>{list.error}</Notice>
-        {list.loading ? (
-          <Loading />
-        ) : (
+        <ListState list={list}>
           <div className="admin-table-wrap">
             <table>
               <thead>
@@ -73,7 +70,7 @@ export function UsersTab({ csrfToken, currentUser }) {
               </tbody>
             </table>
           </div>
-        )}
+        </ListState>
       </Card>
       {editing && (
         <UserForm

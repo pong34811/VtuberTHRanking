@@ -40,18 +40,22 @@ describe('calculateRanking', () => {
     expect(queries[1].values).toEqual(['monthly', 'followers', '2026-08-01']);
     expect(batches).toHaveLength(1);
     expect(batches[0][0].sql).toContain('DELETE FROM rankings');
-    expect(batches[0].slice(1).map(statement => statement.values)).toEqual([
-      [2, 'monthly', 'followers', '2026-09-01', 1, 200, null, 200, 200, 20],
-      [1, 'monthly', 'followers', '2026-09-01', 2, 100, -1, 100, 300, 10],
+    expect(batches[0][1].values.slice(0, 3)).toEqual(['monthly', 'followers', '2026-09-01']);
+    expect(JSON.parse(batches[0][1].values[3])).toEqual([
+      { vtuber_id: 2, rank: 1, score: 200, rank_change: null, followers: 200, total_views: 200, video_count: 20 },
+      { vtuber_id: 1, rank: 2, score: 100, rank_change: -1, followers: 100, total_views: 300, video_count: 10 },
     ]);
   });
 
-  it('rejects over 90 active channels before publishing any rows', async () => {
+  it('publishes over 90 active channels using a bounded JSON bulk statement', async () => {
     const { db, batches } = rankingDb({ rows: Array.from({ length: 91 }, (_, index) => ({ vtuber_id: index + 1, followers: 10 })) });
 
     await expect(calculateRanking(db, {
       period: 'alltime', month: null, category: 'followers',
-    })).rejects.toMatchObject({ code: 'RANKING_CHANNEL_LIMIT' });
-    expect(batches).toHaveLength(0);
+    })).resolves.toEqual({ count: 91 });
+    expect(batches).toHaveLength(1);
+    expect(batches[0]).toHaveLength(2);
+    expect(batches[0][1].values).toHaveLength(4);
+    expect(JSON.parse(batches[0][1].values[3])).toHaveLength(91);
   });
 });

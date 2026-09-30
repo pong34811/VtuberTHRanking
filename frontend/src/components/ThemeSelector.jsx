@@ -1,25 +1,6 @@
-import { useEffect, useState } from "react";
+import { useTheme } from "./ThemeProvider";
 export default function ThemeSelector() {
-  const [theme, setTheme] = useState(() => {
-    try {
-      return localStorage.getItem("theme") || "system";
-    } catch {
-      return "system";
-    }
-  });
-  useEffect(() => {
-    const media = matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      document.documentElement.dataset.theme =
-        theme === "system" ? (media.matches ? "dark" : "light") : theme;
-    };
-    apply();
-    try {
-      localStorage.setItem("theme", theme);
-    } catch {}
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, [theme]);
+  const { theme, setTheme } = useTheme();
   return (
     <select
       aria-label="ธีมหน้าจอ"

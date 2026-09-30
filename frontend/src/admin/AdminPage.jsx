@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   Navigate,
   NavLink,
@@ -6,19 +6,21 @@ import {
   Routes,
   useLocation,
 } from "react-router-dom";
-import { authApi } from "./api";
+import { authApi, messageOf } from "./api";
 import AuthScreen from "./AuthScreen";
-import ChannelsTab from "./ChannelsTab";
-import AgenciesTab from "./AgenciesTab";
-import RankingsTab from "./RankingsTab";
-import { AuditTab } from "./tabs/AuditTab";
-import { CategoriesTab } from "./tabs/CategoriesTab";
-import { ReportsTab } from "./tabs/ReportsTab";
-import { SettingsTab } from "./tabs/SettingsTab";
-import { HomepageTemplateTab } from "./tabs/HomepageTemplateTab";
-import { UsersTab } from "./tabs/UsersTab";
-import { Button, Field, Modal, Notice, useSubmit } from "./ui";
+import ThemeSelector from "../components/ThemeSelector";
+import { Button, Field, Loading, Modal, Notice, useSubmit } from "./ui";
 import "./admin.css";
+
+const ChannelsTab = lazy(() => import("./ChannelsTab"));
+const AgenciesTab = lazy(() => import("./AgenciesTab"));
+const RankingsTab = lazy(() => import("./RankingsTab"));
+const AuditTab = lazy(() => import("./tabs/AuditTab").then(module => ({ default: module.AuditTab })));
+const CategoriesTab = lazy(() => import("./tabs/CategoriesTab").then(module => ({ default: module.CategoriesTab })));
+const ReportsTab = lazy(() => import("./tabs/ReportsTab").then(module => ({ default: module.ReportsTab })));
+const SettingsTab = lazy(() => import("./tabs/SettingsTab").then(module => ({ default: module.SettingsTab })));
+const HomepageTemplateTab = lazy(() => import("./tabs/HomepageTemplateTab").then(module => ({ default: module.HomepageTemplateTab })));
+const UsersTab = lazy(() => import("./tabs/UsersTab").then(module => ({ default: module.UsersTab })));
 
 const baseTabs = [
   ["channels", "จัดการช่อง", "CH"],
@@ -61,26 +63,52 @@ export default function AdminPage() {
     [setupRequired, setSetupRequired] = useState(false),
     [checking, setChecking] = useState(true),
     [passwordOpen, setPasswordOpen] = useState(false),
+    [authError, setAuthError] = useState(""),
     [logoutError, setLogoutError] = useState("");
   const loc = useLocation();
-  const check = () => {
+  const authRequest = useRef({ id: 0, controller: null });
+  const check = useCallback(() => {
+    authRequest.current.controller?.abort();
+    const controller = new AbortController();
+    const id = ++authRequest.current.id;
+    authRequest.current.controller = controller;
+    const current = () => authRequest.current.id === id;
     setChecking(true);
-    authApi("/me")
-      .then((data) => { setSession(data); setSetupRequired(false); })
-      .catch((error) => {
-        setSession(null);
-        setSetupRequired(error.status === 401 && error.data?.setupRequired === true);
+    setAuthError("");
+    authApi("/me", { signal: controller.signal })
+      .then((data) => {
+        if (!data.user || !["manager", "staff"].includes(data.user.role) || typeof data.csrfToken !== "string") {
+          throw new Error("เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง กรุณาลองใหม่");
+        }
+        if (current()) { setSession(data); setSetupRequired(false); }
       })
-      .finally(() => setChecking(false));
-  };
+      .catch((error) => {
+        if (!current() || error.name === "AbortError") return;
+        if (error.status === 401) {
+          setSession(null);
+          setPasswordOpen(false);
+          setSetupRequired(error.data?.setupRequired === true);
+        } else setAuthError(messageOf(error));
+      })
+      .finally(() => { if (current()) setChecking(false); });
+  }, []);
   useEffect(() => {
     check();
     const unauthorized = () => check();
     window.addEventListener("admin:unauthorized", unauthorized);
-    return () => window.removeEventListener("admin:unauthorized", unauthorized);
-  }, []);
+    return () => {
+      window.removeEventListener("admin:unauthorized", unauthorized);
+      authRequest.current.id += 1;
+      authRequest.current.controller?.abort();
+    };
+  }, [check]);
   if (checking)
     return <div className="admin-boot">กำลังตรวจสอบการเข้าสู่ระบบ…</div>;
+  if (authError) return <main className="admin-auth"><section className="admin-card">
+    <h1>ตรวจสอบการเข้าสู่ระบบไม่สำเร็จ</h1>
+    <Notice>{authError}</Notice>
+    <Button type="button" onClick={check}>ลองอีกครั้ง</Button>
+  </section></main>;
   if (!session?.user) return <AuthScreen setupRequired={setupRequired} onAuthenticated={(data) => { setSession(data); setSetupRequired(false); }} />;
   const { user, csrfToken } = session,
     isManager = user.role === "manager",
@@ -120,7 +148,8 @@ export default function AdminPage() {
             </small>
           </div>
           <div className="admin-user-actions">
-            <button onClick={() => setPasswordOpen(true)}>รหัสผ่าน</button>
+            <ThemeSelector />
+            <button onClick={() => setPasswordOpen(true)}>เปลี่ยนรหัสผ่าน</button>
             <button onClick={logout}>ออกจากระบบ</button>
           </div>
         </div>
@@ -133,11 +162,14 @@ export default function AdminPage() {
             </p>
             <h1>{title}</h1>
           </div>
-          <button className="mobile-logout" onClick={logout}>
-            ออกจากระบบ
-          </button>
+          <div className="admin-mobile-account" role="group" aria-label="บัญชีผู้ใช้บนมือถือ">
+            <ThemeSelector />
+            <button type="button" onClick={() => setPasswordOpen(true)}>เปลี่ยนรหัสผ่าน</button>
+            <button type="button" onClick={logout}>ออกจากระบบ</button>
+          </div>
         </header>
         <Notice>{logoutError}</Notice>
+        <Suspense fallback={<Loading />}>
         <Routes>
           <Route index element={<Navigate to="channels" replace />} />
           <Route path="channels" element={<ChannelsTab {...props} />} />
@@ -151,6 +183,7 @@ export default function AdminPage() {
           <Route path="settings" element={guard(<SettingsTab {...props} />)} />
           <Route path="*" element={<Navigate to="channels" replace />} />
         </Routes>
+        </Suspense>
       </main>
       {passwordOpen && (
         <PasswordForm

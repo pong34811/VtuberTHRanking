@@ -16,7 +16,7 @@ import RankingsTab from '@/admin/RankingsTab.jsx';
 import AgenciesTab from '@/admin/AgenciesTab.jsx';
 
 function mockFetch(body = { results: [] }) {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => body }));
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(Response.json(JSON.parse(JSON.stringify(body))))));
 }
 
 afterEach(() => {
@@ -25,11 +25,14 @@ afterEach(() => {
 
 it('shows the selected ranking metric and changes metric with an accessible pressed state', async () => {
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url) => {
+    if (String(url).includes('/categories')) {
+      return Response.json({ results: [
+        { id: 'followers', slug: 'followers', name: 'ผู้ติดตาม', sort_order: 1, status: 'active' },
+        { id: 'views', slug: 'views', name: 'ยอดดู', sort_order: 2, status: 'active' },
+      ] });
+    }
     const category = new URL(String(url), 'http://localhost').searchParams.get('category');
-    return {
-      ok: true,
-      json: async () => ({ results: [{ id: category, rank: 1, name: category, subscriber_count: 10, total_views: 20, video_count: 30 }] }),
-    };
+    return Response.json({ results: [{ id: category, rank: 1, name: category, subscriber_count: 10, total_views: 20, video_count: 30 }] });
   }));
 
   render(<RankingsTab csrfToken="token" isManager={false} />);
@@ -37,10 +40,10 @@ it('shows the selected ranking metric and changes metric with an accessible pres
   expect(await screen.findByText('followers')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'ผู้ติดตาม' })).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByRole('button', { name: 'ยอดดู' })).toHaveAttribute('aria-pressed', 'false');
-  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch).toHaveBeenCalledTimes(2);
   fireEvent.click(screen.getByRole('button', { name: 'ยอดดู' }));
-  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
-  expect(new URL(String(fetch.mock.calls[1][0]), 'http://localhost').searchParams.get('category')).toBe('views');
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+  expect(fetch.mock.calls.some(([url]) => String(url).includes('/rankings?') && String(url).includes('category=views'))).toBe(true);
   expect(screen.getByRole('button', { name: 'ยอดดู' })).toHaveAttribute('aria-pressed', 'true');
 });
 
@@ -86,12 +89,12 @@ it('shows the settings form once settings load', async () => {
 
 it('shows partial pipeline runs with their frequency and published-set count', async () => {
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async url => String(url).endsWith('/pipeline-runs')
-    ? { ok: true, json: async () => ({ results: [{
+    ? Response.json({ results: [{
       id: 'run-1', trigger_source: 'scheduled', frequency: 'weekly', status: 'partial',
       started_at: '2026-09-16T00:00:00.000Z', completed_at: '2026-09-16T00:01:00.000Z',
       channels_total: 8, snapshots_written: 7, rankings_published: 4, error_summary: '1 จาก 8 ช่องดึงสถิติไม่สำเร็จ',
-    }] }) }
-    : { ok: true, json: async () => ({ results: [] }) }));
+    }] })
+    : Response.json({ results: [] })));
 
   render(<SettingsTab csrfToken="token" />);
 
@@ -168,12 +171,9 @@ it('shows the channels console with an empty library', async () => {
 it('lists channels with their platform labels', async () => {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        results: [{ id: 1, name: 'Aiko', slug: 'aiko', agency_name: 'Indie', platform: 'youtube', is_active: 1 }],
-      }),
-    }),
+    vi.fn().mockImplementation(() => Promise.resolve(Response.json({
+      results: [{ id: 1, name: 'Aiko', slug: 'aiko', agency_name: 'Indie', platform: 'youtube', is_active: 1 }],
+    }))),
   );
 
   render(<ChannelsTab csrfToken="token" />);
@@ -183,7 +183,7 @@ it('lists channels with their platform labels', async () => {
 });
 
 it('submits only channel contract fields when editing', async () => {
-  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, id: 1 }) });
+  const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(Response.json({ ok: true, id: 1 })));
   vi.stubGlobal('fetch', fetchMock);
   const { container } = render(
     <ChannelForm
@@ -204,7 +204,7 @@ it('submits only channel contract fields when editing', async () => {
 });
 
 it('submits only user contract fields when editing', async () => {
-  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, id: 'u2' }) });
+  const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(Response.json({ ok: true, id: 'u2' })));
   vi.stubGlobal('fetch', fetchMock);
   const { container } = render(
     <UserForm
@@ -225,7 +225,7 @@ it('submits only user contract fields when editing', async () => {
 it('recovers from a failed channels request without crashing', async () => {
   vi.stubGlobal('fetch', vi.fn()
     .mockRejectedValueOnce(new Error('Channel service unavailable'))
-    .mockResolvedValue({ ok: true, json: async () => ({ results: [] }) }));
+    .mockImplementation(() => Promise.resolve(Response.json({ results: [] }))));
   render(<ChannelsTab csrfToken="token" />);
   expect(await screen.findByRole('alert')).toHaveTextContent('Channel service unavailable');
   fireEvent.click(screen.getByRole('button', { name: 'ลองอีกครั้ง' }));
@@ -234,9 +234,12 @@ it('recovers from a failed channels request without crashing', async () => {
 });
 
 it('does not expose default settings after a failed load and allows retry', async () => {
+  const settingsBody = { results: [{ setting_key: 'site_name', setting_value: 'VTuber Thai' }] };
   vi.stubGlobal('fetch', vi.fn()
     .mockRejectedValueOnce(new Error('Settings unavailable'))
-    .mockResolvedValue({ ok: true, json: async () => ({ results: [{ setting_key: 'site_name', setting_value: 'VTuber Thai' }] }) }));
+    .mockImplementation((url) => Promise.resolve(Response.json(
+      String(url).endsWith('/pipeline-runs') ? { results: [] } : settingsBody,
+    ))));
   render(<SettingsTab csrfToken="token" />);
   expect(await screen.findByRole('alert')).toHaveTextContent('Settings unavailable');
   expect(screen.queryByRole('button', { name: 'บันทึกการตั้งค่า' })).not.toBeInTheDocument();
@@ -256,15 +259,15 @@ it('limits category editing to managers', async () => {
   mockFetch({ results: [{ id: 'followers', name: 'Followers', slug: 'followers', sort_order: 1, status: 'active' }] });
   const view = render(<CategoriesTab csrfToken="token" isManager={false} />);
   await screen.findByText('Followers');
-  expect(screen.queryByRole('button', { name: 'แก้ไข' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'แก้ไขหมวดหมู่ Followers' })).not.toBeInTheDocument();
   view.rerender(<CategoriesTab csrfToken="token" isManager />);
-  expect(screen.getByRole('button', { name: 'แก้ไข' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'แก้ไขหมวดหมู่ Followers' })).toBeInTheDocument();
 });
 
 it('shows failures when disabling a user', async () => {
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async (_, options) => options?.method === 'PUT'
-    ? { ok: false, status: 409, json: async () => ({ message: 'Cannot disable this user' }) }
-    : { ok: true, json: async () => ({ results: [{ id: 'u2', display_name: 'Staff', username: 'staff', status: 'active', role: 'staff' }] }) }));
+    ? Response.json({ message: 'Cannot disable this user' }, { status: 409 })
+    : Response.json({ results: [{ id: 'u2', display_name: 'Staff', username: 'staff', status: 'active', role: 'staff' }] })));
   render(<UsersTab csrfToken="token" currentUser={{ id: 'u1' }} />);
   fireEvent.click(await screen.findByRole('button', { name: 'ปิดใช้งาน' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Cannot disable this user');
@@ -290,15 +293,20 @@ it('names the user editor dialog and supports Escape', async () => {
 
 it('does not replace current rankings with a slower previous filter response', async () => {
   let finishOld;
+  const categoriesResponse = Response.json({ results: [
+    { id: 'followers', slug: 'followers', name: 'ผู้ติดตาม', sort_order: 1, status: 'active' },
+    { id: 'views', slug: 'views', name: 'ยอดดู', sort_order: 2, status: 'active' },
+  ] });
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async url => {
+    if (String(url).includes('/categories')) return categoriesResponse.clone();
     const category = new URL(String(url), 'http://localhost').searchParams.get('category');
     if (category === 'followers' && !finishOld) {
-      return new Promise(resolve => { finishOld = () => resolve({ ok: true, json: async () => ({ results: [{ id: 'old', rank: 1, name: 'Old result', followers: 10 }] }) }); });
+      return new Promise(resolve => { finishOld = () => resolve(Response.json({ results: [{ id: 'old', rank: 1, name: 'Old result', followers: 10 }] })); });
     }
-    return { ok: true, json: async () => ({ results: [{ id: category, rank: 1, name: 'Current views', total_views: 500 }] }) };
+    return Response.json({ results: [{ id: category, rank: 1, name: 'Current views', total_views: 500 }] });
   }));
   render(<RankingsTab csrfToken="token" isManager={false} />);
-  fireEvent.click(screen.getByRole('button', { name: 'ยอดดู' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'ยอดดู' }));
   expect(await screen.findByText('Current views')).toBeInTheDocument();
   await act(async () => finishOld());
   await waitFor(() => expect(screen.queryByText('Old result')).not.toBeInTheDocument());

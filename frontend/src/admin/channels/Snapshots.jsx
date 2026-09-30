@@ -5,6 +5,7 @@ import { Button } from "../components/ui/button";
 import { Alert, Field, FormActions, Input } from "../components/ui/field";
 import { TD, TH, THead, TR, Table, TableWrap } from "../components/ui/table";
 import { Avatar, EmptyState, SkeletonRows } from "../components/ui/feedback";
+import { useList } from "../tabs/useList";
 
 export function localDateTime(date = new Date()) {
   const pad = value => String(value).padStart(2, "0");
@@ -12,26 +13,16 @@ export function localDateTime(date = new Date()) {
 }
 
 export function Snapshots({ channel, csrfToken }) {
-  const [rows, setRows] = useState([]),
-    [loading, setLoading] = useState(true),
-    [loadError, setLoadError] = useState("");
+  const { rows, loading, error: loadError, load } = useList(`/vtubers/${channel.id}/snapshots`);
   const [form, setForm] = useState({
     followers: "",
     total_views: "",
     video_count: "",
     recorded_at: localDateTime(),
   });
-  const load = () => {
-    setLoading(true);
-    setLoadError("");
-    return adminApi(`/vtubers/${channel.id}/snapshots`)
-      .then((d) => setRows(d.results || []))
-      .catch((error) => setLoadError(error.message))
-      .finally(() => setLoading(false));
-  };
   useEffect(() => {
-    load();
-  }, []);
+    setForm({ followers: "", total_views: "", video_count: "", recorded_at: localDateTime() });
+  }, [channel.id]);
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
   const { busy, error, submit } = useSubmit(
     () =>
@@ -50,6 +41,7 @@ export function Snapshots({ channel, csrfToken }) {
       setForm({ ...form, followers: "", total_views: "", video_count: "" });
       load();
     },
+    channel.id,
   );
   const latest = rows[0];
   return (

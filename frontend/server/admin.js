@@ -4,6 +4,9 @@ import { hashPassword, validatePassword } from './password.js';
 import { fail, choice, str, url, month, selection, csvCell, body, channel, channelFields } from './admin-domain.js';
 import { calculateRanking } from './ranking-service.js';
 import { HOMEPAGE_TEMPLATE_IDS, normalizeHomepageTemplate } from '../../shared/homepage-templates.js';
+import { strictIsoTimestamp } from './request-validation.js';
+import { IMPORT_BODY_LIMIT, logSafeError } from './request-body.js';
+import { readSiteConfig } from './site-config.js';
 
 const app = new Hono();
 const userFields = 'id,username,display_name,email,role,status,created_at,updated_at,last_login_at';
@@ -12,13 +15,19 @@ const list = async (c, sql, ...values) => c.json(await stmt(c, sql, ...values).a
 const manager = c => { if (c.get('user')?.role !== 'manager') fail('Manager access required', 403); };
 const numericId = c => { const id = Number(c.req.param('id')); if (!Number.isSafeInteger(id) || id < 1) fail('Invalid ID'); return id; };
 const audit = (c, action, target, id, details = {}) => stmt(c, 'INSERT INTO audit_logs (id,user_id,action,target_type,target_id,details) VALUES (?,?,?,?,?,?)', crypto.randomUUID(), c.get('user').id, action, target, String(id), JSON.stringify(details));
+// Lookups below are fixed SQL/natural keys, resolved inside the same batch.
+// Never depend on connection-scoped last_insert_rowid() across D1 statements.
+const auditLookup = (c, action, target, lookup, values, details = {}) => stmt(c,
+  `INSERT INTO audit_logs (id,user_id,action,target_type,target_id,details) VALUES (?,?,?,?,CAST((${lookup}) AS TEXT),?)`,
+  crypto.randomUUID(), c.get('user').id, action, target, ...values, JSON.stringify(details));
+const importedChannelLookup = 'SELECT id FROM vtubers WHERE youtube_url=? OR channel_url=? ORDER BY id LIMIT 1';
 const exists = async (c, table, id) => { const row = await stmt(c, `SELECT * FROM ${table} WHERE id=?`, id).first(); if (!row) fail('Record not found', 404); return row; };
 app.use('*', async (c, next) => { if (!c.get('user') || c.get('user').status !== 'active') fail('Authentication required', 401); await next(); });
 app.onError((error, c) => {
   if (error instanceof HTTPException) return c.json({ message: error.message }, error.status);
   if (error.code === 'RANKING_CHANNEL_LIMIT') return c.json({ message: error.message }, 409);
   if (/UNIQUE constraint failed/i.test(error.message)) return c.json({ message: 'A record with this unique value already exists' }, 409);
-  console.error('Admin operation failed', error);
+  logSafeError('Admin operation failed');
   return c.json({ message: 'Unable to complete operation' }, 500);
 });
 
@@ -33,7 +42,7 @@ app.post('/vtubers', async c => {
   const data = await channelAgency(c, channel(await body(c, channelFields))); const fields = Object.keys(data);
   const result = await c.env.DB.batch([
     stmt(c, `INSERT INTO vtubers (${fields.join(',')},created_at,updated_at) VALUES (${fields.map(() => '?').join(',')},datetime('now'),datetime('now'))`, ...Object.values(data)),
-    stmt(c, 'INSERT INTO audit_logs (id,user_id,action,target_type,target_id,details) VALUES (?,?,?, ?,CAST(last_insert_rowid() AS TEXT),?)', crypto.randomUUID(), c.get('user').id, 'create', 'vtuber', JSON.stringify({ slug: data.slug })),
+    auditLookup(c, 'create', 'vtuber', 'SELECT id FROM vtubers WHERE slug=?', [data.slug], { slug: data.slug }),
   ]);
   return c.json({ ok: true, id: result[0].meta.last_row_id }, 201);
 });
@@ -56,9 +65,11 @@ function agencyData(data) {
 app.get('/agencies', c => list(c, 'SELECT a.*, (SELECT COUNT(*) FROM vtubers v WHERE v.agency_id=a.id) AS channel_count FROM agencies a ORDER BY a.name,id LIMIT 2000'));
 app.post('/agencies', async c => {
   const data = agencyData(await body(c, agencyFields));
-  const result = await stmt(c, 'INSERT INTO agencies (name,description,image_url,contact) VALUES (?,?,?,?)', ...Object.values(data)).run();
-  await audit(c, 'create', 'agency', result.meta.last_row_id, { name: data.name }).run();
-  return c.json({ ok: true, id: result.meta.last_row_id }, 201);
+  const result = await c.env.DB.batch([
+    stmt(c, 'INSERT INTO agencies (name,description,image_url,contact) VALUES (?,?,?,?)', ...Object.values(data)),
+    auditLookup(c, 'create', 'agency', 'SELECT id FROM agencies WHERE name=?', [data.name], { name: data.name }),
+  ]);
+  return c.json({ ok: true, id: result[0].meta.last_row_id }, 201);
 });
 app.put('/agencies/:id', async c => {
   const id = numericId(c); await exists(c, 'agencies', id);
@@ -82,30 +93,34 @@ app.post('/vtubers/:id/snapshots', async c => {
   const id = numericId(c); await exists(c, 'vtubers', id);
   const data = await body(c, ['followers','total_views','video_count','recorded_at']);
   for (const field of ['followers','total_views','video_count']) if (!Number.isSafeInteger(data[field]) || data[field] < 0) fail(`Invalid ${field}`);
-  if (typeof data.recorded_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(data.recorded_at) || !Number.isFinite(Date.parse(data.recorded_at))) fail('recorded_at must be an ISO timestamp with timezone');
-  const recorded = new Date(data.recorded_at).toISOString();
+  const recorded = strictIsoTimestamp(data.recorded_at);
   await c.env.DB.batch([stmt(c, 'INSERT INTO stats_snapshots (vtuber_id,followers,total_views,video_count,avg_views,recorded_at) VALUES (?,?,?,?,0,?)', id, data.followers, data.total_views, data.video_count, recorded), audit(c, 'snapshot.create', 'vtuber', id, { recorded_at: recorded })]);
   return c.json({ ok: true }, 201);
 });
 
 app.get('/categories', c => list(c, "SELECT * FROM categories WHERE id IN ('followers','views','videos') ORDER BY sort_order,id"));
 app.put('/categories/:id', async c => {
-  manager(c); const id = choice(c.req.param('id'), ['followers','views','videos'], 'category'); await exists(c, 'categories', id);
+  manager(c); const id = choice(c.req.param('id'), ['followers','views','videos'], 'category'); const old = await exists(c, 'categories', id);
   const data = await body(c, ['id','name','slug','description','sort_order','status']);
   if (data.id !== undefined && data.id !== id) fail('Category ID cannot change');
-  const name = str(data.name, 'name', 100, true); const slug = str(data.slug, 'slug', 100, true);
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) fail('Invalid slug');
+  if (data.slug !== undefined && data.slug !== old.slug) fail('Category slug cannot change');
+  const name = str(data.name, 'name', 100, true);
   const description = str(data.description ?? '', 'description', 2000);
   if (!Number.isInteger(data.sort_order) || data.sort_order < 0 || data.sort_order > 1000) fail('Invalid sort_order');
   choice(data.status, ['active','inactive'], 'status');
-  await c.env.DB.batch([stmt(c, 'UPDATE categories SET name=?,slug=?,description=?,sort_order=?,status=? WHERE id=?', name, slug, description, data.sort_order, data.status, id), audit(c, 'update', 'category', id)]);
+  await c.env.DB.batch([stmt(c, 'UPDATE categories SET name=?,description=?,sort_order=?,status=? WHERE id=?', name, description, data.sort_order, data.status, id), audit(c, 'update', 'category', id)]);
   return c.json({ ok: true, id });
 });
 
 const rankingRows = async (c, filter) => (await stmt(c, 'SELECT r.*,v.name,v.slug FROM rankings r JOIN vtubers v ON v.id=r.vtuber_id WHERE r.period=? AND r.category=? AND r.month IS ? ORDER BY r.rank,r.vtuber_id', filter.period, filter.category, filter.month).all()).results;
-app.get('/rankings', async c => c.json({ results: await rankingRows(c, selection(c.req.query())) }));
+async function configuredSelection(c, input) {
+  const filter = selection(input);
+  if (filter.period === 'monthly' && !input.month) filter.month = `${(await readSiteConfig(c.env.DB)).current_ranking_period}-01`;
+  return filter;
+}
+app.get('/rankings', async c => c.json({ results: await rankingRows(c, await configuredSelection(c, c.req.query())) }));
 app.post('/rankings/calculate', async c => {
-  manager(c); const filter = selection(await body(c, ['period','month','category']));
+  manager(c); const filter = await configuredSelection(c, await body(c, ['period','month','category']));
   const { count } = await calculateRanking(c.env.DB, filter, count => [
     audit(c, 'calculate', 'ranking', `${filter.period}:${filter.month || 'alltime'}:${filter.category}`, { count }),
   ]);
@@ -113,7 +128,7 @@ app.post('/rankings/calculate', async c => {
 });
 app.get('/reports', c => list(c, 'SELECT id,report_type,report_period,category_id,total_vtubers,generated_at,generated_by FROM reports ORDER BY generated_at DESC,id DESC LIMIT 200'));
 app.post('/reports', async c => {
-  const filter = selection(await body(c, ['period','month','category'])); const rows = await rankingRows(c, filter);
+  const filter = await configuredSelection(c, await body(c, ['period','month','category'])); const rows = await rankingRows(c, filter);
   if (!rows.length) fail('Calculate this ranking before generating a report', 409);
   const id = crypto.randomUUID();
   await c.env.DB.batch([stmt(c, 'INSERT INTO reports (id,report_type,report_period,category_id,total_vtubers,generated_by,snapshot_json) VALUES (?,?,?,?,?,?,?)', id, filter.period, filter.month?.slice(0,7) || 'alltime', filter.category, rows.length, c.get('user').id, JSON.stringify(rows)), audit(c, 'create', 'report', id, filter)]);
@@ -161,7 +176,10 @@ function userData(data) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('Invalid email');
   return { display_name: displayName, email, role: choice(data.role, ['manager','staff'], 'role'), status: choice(data.status, ['active','inactive'], 'status') };
 }
-async function passwordHash(password) { validatePassword(password); return hashPassword(password); }
+async function passwordHash(password) {
+  try { validatePassword(password); } catch (error) { fail(error.message); }
+  return hashPassword(password);
+}
 app.get('/users', c => { manager(c); return list(c, `SELECT ${userFields} FROM users ORDER BY username`); });
 app.post('/users', async c => {
   manager(c); const data = await body(c, ['username','display_name','email','role','status','password']); const fields = userData(data);
@@ -192,14 +210,21 @@ async function youtubeChannel(c, input) {
   const idMatch = ref.match(/(UC[\w-]{22})/);
   const handleMatch = ref.match(/@([\w.-]{3,})/);
   const query = idMatch ? `id=${idMatch[1]}` : handleMatch ? `forHandle=${encodeURIComponent(handleMatch[1])}` : fail('ใส่ channel ID, @handle หรือลิงก์ YouTube', 400);
-  const res = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&${query}&key=${encodeURIComponent(key)}`, { headers: { Referer: new URL(c.req.url).origin } });
+  let res;
+  try {
+    res = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&${query}&key=${encodeURIComponent(key)}`, { headers: { Referer: new URL(c.req.url).origin }, signal: AbortSignal.timeout(15000) });
+  } catch { fail('ดึงข้อมูลจาก YouTube ไม่สำเร็จ', 502); }
   if (!res.ok) fail(`ดึงข้อมูลจาก YouTube ไม่สำเร็จ (${res.status})`, 502);
-  const item = (await res.json()).items?.[0];
+  let payload;
+  try { payload = await res.json(); } catch { fail('Invalid YouTube API response', 502); }
+  if (!payload || !Array.isArray(payload.items)) fail('Invalid YouTube API response', 502);
+  const item = payload.items[0];
   if (!item) fail('ไม่พบช่องนี้บน YouTube', 404);
+  if (typeof item.id !== 'string' || !/^UC[\w-]{22}$/.test(item.id)) fail('Invalid YouTube API response', 502);
   return item;
 }
 app.post('/agencies/youtube/import', async c => {
-  const { input } = await body(c, ['input']);
+  const { input } = await body(c, ['input'], IMPORT_BODY_LIMIT);
   const item = await youtubeChannel(c, input);
   const youtubeUrl = `https://www.youtube.com/channel/${item.id}`;
   if (await stmt(c, 'SELECT id FROM agencies WHERE youtube_channel_id=?', item.id).first()) fail('สังกัดนี้มีในระบบแล้ว', 409);
@@ -209,12 +234,14 @@ app.post('/agencies/youtube/import', async c => {
     image_url: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '',
     contact: youtubeUrl,
   });
-  const result = await stmt(c, 'INSERT INTO agencies (name,description,image_url,contact,youtube_channel_id) VALUES (?,?,?,?,?)', ...Object.values(data), item.id).run();
-  await audit(c, 'youtube.import', 'agency', result.meta.last_row_id, { youtube_channel_id: item.id }).run();
-  return c.json({ ok: true, id: result.meta.last_row_id }, 201);
+  const result = await c.env.DB.batch([
+    stmt(c, 'INSERT INTO agencies (name,description,image_url,contact,youtube_channel_id) VALUES (?,?,?,?,?)', ...Object.values(data), item.id),
+    auditLookup(c, 'youtube.import', 'agency', 'SELECT id FROM agencies WHERE youtube_channel_id=?', [item.id], { youtube_channel_id: item.id }),
+  ]);
+  return c.json({ ok: true, id: result[0].meta.last_row_id }, 201);
 });
 app.post('/youtube/import', async c => {
-  const { input } = await body(c, ['input']);
+  const { input } = await body(c, ['input'], IMPORT_BODY_LIMIT);
   const item = await youtubeChannel(c, input);
   const stats = item.statistics || {};
   const followers = Number(stats.subscriberCount || 0), views = Number(stats.viewCount || 0), videos = Number(stats.videoCount || 0);
@@ -223,7 +250,7 @@ app.post('/youtube/import', async c => {
   const avatar = thumbs.medium?.url || thumbs.default?.url || '';
   const youtubeUrl = `https://www.youtube.com/channel/${item.id}`;
   const now = new Date().toISOString();
-  const existing = await stmt(c, 'SELECT id FROM vtubers WHERE youtube_url=? OR channel_url=?', youtubeUrl, youtubeUrl).first();
+  const existing = await stmt(c, importedChannelLookup, youtubeUrl, youtubeUrl).first();
   if (existing) {
     await c.env.DB.batch([
       stmt(c, 'UPDATE vtubers SET name=?,avatar=?,youtube_url=?,channel_url=?,updated_at=datetime(?) WHERE id=?', name, avatar, youtubeUrl, youtubeUrl, now, existing.id),
@@ -235,12 +262,17 @@ app.post('/youtube/import', async c => {
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'channel';
   let slug = base, n = 1;
   while (await stmt(c, 'SELECT id FROM vtubers WHERE slug=?', slug).first()) { n += 1; if (n > 9) fail('Slug ซ้ำเกินไป'); slug = `${base}-${n}`; }
-  const inserted = await stmt(c, "INSERT INTO vtubers (name,slug,bio,avatar,channel_url,platform,category,affiliation,is_active,youtube_url,created_at,updated_at) VALUES (?,?,?,?,?,?,'other','indie',1,?,datetime('now'),datetime('now'))", name, slug, (item.snippet?.description || '').slice(0, 2000), avatar, youtubeUrl, 'youtube', youtubeUrl).run();
-  const id = inserted.meta.last_row_id;
-  await c.env.DB.batch([
-    stmt(c, 'INSERT INTO stats_snapshots (vtuber_id,followers,total_views,video_count,avg_views,recorded_at) VALUES (?,?,?,?,0,?)', id, followers, views, videos, now),
-    audit(c, 'youtube.import', 'vtuber', id, { slug, followers }),
+  const result = await c.env.DB.batch([
+    stmt(c, `INSERT INTO vtubers (name,slug,bio,avatar,channel_url,platform,category,affiliation,is_active,youtube_url,created_at,updated_at)
+      SELECT ?,?,?,?,?,?,'other','indie',1,?,datetime('now'),datetime('now') WHERE NOT EXISTS (${importedChannelLookup})`,
+      name, slug, (item.snippet?.description || '').slice(0, 2000), avatar, youtubeUrl, 'youtube', youtubeUrl, youtubeUrl, youtubeUrl),
+    stmt(c, `UPDATE vtubers SET name=?,avatar=?,youtube_url=?,channel_url=?,updated_at=datetime(?) WHERE id=(${importedChannelLookup})`, name, avatar, youtubeUrl, youtubeUrl, now, youtubeUrl, youtubeUrl),
+    stmt(c, `INSERT INTO stats_snapshots (vtuber_id,followers,total_views,video_count,avg_views,recorded_at) VALUES ((${importedChannelLookup}),?,?,?,0,?)`, youtubeUrl, youtubeUrl, followers, views, videos, now),
+    auditLookup(c, 'youtube.import', 'vtuber', importedChannelLookup, [youtubeUrl, youtubeUrl], { followers }),
+    stmt(c, `SELECT id,slug FROM vtubers WHERE id=(${importedChannelLookup})`, youtubeUrl, youtubeUrl),
   ]);
-  return c.json({ ok: true, id, name, slug, followers, total_views: views, video_count: videos }, 201);
+  const saved = result[4].results[0];
+  const updated = result[0].meta.changes === 0;
+  return c.json({ ok: true, id: saved.id, name, slug: saved.slug, followers, total_views: views, video_count: videos, ...(updated && { updated: true }) }, updated ? 200 : 201);
 });
 export default app;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useList } from "./useList";
-import { Button, Card, Empty, Loading, Notice, fmtDate } from "../ui";
+import { Button, Card, ListState, fmtDate } from "../ui";
 
 const actionLabels = {
   create: "สร้าง",
@@ -82,10 +82,7 @@ export function AuditTab() {
 
   return (
     <Card title="ประวัติการทำงาน">
-      <Notice>{list.error}</Notice>
-      {list.loading ? (
-        <Loading />
-      ) : list.rows.length ? (
+      <ListState list={list}>
         <div className="admin-table-wrap">
           <table className="audit-table">
             <thead>
@@ -128,9 +125,7 @@ export function AuditTab() {
             </tbody>
           </table>
         </div>
-      ) : (
-        <Empty />
-      )}
+      </ListState>
     </Card>
   );
 }

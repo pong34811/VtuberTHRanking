@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { DUMMY_PASSWORD_HASH, hashPassword, validatePassword, verifyPassword } from './password.js';
+import { readJsonObject, AUTH_BODY_LIMIT, bodyError } from './request-body.js';
 
 const auth = new Hono();
 const lifetime = 8 * 60 * 60;
@@ -18,12 +19,7 @@ function equal(a, b) {
 }
 export function validOrigin(c) { return c.req.header('Origin') === new URL(c.req.url).origin; }
 export async function jsonBody(c) {
-  if (!c.req.header('Content-Type')?.toLowerCase().startsWith('application/json')) throw new Error('กรุณาส่งข้อมูล JSON');
-  const text = await c.req.text();
-  if (text.length > 65536) throw new Error('ข้อมูลมีขนาดใหญ่เกินไป');
-  const body = JSON.parse(text);
-  if (!body || Array.isArray(body) || typeof body !== 'object') throw new Error('ข้อมูลไม่ถูกต้อง');
-  return body;
+  return readJsonObject(c, { maxBytes: AUTH_BODY_LIMIT });
 }
 async function setupRequired(c) { return !(await c.env.DB.prepare('SELECT id FROM bootstrap_lock WHERE id=1').first()); }
 async function consumeAttempt(c, key, limit) {
@@ -31,9 +27,11 @@ async function consumeAttempt(c, key, limit) {
   await c.env.DB.prepare('DELETE FROM auth_attempts WHERE window_start < ?').bind(time - 900).run();
   const result = await c.env.DB.prepare(`INSERT INTO auth_attempts(key,count,window_start) VALUES (?,1,?)
     ON CONFLICT(key) DO UPDATE SET count=CASE WHEN window_start < ? THEN 1 ELSE count+1 END,
-    window_start=CASE WHEN window_start < ? THEN excluded.window_start ELSE window_start END RETURNING count`)
+    window_start=CASE WHEN window_start < ? THEN excluded.window_start ELSE window_start END RETURNING count,window_start`)
     .bind(digest(key), time, time - 900, time - 900).first();
-  return result.count <= limit;
+  if (result.count <= limit) return true;
+  c.header('Retry-After', String(Math.max(1, (result.window_start ?? time) + 900 - time)));
+  return false;
 }
 async function authenticate(c) {
   const raw = getCookie(c, cookieName(c));
@@ -80,7 +78,7 @@ auth.post('/setup', async c => {
   if (!await consumeAttempt(c,`setup:${ip}`,10)) return c.json({message:'ลองใหม่ในอีก 15 นาที'},429);
   if (!await setupRequired(c)) return c.json({message:'ระบบมีผู้ดูแลแล้ว'},409);
   let body;
-  try { body=await jsonBody(c); } catch { return c.json({message:'ข้อมูลไม่ถูกต้อง'},400); }
+  try { body=await jsonBody(c); } catch (error) { return bodyError(c, error); }
   if (!equal(body.setupToken,c.env.ADMIN_SETUP_TOKEN)) return c.json({message:'รหัสตั้งค่าไม่ถูกต้อง'},403);
   const {username,password}=body;
   if (typeof username!=='string' || !usernamePattern.test(username)) return c.json({message:'ชื่อผู้ใช้ไม่ถูกต้อง'},400);
@@ -98,7 +96,7 @@ auth.post('/setup', async c => {
 });
 auth.post('/login', async c => {
   let body;
-  try {body=await jsonBody(c);} catch {return c.json({message:'ข้อมูลไม่ถูกต้อง'},400);}
+  try {body=await jsonBody(c);} catch (error) {return bodyError(c, error);}
   const username=typeof body.username==='string'?body.username.trim().toLowerCase():'';
   if (!usernamePattern.test(username) || typeof body.password!=='string' || body.password.length>128) return c.json({message:'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'},401);
   const ip=c.req.header('CF-Connecting-IP') || 'local';
@@ -116,7 +114,8 @@ auth.post('/logout',requireUser,async c=>{
 });
 auth.post('/password',requireUser,async c=>{
   let body;
-  try {body=await jsonBody(c);validatePassword(body.newPassword);} catch(err){return c.json({message:err.message},400);}
+  try {body=await jsonBody(c);} catch (error) {return bodyError(c, error);}
+  try {validatePassword(body.newPassword);} catch(err){return c.json({message:err.message},400);}
   const user=await c.env.DB.prepare('SELECT * FROM users WHERE id=?').bind(c.get('user').id).first();
   if (!await verifyPassword(body.currentPassword,user.password_hash)) return c.json({message:'รหัสผ่านเดิมไม่ถูกต้อง'},400);
   const hash=await hashPassword(body.newPassword);

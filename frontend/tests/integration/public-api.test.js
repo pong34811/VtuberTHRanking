@@ -2,10 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import publicApi from '../../server/public.js';
 import { selection } from '../../server/admin-domain.js';
 import { createD1Stub } from '../helpers/d1.js';
+import { withPublicConfig } from '../helpers/public-config.js';
 
 async function publicRequest(path, responses = [], init = {}) {
   const { calls, db } = createD1Stub(responses);
-  const response = await publicApi.fetch(new Request(`https://example.com${path}`, init), { DB: db });
+  const response = await publicApi.fetch(new Request(`https://example.com${path}`, init), { DB: withPublicConfig(db) });
   return { calls, response };
 }
 
@@ -206,7 +207,7 @@ describe('public vtuber search', () => {
     expect(calls[0].sql).toContain('latest.followers >= ?');
     expect(calls[0].sql).toContain('latest.followers <= ?');
     expect(calls[0].sql).toContain('LEFT JOIN stats_snapshots latest');
-    expect(calls[0].sql).toContain('ORDER BY s.recorded_at DESC, s.id DESC LIMIT 1');
+    expect(calls[0].sql).toContain('ORDER BY julianday(s.recorded_at) DESC, s.id DESC LIMIT 1');
     expect(calls[0].values).toEqual([100, 900]);
     expect(calls[1].values).toEqual([100, 900]);
     expect(calls[1].sql).toContain('CASE WHEN latest.followers IS NULL THEN 1 ELSE 0 END ASC');
@@ -257,9 +258,10 @@ describe('public vtuber detail', () => {
     ]);
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
+    await expect(response.json()).resolves.toMatchObject({
       id: 3, name: 'Aiko', slug: 'aiko', is_active: 1,
       current_rank: { monthly_followers: 2 }, latest_stats: stats,
+      ranking_month: currentMonth(),
     });
   });
 });
@@ -282,10 +284,11 @@ describe('public vtuber history', () => {
     const snapshots = [{ date: '2026-09-01', followers: 100, total_views: 1000, avg_views: 10 }];
     const { response } = await publicRequest('/vtubers/aiko/history/', [
       { id: 3, name: 'Aiko', slug: 'aiko' },
+      { total: 1 },
       { results: snapshots },
     ]);
 
-    await expect(response.json()).resolves.toEqual({ vtuber: { id: 3, name: 'Aiko', slug: 'aiko' }, history: snapshots });
+    await expect(response.json()).resolves.toMatchObject({ vtuber: { id: 3, name: 'Aiko', slug: 'aiko' }, history: snapshots, timezone: 'Asia/Bangkok', granularity: 'day', total: 1, count: 1, limit: 400, offset: 0, next: null, previous: null });
   });
 
   it('clamps months above 12 to a 12-month window', async () => {
@@ -353,8 +356,10 @@ describe('public compare', () => {
     const snapshots = [{ date: '2026-09-01', value: 100 }];
     const { response } = await publicRequest('/compare/', [
       { id: 1, name: 'Aiko', slug: 'aiko' },
+      { total: 1 },
       { results: snapshots },
       { id: 2, name: 'Biko', slug: 'biko' },
+      { total: 1 },
       { results: snapshots },
     ], {
       method: 'POST',
@@ -363,8 +368,9 @@ describe('public compare', () => {
     });
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
+    await expect(response.json()).resolves.toMatchObject({
       category: 'followers',
+      timezone: 'Asia/Bangkok', granularity: 'day', total: 2, count: 2, limit: 400, offset: 0,
       vtubers: [
         { id: 1, name: 'Aiko', slug: 'aiko', color: '#ef4444', history: snapshots },
         { id: 2, name: 'Biko', slug: 'biko', color: '#3b82f6', history: snapshots },
@@ -380,6 +386,8 @@ describe('public summary', () => {
       { total: null },
       null,
       null,
+      null,
+      { results: [] },
     ]);
 
     expect(response.status).toBe(200);
@@ -392,6 +400,8 @@ describe('public summary', () => {
       { total: 1000 },
       null,
       { recorded_at: '2026-09-01T00:00:00.000Z' },
+      { completed_at: '2026-09-01T00:05:00.000Z' },
+      { results: [{ month: '2026-09' }] },
     ]);
 
     expect(response.status).toBe(200);
@@ -400,15 +410,19 @@ describe('public summary', () => {
       total_vtubers: 3,
       total_followers_all: 1000,
       top_gainer: null,
-      latest_update: '2026-09-01T00:00:00.000Z',
+      latest_update: '2026-09-01T00:05:00.000Z',
+      last_collected_at: '2026-09-01T00:00:00.000Z',
+      last_published_at: '2026-09-01T00:05:00.000Z',
+      ranking_month: currentMonth(), available_months: ['2026-09'],
+      site_name: 'VTuberThai Ranking', site_status: 'active',
       period_choices: [{ value: 'monthly', label: 'รายเดือน' }, { value: 'alltime', label: 'ทั้งหมด' }],
       category_choices: [
-        { value: 'followers', label: 'ยอดผู้ติดตาม' },
-        { value: 'views', label: 'ยอดวิว' },
-        { value: 'videos', label: 'จำนวนคลิป' },
+        { value: 'followers', label: 'ผู้ติดตาม', sort_order: 1, status: 'active' },
+        { value: 'views', label: 'ยอดวิว', sort_order: 2, status: 'active' },
+        { value: 'videos', label: 'จำนวนคลิป', sort_order: 3, status: 'active' },
       ],
     });
-    expect(calls).toHaveLength(4);
+    expect(calls).toHaveLength(6);
     expect(calls.some(call => /\bsettings\b/i.test(call.sql))).toBe(false);
     expect(body).not.toHaveProperty('homepage_template');
   });
@@ -419,6 +433,8 @@ describe('public summary', () => {
       { total: 1000 },
       { id: 1, name: 'Aiko', slug: 'aiko', rank_change: 5 },
       { recorded_at: '2026-09-01T00:00:00.000Z' },
+      null,
+      { results: [] },
     ]);
 
     await expect(response.json()).resolves.toMatchObject({

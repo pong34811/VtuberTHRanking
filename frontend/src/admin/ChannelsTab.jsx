@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { adminApi } from "./api";
+import { useMemo, useState } from "react";
+import { useList } from "./tabs/useList";
 import { blank, platforms } from "./channels/options";
 import { ChannelForm } from "./channels/ChannelForm";
 import { YouTubeImport } from "./channels/YouTubeImport";
@@ -13,23 +13,13 @@ import { TD, TH, THead, TR, Table, TableWrap } from "./components/ui/table";
 import { Avatar, EmptyState, SkeletonRows } from "./components/ui/feedback";
 
 export default function ChannelsTab({ csrfToken }) {
-  const [rows, setRows] = useState([]),
-    [loading, setLoading] = useState(true),
-    [error, setError] = useState("");
+  const { rows, loading, error, load } = useList("/vtubers");
   const [editing, setEditing] = useState(null),
     [snapshots, setSnapshots] = useState(null),
     [ytOpen, setYtOpen] = useState(false);
   const [query, setQuery] = useState(""),
     [status, setStatus] = useState("all");
-  const load = () => {
-    setLoading(true);
-    setError("");
-    adminApi("/vtubers")
-      .then((d) => setRows(d.results || []))
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  };
-  useEffect(load, []);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter(
@@ -86,7 +76,7 @@ export default function ChannelsTab({ csrfToken }) {
       </div>
       <Card className="channel-table-card">
         <CardContent className="grid gap-4">
-          {error && <Alert>{error} <Button onClick={load}>ลองอีกครั้ง</Button></Alert>}
+
           <div className="channel-toolbar">
             <label className="channel-search">
               <span>ค้นหาช่อง</span>
@@ -126,7 +116,7 @@ export default function ChannelsTab({ csrfToken }) {
           </div>
           {loading ? (
             <SkeletonRows />
-          ) : filtered.length ? (
+          ) : error ? <Alert>{error} <Button onClick={load}>ลองอีกครั้ง</Button></Alert> : filtered.length ? (
             <TableWrap>
               <Table>
                 <THead>
@@ -228,6 +218,7 @@ export default function ChannelsTab({ csrfToken }) {
         >
           {editing && (
             <ChannelForm
+              key={editing.id || "new"}
               value={editing}
               csrfToken={csrfToken}
               onClose={() => setEditing(null)}
@@ -259,7 +250,7 @@ export default function ChannelsTab({ csrfToken }) {
           title={`สถิติ · ${snapshots?.name || ""}`}
           wide
         >
-          {snapshots && <Snapshots channel={snapshots} csrfToken={csrfToken} />}
+          {snapshots && <Snapshots key={snapshots.id} channel={snapshots} csrfToken={csrfToken} />}
         </Dialog>
       </Card>
     </div>

@@ -1,12 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { timingSafeEqual } from 'node:crypto';
-
-const { calculateRanking } = vi.hoisted(() => ({ calculateRanking: vi.fn() }));
-vi.mock('../../../server/ranking-service.js', () => ({ calculateRanking }));
+import { createSqliteD1 } from '../../helpers/sqlite-d1.js';
 
 import updater, { updateAll } from '../../../../worker/updater.js';
 
 const channelId = suffix => `UC${String(suffix).repeat(22).slice(0, 22)}`;
+const databases = [];
 
 function stubWorkerCrypto() {
   const nativeCrypto = globalThis.crypto;
@@ -25,47 +24,31 @@ function pipelineDb({
   latestRun = null,
   channels = [],
 } = {}) {
-  const calls = [];
+  const database = createSqliteD1();
+  databases.push(database);
+  const { db, sqlite, calls } = database;
   const batches = [];
-  const db = {
-    prepare(sql) {
-      const statement = {
-        sql,
-        values: [],
-        bind(...values) { this.values = values; return this; },
-        async first() {
-          calls.push({ sql, values: this.values, operation: 'first' });
-          if (sql.includes("setting_key='ranking_update_frequency'")) return { setting_value: frequency };
-          if (sql.includes('SELECT completed_at FROM ranking_pipeline_runs')) return lastSuccess;
-          if (sql.includes('SELECT status,started_at FROM ranking_pipeline_runs')) return latestRun;
-          return null;
-        },
-        async all() {
-          calls.push({ sql, values: this.values, operation: 'all' });
-          return sql.includes('FROM vtubers WHERE is_active=1') ? { results: channels } : { results: [] };
-        },
-        async run() {
-          calls.push({ sql, values: this.values, operation: 'run' });
-          return { success: true };
-        },
-      };
-      return statement;
-    },
-    async batch(statements) {
-      batches.push(statements);
-      return statements.map(() => ({ success: true }));
-    },
-  };
-  return { db, calls, batches };
+  const batch = db.batch.bind(db);
+  db.batch = statements => { batches.push(statements); return batch(statements); };
+  sqlite.prepare("UPDATE settings SET setting_value=? WHERE setting_key='ranking_update_frequency'").run(frequency);
+  for (const channel of channels) sqlite.prepare('INSERT INTO vtubers(id,name,slug,platform,channel_url,youtube_url) VALUES (?,?,?,?,?,?)')
+    .run(channel.id, `Channel ${channel.id}`, `channel-${channel.id}`, channel.platform ?? null, channel.channel_url || channel.youtube_url || '', channel.youtube_url || '');
+  if (lastSuccess) {
+    sqlite.prepare("INSERT INTO ranking_pipeline_runs(id,trigger_source,frequency,status,started_at,completed_at) VALUES ('previous','scheduled',?,'succeeded',?,?)")
+      .run(frequency, latestRun?.started_at || lastSuccess.completed_at, lastSuccess.completed_at);
+    if (!channels.length) {
+      sqlite.exec("INSERT INTO vtubers(id,name,slug,channel_url) VALUES (999,'Existing','existing','https://youtube.com/channel/UCaaaaaaaaaaaaaaaaaaaaaa'); INSERT INTO stats_snapshots(vtuber_id,followers) VALUES (999,1)");
+      sqlite.prepare("INSERT INTO rankings(vtuber_id,period,category,month,rank,score) VALUES (999,'monthly','followers',?,1,1)")
+        .run(new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 7) + '-01');
+    }
+  }
+  return { db, sqlite, calls, batches };
 }
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-});
-
-beforeEach(() => {
-  calculateRanking.mockReset().mockResolvedValue({ count: 2 });
+  databases.splice(0).forEach(database => database.close());
 });
 
 describe('updateAll', () => {
@@ -95,41 +78,37 @@ describe('updateAll', () => {
   it('records snapshots and publishes all six rankings after every channel succeeds', async () => {
     const firstId = channelId('a');
     const secondId = channelId('b');
-    const { db, calls, batches } = pipelineDb({
+    const { db, sqlite } = pipelineDb({
       frequency: 'hourly',
       channels: [
         { id: 1, youtube_url: `https://youtube.com/channel/${firstId}` },
         { id: 2, youtube_url: `https://youtube.com/channel/${secondId}` },
       ],
     });
-    const fetchMock = vi.fn().mockResolvedValue({
+    const fetchMock = vi.fn(async url => ({
       ok: true,
-      json: async () => ({ items: [{ statistics: { subscriberCount: '123', viewCount: '4567', videoCount: '89' } }] }),
-    });
+      json: async () => ({ items: new URL(url).searchParams.get('id').split(',').map(id => ({ id, statistics: { subscriberCount: '123', viewCount: '4567', videoCount: '89' } })) }),
+    }));
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await updateAll({ DB: db, YOUTUBE_API_KEY: 'test-key' }, false, { triggerSource: 'scheduled' });
 
     expect(result).toMatchObject({ ok: true, status: 'succeeded', updated: 2, rankingsPublished: 6, errors: [] });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0][0])).toContain(`id=${firstId}`);
     expect(String(fetchMock.mock.calls[0][0])).toContain('key=test-key');
-    expect(batches).toHaveLength(1);
-    expect(batches[0]).toHaveLength(2);
-    expect(batches[0][0].sql).toContain('INSERT INTO stats_snapshots');
-    expect(batches[0][0].values).toMatchObject([1, 123, 4567, 89, expect.any(String)]);
-    expect(calculateRanking.mock.calls.map(([, filter]) => `${filter.period}:${filter.category}`)).toEqual([
-      'monthly:followers', 'monthly:views', 'monthly:videos',
-      'alltime:followers', 'alltime:views', 'alltime:videos',
+    expect(sqlite.prepare('SELECT vtuber_id,followers,total_views,video_count,recorded_at FROM stats_snapshots ORDER BY vtuber_id').all()).toEqual([
+      { vtuber_id: 1, followers: 123, total_views: 4567, video_count: 89, recorded_at: expect.any(String) },
+      { vtuber_id: 2, followers: 123, total_views: 4567, video_count: 89, recorded_at: expect.any(String) },
     ]);
-    expect(calls.at(-1)).toMatchObject({
-      sql: expect.stringContaining('UPDATE ranking_pipeline_runs SET status=?'),
-      values: ['succeeded', expect.any(String), 2, 2, 6, '[]', '', expect.any(String)],
-    });
+    expect(sqlite.prepare('SELECT DISTINCT period,category FROM rankings ORDER BY period,category').all()).toEqual(
+      ['alltime', 'monthly'].flatMap(period => ['followers', 'videos', 'views'].map(category => ({ period, category }))));
+    expect(sqlite.prepare('SELECT status,channels_total,snapshots_written,rankings_published,errors_json,error_summary FROM ranking_pipeline_runs').get())
+      .toEqual({ status: 'succeeded', channels_total: 2, snapshots_written: 2, rankings_published: 6, errors_json: '[]', error_summary: '' });
   });
 
   it('does not save partial snapshots or publish rankings when a channel fetch fails', async () => {
-    const { db, batches, calls } = pipelineDb({
+    const { db, sqlite } = pipelineDb({
       frequency: 'hourly',
       channels: [{ id: 1, youtube_url: `https://youtube.com/channel/${channelId('c')}` }],
     });
@@ -139,14 +118,15 @@ describe('updateAll', () => {
 
     expect(result).toMatchObject({ ok: false, status: 'partial', updated: 0, rankingsPublished: 0 });
     expect(result.errors).toEqual([{ vtuber_id: 1, reason: 'YouTube API returned 503' }]);
-    expect(batches).toHaveLength(0);
-    expect(calculateRanking).not.toHaveBeenCalled();
-    expect(calls.at(-1).values).toMatchObject(['partial', expect.any(String), 1, 0, 0, expect.any(String), expect.any(String), expect.any(String)]);
+    expect(sqlite.prepare('SELECT COUNT(*) AS count FROM stats_snapshots').get().count).toBe(0);
+    expect(sqlite.prepare('SELECT COUNT(*) AS count FROM rankings').get().count).toBe(0);
+    expect(sqlite.prepare('SELECT status,channels_total,snapshots_written,rankings_published FROM ranking_pipeline_runs').get())
+      .toEqual({ status: 'partial', channels_total: 1, snapshots_written: 0, rankings_published: 0 });
   });
 
   it('syncs valid YouTube channels while reporting invalid YouTube IDs and ignoring other platforms', async () => {
     const id = channelId('d');
-    const { db, calls, batches } = pipelineDb({
+    const { db, sqlite } = pipelineDb({
       frequency: 'hourly',
       channels: [
         { id: 1, platform: 'youtube', youtube_url: `https://youtube.com/channel/${id}` },
@@ -157,7 +137,7 @@ describe('updateAll', () => {
     });
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ items: [{ statistics: { subscriberCount: '12', viewCount: '34', videoCount: '5' } }] }),
+      json: async () => ({ items: [{ id, statistics: { subscriberCount: '12', viewCount: '34', videoCount: '5' } }] }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -167,11 +147,9 @@ describe('updateAll', () => {
     expect(result.errors).toEqual([{ vtuber_id: 4, reason: 'no YouTube channel ID' }]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0][0])).toContain(`id=${id}`);
-    expect(batches).toHaveLength(1);
-    expect(batches[0]).toHaveLength(1);
-    expect(calls.at(-1)).toMatchObject({
-      values: ['succeeded', expect.any(String), 2, 1, 6, expect.stringContaining('no YouTube channel ID'), expect.stringContaining('ข้าม 1 ช่อง'), expect.any(String)],
-    });
+    expect(sqlite.prepare('SELECT vtuber_id FROM stats_snapshots').all()).toEqual([{ vtuber_id: 1 }]);
+    expect(sqlite.prepare('SELECT status,channels_total,snapshots_written,rankings_published,errors_json,error_summary FROM ranking_pipeline_runs').get())
+      .toMatchObject({ status: 'succeeded', channels_total: 2, snapshots_written: 1, rankings_published: 6, errors_json: expect.stringContaining('no YouTube channel ID'), error_summary: expect.stringContaining('ข้าม 1 ช่อง') });
   });
 
   it('skips a run with only non-YouTube channels without requiring a YouTube key', async () => {
@@ -193,7 +171,7 @@ describe('updateAll', () => {
   });
 
   it('records a configuration warning when no YouTube channel has a usable ID', async () => {
-    const { db, calls, batches } = pipelineDb({
+    const { db, sqlite } = pipelineDb({
       frequency: 'hourly',
       channels: [{ id: 1, platform: 'youtube', youtube_url: 'https://youtube.com/@missing-id' }],
     });
@@ -205,8 +183,9 @@ describe('updateAll', () => {
     expect(result).toMatchObject({ ok: false, status: 'partial', updated: 0, rankingsPublished: 0 });
     expect(result.errors).toEqual([{ vtuber_id: 1, reason: 'no YouTube channel ID' }]);
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(batches).toHaveLength(0);
-    expect(calls.at(-1).values).toMatchObject(['partial', expect.any(String), 1, 0, 0, expect.any(String), expect.stringContaining('ไม่มี YouTube channel ID'), expect.any(String)]);
+    expect(sqlite.prepare('SELECT COUNT(*) AS count FROM stats_snapshots').get().count).toBe(0);
+    expect(sqlite.prepare('SELECT status,channels_total,snapshots_written,rankings_published,error_summary FROM ranking_pipeline_runs').get())
+      .toMatchObject({ status: 'partial', channels_total: 1, snapshots_written: 0, rankings_published: 0, error_summary: expect.stringContaining('ไม่มี YouTube channel ID') });
   });
 
   it('accepts only authenticated POST requests for a manual run', async () => {
@@ -243,17 +222,15 @@ describe('updateAll', () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, skipped: 'no YouTube channels', freq: 'manual' });
-    expect(calls.some(call => call.sql.includes('FROM vtubers WHERE is_active=1'))).toBe(true);
+    expect(calls.some(call => call.sql.includes('FROM vtubers v'))).toBe(true);
   });
 
   it('records a failed run when the YouTube key is not configured', async () => {
-    const { db, calls } = pipelineDb({ frequency: 'hourly' });
+    const { db, sqlite } = pipelineDb({ frequency: 'hourly' });
 
     await expect(updateAll({ DB: db }, false, { triggerSource: 'scheduled' })).rejects.toThrow('ยังไม่ได้ตั้งค่า YouTube API Key');
-    expect(calculateRanking).not.toHaveBeenCalled();
-    expect(calls.at(-1)).toMatchObject({
-      sql: expect.stringContaining('UPDATE ranking_pipeline_runs SET status=?'),
-      values: ['failed', expect.any(String), 0, 0, 0, expect.any(String), 'ยังไม่ได้ตั้งค่า YouTube API Key', expect.any(String)],
-    });
+    expect(sqlite.prepare('SELECT COUNT(*) AS count FROM rankings').get().count).toBe(0);
+    expect(sqlite.prepare('SELECT status,channels_total,snapshots_written,rankings_published,error_summary FROM ranking_pipeline_runs').get())
+      .toEqual({ status: 'failed', channels_total: 0, snapshots_written: 0, rankings_published: 0, error_summary: 'ยังไม่ได้ตั้งค่า YouTube API Key' });
   });
 });

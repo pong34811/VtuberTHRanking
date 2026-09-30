@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import publicApi from '../../server/public.js';
 import { createD1Stub } from '../helpers/d1.js';
+import { withPublicConfig } from '../helpers/public-config.js';
 
 async function request(path, responses = []) {
   const { db, calls } = createD1Stub(responses);
-  const response = await publicApi.fetch(new Request('https://example.com' + path), { DB: db });
+  const response = await publicApi.fetch(new Request('https://example.com' + path), { DB: withPublicConfig(db) });
   return { response, calls };
 }
 

@@ -37,3 +37,28 @@ it('shows current profile ranks and distinguishes missing rankings', async () =>
   expect(screen.getByText('#7')).toBeInTheDocument();
   expect(screen.getAllByText('ยังไม่มีอันดับ')).toHaveLength(4);
 });
+
+it('offers discovery recovery instead of retrying a permanent missing profile', async () => {
+  vtubersAPI.getBySlug.mockRejectedValue({ response: { status: 404 } });
+  vtubersAPI.getHistory.mockRejectedValue({ response: { status: 404 } });
+  render(<MemoryRouter><ProfilePage /></MemoryRouter>);
+
+  expect(await screen.findByRole('heading', { name: 'ไม่พบช่องนี้', level: 1 })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'ค้นหาช่องในค้นพบ' })).toHaveAttribute('href', '/discover');
+  expect(screen.queryByRole('button', { name: 'ลองอีกครั้ง' })).not.toBeInTheDocument();
+});
+
+it('shows a safe YouTube creator action, latest snapshot time and video count', async () => {
+  vtubersAPI.getBySlug.mockResolvedValue({ data: {
+    name: 'Aiko', channel_url: 'https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv',
+    latest_stats: { followers: 123, total_views: 456, video_count: 7, recorded_at: '2026-09-01T00:00:00.000Z' },
+  } });
+  vtubersAPI.getHistory.mockResolvedValue({ data: { history: [] } });
+  const { container } = render(<MemoryRouter><ProfilePage /></MemoryRouter>);
+
+  const action = await screen.findByRole('link', { name: 'ดูช่องบน YouTube' });
+  expect(action).toHaveAttribute('href', 'https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv');
+  expect(action).toHaveAttribute('rel', 'noopener noreferrer');
+  expect(container.querySelector('time')).toHaveAttribute('dateTime', '2026-09-01T00:00:00.000Z');
+  expect(screen.getByRole('heading', { name: 'จำนวนคลิป' }).parentElement).toHaveTextContent('7');
+});

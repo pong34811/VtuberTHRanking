@@ -18,8 +18,8 @@ function containPreviewLink(event) {
   if (event.target instanceof Element && event.target.closest('a')) event.preventDefault();
 }
 
-function CategoryLink({ category, count }) {
-  return <Link className={`discovery-category discovery-category--${category}`} to={directorySearchHref({ category })}>
+function CategoryLink({ category, count, filters }) {
+  return <Link className={`discovery-category discovery-category--${category}`} to={directorySearchHref({ ...filters, category })}>
     <span>{categoryLabel(category)}</span><strong>{count.toLocaleString('th-TH')}</strong>
   </Link>;
 }
@@ -94,19 +94,21 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
         </div>
       </header>
 
+      <p className="discovery-date-note">ทำเนียบนี้รวบรวมช่องโดยทีมงาน ไม่ใช่รายชื่อ VTuber ไทยทั้งหมด · หมวดอื่นๆ รวมช่องที่ยังไม่ได้จำแนกแนวหลัก</p>
+
       {templateId === 'search-first' && <>
         <section className="discovery-category-section" aria-label="เลือกตามหมวดหมู่">
           <Link className="discovery-index-all" to="/discover?view=all"><span>รายชื่อทั้งหมด</span><ArrowUpRight aria-hidden="true" /></Link>
           <div className="discovery-filter-group">
             <h2>เลือกดูตามแนว</h2>
             <div className="discovery-category-list">
-              {counts.map(item => <CategoryLink key={item.category} {...item} />)}
+              {counts.map(item => <CategoryLink key={item.category} {...item} filters={filters} />)}
             </div>
           </div>
           <div className="discovery-filter-group discovery-filter-group--affiliation">
             <h2>วีทูปเบอร์ไทย</h2>
             <div className="discovery-shortcuts">
-              {affiliationCounts.map(({ affiliation, count }) => <Link key={affiliation} to={directorySearchHref({ affiliation })}>
+              {affiliationCounts.map(({ affiliation, count }) => <Link key={affiliation} to={directorySearchHref({ ...filters, affiliation })}>
                 <span>{affiliationLabel(affiliation)}</span>
                 <strong>{count.toLocaleString('th-TH')}</strong>
                 <ArrowUpRight aria-hidden="true" />
@@ -120,7 +122,7 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
         <div className="discovery-filter-group">
           <h2>เลือกดูตามแนว</h2>
           <div className="discovery-category-list">
-            {counts.map(item => <CategoryLink key={item.category} {...item} />)}
+            {counts.map(item => <CategoryLink key={item.category} {...item} filters={filters} />)}
           </div>
         </div>
       </section>}

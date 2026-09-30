@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { adminApi } from "./api";
 import { useList } from "./tabs/useList";
-import { useSubmit } from "./ui";
+import { ListState, useSubmit } from "./ui";
 import { Button } from "./components/ui/button";
 import { Card, CardActions, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Dialog } from "./components/ui/dialog";
@@ -34,8 +34,7 @@ export default function AgenciesTab({ csrfToken }) {
           </CardActions>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <Alert>{list.error}</Alert>
-          {list.loading ? <SkeletonRows /> : list.rows.length ? (
+          <ListState list={list} loading={<SkeletonRows />} empty={<EmptyState title="ยังไม่มีสังกัด" hint="เพิ่มสังกัดเองหรือดึงข้อมูลจากช่อง YouTube ทางการ" />}>
             <TableWrap className="overflow-x-auto">
               <Table>
                 <THead><TR><TH>สังกัด</TH><TH>คำอธิบาย</TH><TH>ช่องติดต่อ</TH><TH>จำนวนช่อง</TH><TH><span className="sr-only">จัดการ</span></TH></TR></THead>
@@ -55,7 +54,7 @@ export default function AgenciesTab({ csrfToken }) {
                 </tbody>
               </Table>
             </TableWrap>
-          ) : <EmptyState title="ยังไม่มีสังกัด" hint="เพิ่มสังกัดเองหรือดึงข้อมูลจากช่อง YouTube ทางการ" />}
+          </ListState>
         </CardContent>
       </Card>
       <Dialog open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? "แก้ไขสังกัด" : "เพิ่มสังกัด"}>

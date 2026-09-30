@@ -14,11 +14,9 @@ function renderAdmin() {
 
 it('offers initial setup from the session response and enters admin after creating the manager', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url) => {
-    const status = url.endsWith('/me') ? 401 : 200;
-    const data = url.endsWith('/me') ? { setupRequired: true }
-      : url.endsWith('/setup') ? { user: { id: '1', username: 'admin', display_name: 'Admin', role: 'manager', status: 'active' }, csrfToken: 'csrf' }
-        : { results: [] };
-    return { ok: status === 200, status, json: async () => data };
+    if (String(url).endsWith('/me')) return Response.json({ setupRequired: true }, { status: 401 });
+    if (String(url).endsWith('/setup')) return Response.json({ user: { id: '1', username: 'admin', display_name: 'Admin', role: 'manager', status: 'active' }, csrfToken: 'csrf' });
+    return Response.json({ results: [] });
   }));
   const user = userEvent.setup();
   renderAdmin();
@@ -33,10 +31,10 @@ it('offers initial setup from the session response and enters admin after creati
 });
 
 it('keeps existing short-password login available and displays failures', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (url) => ({
-    ok: false, status: 401,
-    json: async () => url.endsWith('/me') ? { setupRequired: false } : { message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' },
-  })));
+  vi.stubGlobal('fetch', vi.fn(async (url) => {
+    if (String(url).endsWith('/me')) return Response.json({ setupRequired: false }, { status: 401 });
+    return Response.json({ message: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' }, { status: 401 });
+  }));
   const user = userEvent.setup();
   renderAdmin();
   expect(await screen.findByRole('heading', { name: 'เข้าสู่ระบบผู้ดูแล' })).toBeInTheDocument();

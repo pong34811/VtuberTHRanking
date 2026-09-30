@@ -4,10 +4,18 @@ export default function Navbar() {
   const location = useLocation();
   const affiliation = new URLSearchParams(location.search).get("affiliation");
   const rankingPage = ["/", "/home", "/stats"].includes(location.pathname);
+  const groupHref = (group = "") => {
+    const params = new URLSearchParams(rankingPage ? location.search : "");
+    params.delete("offset");
+    params.delete("affiliation");
+    if (group) params.set("affiliation", group);
+    const path = rankingPage ? location.pathname : "/home";
+    return `${path}${params.size ? `?${params}` : ""}`;
+  };
   const items = [
-    ["/home", "อันดับทั้งหมด", rankingPage && !["indie", "agency"].includes(affiliation)],
-    ["/home?affiliation=indie", "วีทูปเบอร์อิสระ", rankingPage && affiliation === "indie"],
-    ["/home?affiliation=agency", "วีทูปเบอร์สังกัด", rankingPage && affiliation === "agency"],
+    [groupHref(), "อันดับทั้งหมด", rankingPage && !["indie", "agency"].includes(affiliation)],
+    [groupHref("indie"), "วีทูปเบอร์อิสระ", rankingPage && affiliation === "indie"],
+    [groupHref("agency"), "วีทูปเบอร์สังกัด", rankingPage && affiliation === "agency"],
     ["/discover", "ค้นพบ", location.pathname === "/discover"],
   ];
   return (

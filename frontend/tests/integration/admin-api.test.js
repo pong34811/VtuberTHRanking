@@ -268,7 +268,7 @@ describe('admin youtube import', () => {
     youtubeOk();
     const { calls, response } = await authedRequest('/youtube/import', {
       env: key,
-      responses: [null, null, { meta: { last_row_id: 9 } }, {}, {}],
+      responses: [null, null, { meta: { last_row_id: 9, changes: 1 } }, {}, {}, {}, { results: [{ id: 9, slug: 'aiko-channel' }] }],
       init: post({ input: '@aiko' }),
     });
 

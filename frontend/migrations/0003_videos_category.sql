@@ -1,4 +1,6 @@
-PRAGMA foreign_keys=OFF;
+-- D1 keeps foreign keys enabled; defer checks until the rebuilt tables exist.
+-- Already-applied databases must not replay this historical migration.
+PRAGMA defer_foreign_keys=ON;
 BEGIN TRANSACTION;
 CREATE TABLE categories_new (
   id TEXT PRIMARY KEY CHECK(id IN ('followers','views','videos')),
@@ -35,5 +37,7 @@ DROP TABLE rankings;
 ALTER TABLE rankings_new RENAME TO rankings;
 CREATE UNIQUE INDEX rankings_alltime_unique ON rankings(period,category,vtuber_id) WHERE month IS NULL;
 CREATE INDEX IF NOT EXISTS snapshots_latest ON stats_snapshots(vtuber_id,recorded_at DESC,id DESC);
+-- End deferral only after both replacement tables have their original names.
+-- D1's deferred drop counters otherwise survive the rebuild at transaction end.
+PRAGMA defer_foreign_keys=OFF;
 COMMIT;
-PRAGMA foreign_keys=ON;

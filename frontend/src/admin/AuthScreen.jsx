@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { authApi, messageOf } from "./api";
 import { Button, Field, Notice } from "./ui";
+import ThemeSelector from "../components/ThemeSelector";
 
 export default function AuthScreen({ onAuthenticated, setupRequired = false }) {
   const [login, setLogin] = useState({ username: "", password: "", setupToken: "" });
@@ -23,7 +24,7 @@ export default function AuthScreen({ onAuthenticated, setupRequired = false }) {
   return (
     <main className="admin-auth">
       <form className="admin-card" onSubmit={submit}>
-        <div className="admin-logo">VT</div>
+        <div className="admin-auth-tools"><div className="admin-logo">VT</div><ThemeSelector /></div>
         <h1>{setupRequired ? "ตั้งค่าผู้ดูแลคนแรก" : "เข้าสู่ระบบผู้ดูแล"}</h1>
         <p>{setupRequired ? "กรอกรหัสตั้งค่าและสร้างบัญชีสำหรับจัดการเว็บไซต์" : "จัดการข้อมูลอันดับ VTuber ไทย"}</p>
         <Notice>{error}</Notice>

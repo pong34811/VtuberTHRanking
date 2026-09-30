@@ -1,3 +1,4 @@
+import { Children, cloneElement, isValidElement, useId } from "react";
 import { cn } from "./cn";
 
 const controlClass =
@@ -13,16 +14,23 @@ export function Field({
   children,
   className,
 }) {
+  const id = useId();
+  const description = error || hint;
+  const controls = Children.map(children, child => isValidElement(child) ? cloneElement(child, {
+    "aria-labelledby": child.props["aria-labelledby"] || `${id}-label`,
+    "aria-describedby": [child.props["aria-describedby"], description && `${id}-description`].filter(Boolean).join(" ") || undefined,
+    "aria-invalid": error ? true : child.props["aria-invalid"],
+  }) : child);
   return (
     <label
       className={cn("grid gap-1.5 text-sm", wide && "sm:col-span-2", className)}
     >
-      <span className="font-medium">{label}</span>
-      {children}
+      <span id={`${id}-label`} className="font-medium">{label}</span>
+      {controls}
       {hint && !error && (
-        <span className="text-xs text-muted-foreground">{hint}</span>
+        <span id={`${id}-description`} className="text-xs text-muted-foreground">{hint}</span>
       )}
-      {error && <span className="text-xs text-red">{error}</span>}
+      {error && <span id={`${id}-description`} className="text-xs text-red">{error}</span>}
     </label>
   );
 }

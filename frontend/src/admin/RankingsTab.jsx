@@ -1,21 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { adminApi } from "./api";
+import { useList } from "./tabs/useList";
+import { useRankingCategories } from "./tabs/useRankingCategories";
 import {
   Button,
   Card,
   Empty,
   Field,
   Loading,
+  ListState,
   Notice,
   fmtNumber,
   useSubmit,
 } from "./ui";
 
-const metrics = [
-  { value: "followers", label: "ผู้ติดตาม" },
-  { value: "views", label: "ยอดดู" },
-  { value: "videos", label: "จำนวนคลิป" },
-];
 
 function rankChangeLabel(value) {
   if (value == null) return "ไม่มีอันดับก่อนหน้า";
@@ -30,44 +28,23 @@ export default function RankingsTab({ csrfToken, isManager }) {
   const [filters, setFilters] = useState({
     period: "monthly",
     month: `${bangkokNow.getUTCFullYear()}-${String(bangkokNow.getUTCMonth() + 1).padStart(2, "0")}`,
-    category: "followers",
+    category: "",
   });
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const requestId = useRef(0);
-
-  const load = async () => {
-    const id = ++requestId.current;
-    setLoading(true);
-    setError("");
-    setRows([]);
-    try {
-      const params = new URLSearchParams(filters);
-      const data = await adminApi(`/rankings?${params}`);
-      if (id === requestId.current) setRows(data.results || []);
-    } catch (loadError) {
-      if (id === requestId.current) setError(loadError.message);
-    } finally {
-      if (id === requestId.current) setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    return () => { requestId.current += 1; };
-  }, [filters.period, filters.month, filters.category]);
+  const configuration = useRankingCategories();
+  const metric = configuration.choices.find(item => item.id === filters.category) || configuration.choices[0];
+  const selection = { ...filters, category: metric?.id || "" };
+  const list = useList(metric ? `/rankings?${new URLSearchParams(selection)}` : null);
+  const rows = list.rows;
 
   const calc = useSubmit(
     async () => adminApi("/rankings/calculate", {
       method: "POST",
-      body: filters,
+      body: selection,
       csrfToken,
     }),
-    load,
+    list.load,
+    JSON.stringify(selection),
   );
-
-  const metric = metrics.find((item) => item.value === filters.category) || metrics[0];
 
   return (
     <Card title="อันดับ">
@@ -93,33 +70,36 @@ export default function RankingsTab({ csrfToken, isManager }) {
         <div className="ranking-metric-control" role="group" aria-label="ตัวชี้วัด">
           <span>ตัวชี้วัด</span>
           <div>
-            {metrics.map((item) => (
+            {configuration.choices.map((item) => (
               <button
-                key={item.value}
+                key={item.id}
                 type="button"
-                aria-pressed={filters.category === item.value}
-                onClick={() => setFilters({ ...filters, category: item.value })}
+                aria-pressed={selection.category === item.id}
+                onClick={() => setFilters({ ...filters, category: item.id })}
               >
-                {item.label}
+                {item.name}
               </button>
             ))}
           </div>
         </div>
         {isManager && (
-          <Button className="primary" busy={calc.busy} onClick={calc.submit}>
+          <Button className="primary" busy={calc.busy} disabled={!metric} onClick={calc.submit}>
             คำนวณอันดับใหม่
           </Button>
         )}
       </div>
-      <Notice>{error || calc.error}</Notice>
-      {loading ? <Loading /> : rows.length ? (
+      <Notice>{calc.error}</Notice>
+      {configuration.loading ? <Loading /> : configuration.error ? (
+        <Notice>{configuration.error} <Button onClick={configuration.load}>ลองอีกครั้ง</Button></Notice>
+      ) : !metric ? <Empty>ไม่มีตัวชี้วัดที่เปิดใช้งาน</Empty> : (
+      <ListState list={list} empty={<Empty>ยังไม่มีอันดับ{metric.name}ในช่วงเวลาที่เลือก</Empty>}>
         <div className="admin-table-wrap">
           <table>
             <thead>
               <tr>
                 <th>อันดับ</th>
                 <th>ช่อง</th>
-                <th>{metric.label}</th>
+                <th>{metric.name}</th>
                 <th>เปลี่ยนแปลง</th>
               </tr>
             </thead>
@@ -129,9 +109,9 @@ export default function RankingsTab({ csrfToken, isManager }) {
                   <td><strong>#{row.rank}</strong></td>
                   <td>{row.name || row.vtuber_name}</td>
                   <td>{fmtNumber(
-                    filters.category === "followers"
+                    selection.category === "followers"
                       ? (row.subscriber_count ?? row.followers)
-                      : filters.category === "videos"
+                      : selection.category === "videos"
                         ? (row.video_count ?? 0)
                         : row.total_views,
                   )}</td>
@@ -141,8 +121,7 @@ export default function RankingsTab({ csrfToken, isManager }) {
             </tbody>
           </table>
         </div>
-      ) : (
-        <Empty>ยังไม่มีอันดับ{metric.label}ในช่วงเวลาที่เลือก</Empty>
+      </ListState>
       )}
     </Card>
   );
