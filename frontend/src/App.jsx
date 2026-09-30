@@ -1,12 +1,16 @@
 import { lazy, Suspense } from 'react'
-import { Routes, Route, Link } from 'react-router-dom'
+import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
 const StatsPage = lazy(() => import('./pages/StatsPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
-const SearchPage = lazy(() => import('./pages/SearchPage'))
 const AdminPage = lazy(() => import('./admin/AdminPage'))
+
+function LegacySearchRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={`/discover${search}`} replace />
+}
 
 function App() {
   return (
@@ -19,7 +23,7 @@ function App() {
           <Route path="stats" element={<StatsPage defaultPeriod="monthly" />} />
           <Route path="discover" element={<HomePage />} />
           <Route path="profile/:slug" element={<ProfilePage />} />
-          <Route path="search" element={<SearchPage />} />
+          <Route path="search" element={<LegacySearchRedirect />} />
           <Route path="*" element={<div className="empty-state"><h1 className="text-3xl font-semibold">ไม่พบหน้านี้</h1><p>ลิงก์อาจไม่ถูกต้อง หรือหน้านี้ถูกย้ายแล้ว</p><Link className="secondary-button" to="/">กลับหน้าแรก</Link></div>} />
         </Route>
       </Routes>

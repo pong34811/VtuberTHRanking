@@ -45,6 +45,9 @@ api.get('/', async c => {
   const { results: categoryCounts } = await db.prepare(
     'SELECT category, COUNT(*) AS count FROM vtubers WHERE is_active = 1 GROUP BY category ORDER BY category',
   ).all();
+  const { results: affiliationCounts } = await db.prepare(
+    'SELECT affiliation, COUNT(*) AS count FROM vtubers WHERE is_active = 1 GROUP BY affiliation ORDER BY affiliation',
+  ).all();
 
   const fields = ['id', 'name', 'slug', 'avatar', 'category', 'affiliation', 'agency_name', 'created_at'];
   const directoryRows = rows.map(row => Object.fromEntries(fields.map(field => [field, row[field] ?? null])));
@@ -55,6 +58,7 @@ api.get('/', async c => {
     offset,
     results: directoryRows,
     category_counts: categoryCounts,
+    affiliation_counts: affiliationCounts,
   });
 });
 

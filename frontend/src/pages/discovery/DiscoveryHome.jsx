@@ -1,9 +1,9 @@
-import { useId, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useId, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowUpRight, Search } from 'lucide-react';
-import { DIRECTORY_CATEGORIES } from '../../../../shared/directory.js';
+import { DIRECTORY_AFFILIATIONS, DIRECTORY_CATEGORIES } from '../../../../shared/directory.js';
 import { affiliationLabel, categoryLabel } from '../../components/channelLabels';
-import { directorySearchHref } from '../searchParams';
+import { directorySearchHref, readDirectorySearch } from '../searchParams';
 import CreatorCard from './CreatorCard';
 import useDiscoveryData from './useDiscoveryData';
 import './discovery.css';
@@ -43,18 +43,31 @@ function LoadingGallery() {
 
 export default function DiscoveryHome({ templateId = 'search-first', previewMode = false }) {
   const searchId = useId();
-  const [query, setQuery] = useState('');
+  const { search } = useLocation();
+  const filters = readDirectorySearch(previewMode ? '' : search);
+  const params = new URLSearchParams(previewMode ? '' : search);
+  const requestedOffset = Number(params.get('offset'));
+  const offset = Number.isSafeInteger(requestedOffset) && requestedOffset > 0 ? requestedOffset : 0;
+  const viewAll = params.get('view') === 'all';
+  const hasFilters = Boolean(filters.q || filters.category || filters.affiliation);
+  const categoryGroups = templateId === 'category-first' && !hasFilters && !offset && !viewAll;
+  const [query, setQuery] = useState(filters.q);
+  useEffect(() => setQuery(filters.q), [filters.q]);
   const navigate = useNavigate();
-  const { data, loading, error, retry } = useDiscoveryData(templateId);
+  const { data, loading, error, retry } = useDiscoveryData(templateId, { ...filters, offset, viewAll });
   const template = templates[templateId] || templates['search-first'];
   const counts = DIRECTORY_CATEGORIES.map(category => ({
     category,
     count: data.category_counts.find(item => item.category === category)?.count || 0,
   })).filter(item => item.count > 0);
+  const affiliationCounts = DIRECTORY_AFFILIATIONS.map(affiliation => ({
+    affiliation,
+    count: data.affiliation_counts.find(item => item.affiliation === affiliation)?.count || 0,
+  }));
 
   const submitSearch = event => {
     event.preventDefault();
-    if (!previewMode) navigate(directorySearchHref({ q: query }));
+    if (!previewMode) navigate(directorySearchHref({ ...filters, q: query }));
   };
 
   return (
@@ -66,14 +79,14 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
           <p>{template.description}</p>
         </div>
         <div className="discovery-header-tools">
-          {templateId === 'search-first' && <form className="discovery-search" role="search" onSubmit={submitSearch}>
+          <form className="discovery-search" role="search" onSubmit={submitSearch}>
             <div className="discovery-search-row">
               <Search aria-hidden="true" />
               <label className="sr-only" htmlFor={searchId}>ค้นหาชื่อ VTuber</label>
               <input id={searchId} type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="ค้นหาชื่อ VTuber" />
               <button type="submit" aria-label="ค้นหา"><ArrowUpRight aria-hidden="true" /></button>
             </div>
-          </form>}
+          </form>
           <div className="discovery-header-meta">
             <Link className="discovery-stats-link" to="/stats">ดูสถิติ <ArrowUpRight aria-hidden="true" /></Link>
             <span className="discovery-count-stamp">{loading ? 'กำลังโหลดรายชื่อ' : <><strong>{data.total.toLocaleString('th-TH')}</strong> ช่องในทำเนียบ</>}</span>
@@ -83,7 +96,7 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
 
       {templateId === 'search-first' && <>
         <section className="discovery-category-section" aria-label="เลือกตามหมวดหมู่">
-          <Link className="discovery-index-all" to="/search"><span>รายชื่อทั้งหมด</span><ArrowUpRight aria-hidden="true" /></Link>
+          <Link className="discovery-index-all" to="/discover?view=all"><span>รายชื่อทั้งหมด</span><ArrowUpRight aria-hidden="true" /></Link>
           <div className="discovery-filter-group">
             <h2>เลือกดูตามแนว</h2>
             <div className="discovery-category-list">
@@ -91,10 +104,13 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
             </div>
           </div>
           <div className="discovery-filter-group discovery-filter-group--affiliation">
-            <h2>สังกัด</h2>
+            <h2>วีทูปเบอร์ไทย</h2>
             <div className="discovery-shortcuts">
-              <Link to={directorySearchHref({ affiliation: 'indie' })}>{affiliationLabel('indie')} <ArrowUpRight aria-hidden="true" /></Link>
-              <Link to={directorySearchHref({ affiliation: 'agency' })}>{affiliationLabel('agency')} <ArrowUpRight aria-hidden="true" /></Link>
+              {affiliationCounts.map(({ affiliation, count }) => <Link key={affiliation} to={directorySearchHref({ affiliation })}>
+                <span>{affiliationLabel(affiliation)}</span>
+                <strong>{count.toLocaleString('th-TH')}</strong>
+                <ArrowUpRight aria-hidden="true" />
+              </Link>)}
             </div>
           </div>
         </section>
@@ -111,15 +127,19 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
 
       {templateId === 'newest-first' && <>
         <div className="discovery-date-note">วันที่แสดงคือวันที่เพิ่มช่องเข้าทำเนียบ</div>
-        <Link className="discovery-search-all" to="/search">ค้นหารายชื่อทั้งหมด <ArrowUpRight aria-hidden="true" /></Link>
+        <Link className="discovery-search-all" to="/discover?view=all">ดูรายชื่อทั้งหมด <ArrowUpRight aria-hidden="true" /></Link>
       </>}
 
       <section className="discovery-content" aria-label="รายชื่อ VTuber" aria-busy={loading}>
+        {hasFilters && <div className="discovery-content-heading">
+          <p>{[filters.q && `ชื่อ: ${filters.q}`, filters.category && categoryLabel(filters.category), filters.affiliation && affiliationLabel(filters.affiliation)].filter(Boolean).join(' · ')}</p>
+          <Link to="/discover" onClick={() => { if (!previewMode) setQuery(''); }}>ล้างตัวกรอง</Link>
+        </div>}
         {loading ? <LoadingGallery /> : error ? (
           <div className="discovery-error" role="alert"><p>{error}</p><button type="button" onClick={retry}>ลองอีกครั้ง</button></div>
         ) : data.total === 0 ? (
-          <div className="discovery-empty"><h2>ยังไม่มีรายชื่อให้แสดง</h2><p>ลองค้นหาช่อง VTuber ที่คุณสนใจ</p><Link to="/search">ไปหน้าค้นหา</Link></div>
-        ) : templateId === 'category-first' ? (
+          <div className="discovery-empty"><h2>{hasFilters ? 'ไม่พบช่องที่ตรงกับตัวกรอง' : 'ยังไม่มีรายชื่อให้แสดง'}</h2><p>ลองค้นหาช่อง VTuber ที่คุณสนใจ</p><Link to="/discover?view=all">ดูรายชื่อทั้งหมด</Link></div>
+        ) : categoryGroups ? (
           <div className="discovery-groups">
             {data.groups.map(group => (
               <section className="discovery-group" key={group.category} aria-labelledby={`discovery-${group.category}`}>
@@ -129,17 +149,22 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
                 </div>
                 {group.error ? <div className="discovery-error" role="alert"><span>{group.error}</span><button type="button" onClick={retry}>ลองอีกครั้ง</button></div> : group.results.length
                   ? <CreatorGrid results={group.results.slice(0, 3)} />
-                  : <p className="discovery-group-empty">ยังไม่มีช่องในหมวดนี้ <Link to="/search">ค้นหาช่อง</Link></p>}
+                  : <p className="discovery-group-empty">ยังไม่มีช่องในหมวดนี้ <Link to="/discover?view=all">ดูรายชื่อทั้งหมด</Link></p>}
               </section>
             ))}
           </div>
         ) : (
           <>
             <div className="discovery-content-heading">
-              <h2>{templateId === 'newest-first' ? 'เพิ่มเข้าทำเนียบล่าสุด' : 'เริ่มสำรวจแกลเลอรี'}</h2>
-              <Link to="/search">ดูรายชื่อทั้งหมด <ArrowUpRight aria-hidden="true" /></Link>
+              <h2>{hasFilters ? 'ผลการค้นหา' : templateId === 'newest-first' ? 'เพิ่มเข้าทำเนียบล่าสุด' : 'เริ่มสำรวจแกลเลอรี'}</h2>
+              <Link to="/discover?view=all">ดูรายชื่อทั้งหมด <ArrowUpRight aria-hidden="true" /></Link>
             </div>
             <CreatorGrid results={data.results} showAddedDate={templateId === 'newest-first'} />
+            {(offset > 0 || offset + 12 < data.total) && <nav className="discovery-content-heading" aria-label="หน้ารายชื่อ VTuber">
+              {offset > 0 && <Link to={directorySearchHref({ ...filters, view: 'all', offset: Math.max(0, offset - 12) })}>ก่อนหน้า</Link>}
+              <span>หน้า {Math.floor(offset / 12) + 1} · {data.total.toLocaleString('th-TH')} ช่อง</span>
+              {offset + 12 < data.total && <Link to={directorySearchHref({ ...filters, view: 'all', offset: offset + 12 })}>ถัดไป</Link>}
+            </nav>}
           </>
         )}
       </section>

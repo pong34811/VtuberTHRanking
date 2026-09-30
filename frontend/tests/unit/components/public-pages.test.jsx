@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import SearchPage from '@/pages/SearchPage';
 import ProfilePage from '@/pages/ProfilePage';
 import { vtubersAPI } from '@/api/client';
 import { localDateTime } from '@/admin/channels/Snapshots';
@@ -11,19 +10,12 @@ vi.mock('@/api/client', () => ({
 }));
 afterEach(() => vi.clearAllMocks());
 
-it('can filter channels in the other category', async () => {
-  vtubersAPI.getList.mockResolvedValue({ data: { results: [] } });
-  render(<MemoryRouter><SearchPage /></MemoryRouter>);
-  fireEvent.change(screen.getByLabelText('ประเภทเนื้อหา'), { target: { value: 'other' } });
-  await screen.findByText('ไม่พบช่องที่ตรงกับตัวกรอง');
-  expect(vtubersAPI.getList).toHaveBeenLastCalledWith({ q: '', category: 'other', affiliation: '' });
-});
-
 it('uses the profile image and falls back if it fails', async () => {
   vtubersAPI.getBySlug.mockResolvedValue({ data: { name: 'Aiko', avatar: 'https://example.com/aiko.png' } });
   vtubersAPI.getHistory.mockResolvedValue({ data: { history: [] } });
   const { container } = render(<MemoryRouter><ProfilePage /></MemoryRouter>);
   await screen.findByRole('heading', { name: 'Aiko' });
+  expect(screen.getByRole('link', { name: /กลับไปสำรวจ VTuber/ })).toHaveAttribute('href', '/discover');
   const avatar = container.querySelector('img');
   expect(avatar).toHaveAttribute('src', 'https://example.com/aiko.png');
   fireEvent.error(avatar);

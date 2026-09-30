@@ -25,6 +25,10 @@ const page = {
   offset: 0,
   results: [aiko],
   category_counts: [{ category: 'gaming', count: 1 }],
+  affiliation_counts: [
+    { affiliation: 'indie', count: 27 },
+    { affiliation: 'agency', count: 6 },
+  ],
 };
 
 beforeEach(() => {
@@ -40,6 +44,14 @@ function CurrentLocation() {
 }
 
 describe('Discovery home renderer', () => {
+  it('shows all-directory counts for each affiliation under the VTuber heading', async () => {
+    render(<MemoryRouter><DiscoveryHome /></MemoryRouter>);
+
+    expect(await screen.findByRole('heading', { name: 'วีทูปเบอร์ไทย' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /อิสระ\s*27/ })).toHaveAttribute('href', '/discover?affiliation=indie');
+    expect(screen.getByRole('link', { name: /สังกัด\s*6/ })).toHaveAttribute('href', '/discover?affiliation=agency');
+  });
+
   it('orders newest mode by directory addition date', async () => {
     render(<MemoryRouter><DiscoveryHome templateId="newest-first" /></MemoryRouter>);
     expect(await screen.findByRole('link', { name: /Aiko/ })).toBeInTheDocument();
@@ -57,7 +69,7 @@ describe('Discovery home renderer', () => {
     render(<MemoryRouter><DiscoveryHome templateId="category-first" /></MemoryRouter>);
     expect(await screen.findByRole('link', { name: /Biko/ })).toBeInTheDocument();
     expect(directoryAPI.getList).toHaveBeenCalledWith({ category: 'singing', sort: 'name', limit: 3, offset: 0 });
-    expect(screen.getByRole('link', { name: /ร้องเพลง.*20/ })).toHaveAttribute('href', '/search?category=singing');
+    expect(screen.getByRole('link', { name: /ร้องเพลง.*20/ })).toHaveAttribute('href', '/discover?category=singing');
   });
 
   it('keeps category counts available when one category sample fails', async () => {
@@ -66,7 +78,7 @@ describe('Discovery home renderer', () => {
       : Promise.resolve({ data: { ...page, results: [], category_counts: [{ category: 'singing', count: 20 }] } }));
     render(<MemoryRouter><DiscoveryHome templateId="category-first" /></MemoryRouter>);
     expect(await screen.findByText('โหลดรายชื่อในหมวดหมู่นี้ไม่สำเร็จ')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /ร้องเพลง.*20/ })).toHaveAttribute('href', '/search?category=singing');
+    expect(screen.getByRole('link', { name: /ร้องเพลง.*20/ })).toHaveAttribute('href', '/discover?category=singing');
     expect(directoryAPI.getList).toHaveBeenCalledWith({ category: 'singing', sort: 'name', limit: 3, offset: 0 });
   });
 
@@ -106,11 +118,11 @@ describe('Discovery home renderer', () => {
     expect(screen.getByRole('link', { name: /Biko/ })).toBeInTheDocument();
   });
 
-  it('shows an empty state and search link for an empty directory', async () => {
+  it('shows an empty state and discovery link for an empty directory', async () => {
     directoryAPI.getList.mockResolvedValue({ data: { ...page, total: 0, count: 0, results: [], category_counts: [] } });
     render(<MemoryRouter><DiscoveryHome /></MemoryRouter>);
     expect(await screen.findByText('ยังไม่มีรายชื่อให้แสดง')).toBeInTheDocument();
-    expect(screen.getAllByRole('link').some(link => link.getAttribute('href') === '/search')).toBe(true);
+    expect(screen.getAllByRole('link').some(link => link.getAttribute('href') === '/discover?view=all')).toBe(true);
   });
 
   it('falls back to an initial when a creator image fails', () => {

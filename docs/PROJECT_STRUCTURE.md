@@ -25,7 +25,7 @@ Cloudflare D1      YouTube Data API
    +--- Updater Worker -+
 ```
 
-ส่วน public ใช้แสดงหน้า discovery สถิติ ค้นหา และโปรไฟล์ VTuber ส่วน admin ใช้จัดการช่อง สถิติ อันดับ รายงาน การตั้งค่า และผู้ใช้งาน โดยมี session cookie และ CSRF token ป้องกันคำขอที่เปลี่ยนข้อมูล
+ส่วน public ใช้แสดงหน้า discovery (รวมค้นหาและกรองรายชื่อ) สถิติ และโปรไฟล์ VTuber ส่วน admin ใช้จัดการช่อง สถิติ อันดับ รายงาน การตั้งค่า และผู้ใช้งาน โดยมี session cookie และ CSRF token ป้องกันคำขอที่เปลี่ยนข้อมูล
 
 ## 2 เทคโนโลยีหลัก
 
@@ -115,9 +115,8 @@ VtuberTHRanking/
 │   │   │   ├── StatsPage.jsx        # หน้าอันดับ สรุปสถิติ และ methodology
 │   │   │   ├── homepageTemplates.js # รายละเอียดตัวเลือก homepage ที่ publish ได้
 │   │   │   ├── searchParams.js      # URL helpers สำหรับ query/filter ของ directory
-│   │   │   └── discovery/           # renderer, metadata hook, creator cards และ CSS
-│   │   │   ├── ProfilePage.jsx      # หน้าโปรไฟล์และกราฟย้อนหลัง
-│   │   │   └── SearchPage.jsx       # หน้าค้นหาและกรอง VTuber
+│   │   │   ├── discovery/           # renderer, metadata hook, creator cards และ CSS
+│   │   │   └── ProfilePage.jsx      # หน้าโปรไฟล์และกราฟย้อนหลัง
 │   │   ├── App.jsx                  # route หลักของแอป
 │   │   ├── index.css                # global styles
 │   │   └── main.jsx                 # React entry point
@@ -167,7 +166,7 @@ src/api/client.js
 Cloudflare D1
 ```
 
-`App.jsx` กำหนดเส้นทาง `/`, `/stats`, `/search`, `/profile/:slug` และ `/admin/*`. เส้นทางเก่าที่ไม่รองรับ เช่น `/compare` จะแสดงหน้าไม่พบข้อมูล. หน้า Home โหลด layout จาก `/homepage-config/` และ metadata จาก `/directory/`; หน้า Stats ใช้ rankings/summary ส่วนหน้า Search ใช้ `/vtubers/` และยังรองรับ query-prefill. หน้า public เรียก API ผ่าน Axios client ส่วน Vite development server จะ proxy `/api` ไปยังระบบที่ตั้งค่าไว้
+`App.jsx` กำหนดเส้นทาง `/`, `/home`, `/stats`, `/discover`, `/profile/:slug` และ `/admin/*`. `/` และ `/home` แสดงอันดับทั้งหมด; `/stats` เริ่มที่อันดับรายเดือน. หน้า `/discover` โหลด layout จาก `/homepage-config/` และ metadata จาก `/directory/` พร้อมค้นหาชื่อ กรองหมวดหมู่/สังกัด ล้างตัวกรอง และแบ่งหน้ารายชื่อผ่าน query parameters. ไม่มีหน้า Search แยกอีกต่อไป; `/search` redirect ไป `/discover` โดยเก็บ query เดิมสำหรับ bookmark เก่า. เส้นทางเก่าที่ไม่รองรับ เช่น `/compare` จะแสดงหน้าไม่พบข้อมูล. หน้า public เรียก API ผ่าน Axios client ส่วน Vite development server จะ proxy `/api` ไปยังระบบที่ตั้งค่าไว้
 
 ### 4.2 Admin website
 
@@ -295,7 +294,7 @@ Cypress รับผิดชอบการทดสอบ user journey ผ่�
 | กลุ่ม | Journey หลัก |
 |---|---|
 | Public home | เปิดเว็บ โหลดอันดับ เปลี่ยนช่วงเวลาและหมวด |
-| Search | ค้นหา กรอง เปิดโปรไฟล์ และจัดการผลลัพธ์ว่าง |
+| Discovery | ค้นหา กรอง เปิดโปรไฟล์ แบ่งหน้ารายชื่อ จัดการผลลัพธ์ว่าง และรองรับ redirect จาก `/search` |
 | Profile | แสดงข้อมูลล่าสุด อันดับ และประวัติกราฟ |
 | Authentication | setup, login, session restore, logout และ unauthorized state |
 | Channels | สร้าง แก้ไข ดู snapshot และ import YouTube |

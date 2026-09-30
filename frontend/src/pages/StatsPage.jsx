@@ -151,7 +151,7 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
           <h2>ตารางอันดับ</h2>
           <p>เลือกช่วงเวลาและสถิติ เพื่อสำรวจอันดับที่คุณสนใจ</p>
         </div>
-        <Link className="home-text-link" to="/search">ค้นหาช่อง <ArrowUpRight aria-hidden="true" /></Link>
+        <Link className="home-text-link" to="/discover">ค้นหาช่อง <ArrowUpRight aria-hidden="true" /></Link>
       </div>
 
       <div className="ranking-toolbar">

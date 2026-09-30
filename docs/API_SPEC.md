@@ -57,11 +57,15 @@ This endpoint returns active creator profile metadata only. It is separate from 
   "category_counts": [
     { "category": "gaming", "count": 2 },
     { "category": "singing", "count": 1 }
+  ],
+  "affiliation_counts": [
+    { "affiliation": "agency", "count": 1 },
+    { "affiliation": "indie", "count": 2 }
   ]
 }
 ```
 
-`total` counts active profiles matching the requested filters; `count` is the number of rows on this page. `category_counts` counts every active profile regardless of the request filters or pagination. Rows expose only `id`, `name`, `slug`, `avatar`, `category`, `affiliation`, `agency_name`, and `created_at`; the endpoint does not return snapshot, follower, or ranking metrics. `agency_name` is the stored agency display name, synchronized by Admin channel and agency edits; it may be empty or null. Homepage cards display it for agency-affiliated creators when available. Name sort uses case-insensitive name order with ID as the tie breaker. Newest sort uses valid creation timestamps descending, followed by name and ID; missing and malformed timestamps are placed last. The date means when the profile was added to this directory.
+`total` counts active profiles matching the requested filters; `count` is the number of rows on this page. `category_counts` and `affiliation_counts` count every active profile regardless of the request filters or pagination. Rows expose only `id`, `name`, `slug`, `avatar`, `category`, `affiliation`, `agency_name`, and `created_at`; the endpoint does not return snapshot, follower, or ranking metrics. `agency_name` is the stored agency display name, synchronized by Admin channel and agency edits; it may be empty or null. Homepage cards display it for agency-affiliated creators when available. Name sort uses case-insensitive name order with ID as the tie breaker. Newest sort uses valid creation timestamps descending, followed by name and ID; missing and malformed timestamps are placed last. The date means when the profile was added to this directory.
 
 ### Public homepage configuration
 

@@ -2,8 +2,10 @@ Cypress.Commands.add('stubPublicApi', () => {
   cy.intercept({ method: 'GET', pathname: '/api/v1/homepage-config/' }, { template: 'search-first' }).as('getHomepageConfig');
   cy.fixture('directory.json').then(directory => {
     cy.intercept({ method: 'GET', pathname: '/api/v1/directory/' }, req => {
+      if (req.query.q || req.query.category || req.query.affiliation) req.alias = 'getFilteredDirectory';
       let results = directory.results.filter(creator => !req.query.category || creator.category === req.query.category);
       if (req.query.q) results = results.filter(creator => creator.name.toLowerCase().includes(String(req.query.q).toLowerCase()));
+      if (req.query.affiliation) results = results.filter(creator => creator.affiliation === req.query.affiliation);
       if (req.query.sort === 'created_at_desc') results = [...results].sort((a, b) => b.created_at.localeCompare(a.created_at));
       else results = [...results].sort((a, b) => a.name.localeCompare(b.name));
       const limit = Math.max(1, Math.min(100, Number.parseInt(req.query.limit, 10) || 12));
@@ -15,6 +17,7 @@ Cypress.Commands.add('stubPublicApi', () => {
         offset,
         results: results.slice(offset, offset + limit),
         category_counts: directory.category_counts,
+        affiliation_counts: directory.affiliation_counts || ['indie', 'agency'].map(affiliation => ({ affiliation, count: directory.results.filter(creator => creator.affiliation === affiliation).length })),
       });
   }).as('getDirectory');
   cy.fixture('rankings.json').then(rankings => {

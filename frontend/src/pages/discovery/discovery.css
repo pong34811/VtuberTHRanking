@@ -215,7 +215,8 @@
   background: var(--category-mark, var(--discovery-accent));
   content: "";
 }
-.discovery-home .discovery-category strong {
+.discovery-home .discovery-category strong,
+.discovery-home .discovery-shortcuts a strong {
   margin-left: auto;
   color: var(--discovery-muted);
   font-size: 0.78rem;
@@ -227,7 +228,7 @@
   background: var(--discovery-accent-soft);
 }
 .discovery-home .discovery-shortcuts a { gap: 6px; }
-.discovery-home .discovery-shortcuts svg { margin-left: auto; width: 14px; height: 14px; color: var(--discovery-accent); }
+.discovery-home .discovery-shortcuts svg { width: 14px; height: 14px; color: var(--discovery-accent); }
 .discovery-home .discovery-category--gaming { --category-mark: #7954d8; }
 .discovery-home .discovery-category--singing { --category-mark: #c45449; }
 .discovery-home .discovery-category--chatting { --category-mark: #28758a; }

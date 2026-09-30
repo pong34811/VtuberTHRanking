@@ -3,29 +3,33 @@ import { directoryAPI } from '../../api/client';
 import { DIRECTORY_CATEGORIES } from '../../../../shared/directory.js';
 
 function emptyData() {
-  return { total: 0, results: [], category_counts: [], groups: [] };
+  return { total: 0, results: [], category_counts: [], affiliation_counts: [], groups: [] };
 }
 
-export default function useDiscoveryData(templateId) {
-  const [snapshot, setSnapshot] = useState({ templateId: null, data: emptyData() });
+export default function useDiscoveryData(templateId, { q = '', category = '', affiliation = '', offset = 0, viewAll = false } = {}) {
+  const requestKey = JSON.stringify([templateId, q, category, affiliation, offset, viewAll]);
+  const [snapshot, setSnapshot] = useState({ requestKey: null, data: emptyData() });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let active = true;
-    setSnapshot({ templateId, data: emptyData() });
+    setSnapshot({ requestKey, data: emptyData() });
     setLoading(true);
     setError('');
 
     async function load() {
       try {
-        const categoryFirst = templateId === 'category-first';
+        const categoryFirst = templateId === 'category-first' && !q && !category && !affiliation && !offset && !viewAll;
         const newestFirst = templateId === 'newest-first';
         const response = await directoryAPI.getList({
+          ...(q && { q }),
+          ...(category && { category }),
+          ...(affiliation && { affiliation }),
           sort: newestFirst ? 'created_at_desc' : 'name',
           limit: categoryFirst ? 1 : 12,
-          offset: 0,
+          offset,
         });
         if (!active) return;
 
@@ -44,12 +48,13 @@ export default function useDiscoveryData(templateId) {
           error: result.status === 'rejected' ? 'โหลดรายชื่อในหมวดหมู่นี้ไม่สำเร็จ' : '',
         }));
         setSnapshot({
-          templateId,
+          requestKey,
           data: {
             ...emptyData(),
             total: base.total ?? 0,
             results: base.results || [],
             category_counts: base.category_counts || [],
+            affiliation_counts: base.affiliation_counts || [],
             groups,
           },
         });
@@ -62,9 +67,9 @@ export default function useDiscoveryData(templateId) {
 
     load();
     return () => { active = false; };
-  }, [templateId, retryCount]);
+  }, [templateId, q, category, affiliation, offset, viewAll, requestKey, retryCount]);
 
-  const currentTemplate = snapshot.templateId === templateId;
+  const currentTemplate = snapshot.requestKey === requestKey;
   return {
     data: currentTemplate ? snapshot.data : emptyData(),
     loading: loading || !currentTemplate,

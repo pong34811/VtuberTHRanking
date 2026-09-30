@@ -17,6 +17,9 @@ export function directorySearchHref(filters = {}) {
   const params = new URLSearchParams(
     Object.entries(clean).filter(([, value]) => value),
   );
-  const query = params.toString();
-  return `/search${query ? `?${query}` : ""}`;
+
+  if (filters.view === "all") params.set("view", "all");
+  if (Number.isSafeInteger(filters.offset) && filters.offset > 0) params.set("offset", String(filters.offset));
+  const discoveryQuery = params.toString();
+  return `/discover${discoveryQuery ? `?${discoveryQuery}` : ""}`;
 }

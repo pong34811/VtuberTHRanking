@@ -19,21 +19,43 @@ describe('Public discovery Home', () => {
     cy.get('@getRankings.all').should('have.length', 0);
   });
 
-  it('submits a name query to Search and preselects its matching results', () => {
+  it('filters creators by name inside discovery', () => {
     cy.get('.discovery-search input').type('Aiko');
     cy.get('.discovery-search button[type="submit"]').click();
-    cy.location('pathname').should('eq', '/search');
+    cy.location('pathname').should('eq', '/discover');
     cy.location('search').should('eq', '?q=Aiko');
-    cy.wait('@getVtubers').its('request.url').should('include', 'q=Aiko');
-    cy.get('#vtuber-search').should('have.value', 'Aiko');
+    cy.wait('@getFilteredDirectory').its('request.url').should('include', 'q=Aiko');
+    cy.get('.discovery-search input').should('have.value', 'Aiko');
+    cy.get('.discovery-card').should('have.length', 1).and('contain', 'Aiko');
   });
 
-  it('follows a category shortcut into Search with the category selected', () => {
+  it('filters creators by category inside discovery', () => {
     cy.contains('.discovery-category', 'ร้องเพลง').click();
-    cy.location('pathname').should('eq', '/search');
+    cy.location('pathname').should('eq', '/discover');
     cy.location('search').should('eq', '?category=singing');
-    cy.wait('@getVtubers').its('request.url').should('include', 'category=singing');
-    cy.get('#category-filter').should('have.value', 'singing');
+    cy.wait('@getFilteredDirectory').its('request.url').should('include', 'category=singing');
+    cy.get('.discovery-card').should('have.length', 1).and('contain', 'Biko');
+  });
+
+  it('redirects old search bookmarks and clears filters on discovery', () => {
+    cy.visit('/search?q=Aiko&category=gaming');
+    cy.wait('@getDirectory');
+    cy.location('pathname').should('eq', '/discover');
+    cy.location('search').should('eq', '?q=Aiko&category=gaming');
+    cy.get('.discovery-card').should('have.length', 1).and('contain', 'Aiko');
+    cy.get('nav[aria-label="เมนูหลัก"]').should('not.contain', 'ค้นหา');
+    cy.contains('a', 'ล้างตัวกรอง').click();
+    cy.wait('@getDirectory');
+    cy.location('search').should('eq', '');
+    cy.get('.discovery-search input').should('have.value', '');
+    cy.get('.discovery-card').should('have.length', 2);
+  });
+
+  it('filters creators by affiliation', () => {
+    cy.contains('.discovery-shortcuts a', 'อิสระ').click();
+    cy.wait('@getFilteredDirectory').its('request.url').should('include', 'affiliation=indie');
+    cy.location('pathname').should('eq', '/discover');
+    cy.get('.discovery-card').should('have.length', 1).and('contain', 'Aiko');
   });
 
   it('reaches the statistics experience from the discovery Home', () => {

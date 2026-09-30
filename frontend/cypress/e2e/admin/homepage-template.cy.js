@@ -113,7 +113,7 @@ describe('Admin discovery templates', () => {
     cy.focused().should('have.class', 'homepage-template-option').and('contain.text', 'เลือกหมวดหมู่');
     cy.press(Cypress.Keyboard.Keys.SPACE);
     cy.get('[data-testid="homepage-preview"] .homepage').should('have.attr', 'data-template', 'category-first');
-    cy.get('[data-testid="homepage-preview"] form[role="search"] input').should('not.exist');
+    cy.get('[data-testid="homepage-preview"] form[role="search"] input').should('be.visible');
 
     cy.get('.homepage-template-option').first().click();
     cy.get('[data-testid="homepage-preview"] form[role="search"] input').type('Aiko');

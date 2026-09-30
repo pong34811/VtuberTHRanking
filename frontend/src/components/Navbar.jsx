@@ -9,7 +9,6 @@ export default function Navbar() {
     ["/home?affiliation=indie", "วีทูปเบอร์อิสระ", rankingPage && affiliation === "indie"],
     ["/home?affiliation=agency", "วีทูปเบอร์สังกัด", rankingPage && affiliation === "agency"],
     ["/discover", "ค้นพบ", location.pathname === "/discover"],
-    ["/search", "ค้นหา", location.pathname === "/search"],
   ];
   return (
     <header className="site-header">

@@ -93,12 +93,12 @@ describe('homepage template rendering', () => {
     expect(rankingsAPI.getList).not.toHaveBeenCalled();
   });
 
-  it('submits a name search to the search route with the query encoded', async () => {
+  it('submits a name search to discovery with the query encoded', async () => {
     renderHome();
     await screen.findByRole('link', { name: /Aiko/ });
     fireEvent.change(screen.getByLabelText('ค้นหาชื่อ VTuber'), { target: { value: 'มิกุ' } });
     fireEvent.submit(screen.getByRole('search'));
-    expect(screen.getByTestId('current-path')).toHaveTextContent('/search?q=%E0%B8%A1%E0%B8%B4%E0%B8%81%E0%B8%B8');
+    expect(screen.getByTestId('current-path')).toHaveTextContent(`/discover?q=${encodeURIComponent('มิกุ')}`);
   });
 
   it('keeps preview form and creator links inside the current Admin route', async () => {
