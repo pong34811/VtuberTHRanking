@@ -1,6 +1,11 @@
 describe('Admin ranking controls', () => {
   beforeEach(() => {
     cy.loginAs('manager');
+    cy.intercept('GET', '**/api/v1/admin/categories', { body: { results: [
+      { id: 'followers', slug: 'followers', name: 'ผู้ติดตาม', status: 'active', sort_order: 1 },
+      { id: 'views', slug: 'views', name: 'ยอดดู', status: 'active', sort_order: 2 },
+      { id: 'videos', slug: 'videos', name: 'คลิป', status: 'active', sort_order: 3 },
+    ] } }).as('getRankingCategories');
     cy.intercept('GET', '**/api/v1/admin/rankings*', request => {
       const category = new URL(request.url).searchParams.get('category');
       request.reply({ body: { results: [{
@@ -11,7 +16,7 @@ describe('Admin ranking controls', () => {
     }).as('getAdminRankings');
     cy.intercept('POST', '**/api/v1/admin/rankings/calculate', { body: { ok: true, count: 1 } }).as('calculateRankings');
     cy.visit('/admin/rankings');
-    cy.wait(['@getMe', '@getAdminRankings']);
+    cy.wait(['@getMe', '@getRankingCategories', '@getAdminRankings']);
   });
 
   it('loads one metric at a time and calculates the selected metric', () => {
