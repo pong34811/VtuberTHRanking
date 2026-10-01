@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { vtubersAPI } from "../api/client";
 import Feedback from "../components/Feedback";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -7,8 +7,22 @@ import TrendChart from "../components/TrendChart";
 import { affiliationLabel, categoryLabel } from "../components/channelLabels";
 import RetryAvatar from "../components/RetryAvatar";
 
+function getInternalReturnLocation(state) {
+  const returnTo = state?.returnTo;
+  const { pathname, search } = returnTo || {};
+  const isInternalPath = typeof pathname === "string"
+    && pathname.startsWith("/")
+    && !pathname.startsWith("//")
+    && !pathname.includes("\\")
+    && !/[\u0000-\u001f]/.test(pathname);
+  const isValidSearch = typeof search === "string" && (!search || search.startsWith("?"));
+  return isInternalPath && isValidSearch ? { pathname, search } : "/discover";
+}
+
 export default function ProfilePage() {
   const { slug } = useParams();
+  const location = useLocation();
+  const returnLocation = getInternalReturnLocation(location.state);
   const [vtuber, setVtuber] = useState(null);
   const [history, setHistory] = useState([]);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -79,7 +93,7 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/discover" className="inline-flex min-h-11 items-center text-sm text-[var(--primary)]">← กลับไปสำรวจ VTuber</Link>
+      <Link to={returnLocation} className="inline-flex min-h-11 items-center text-sm text-[var(--primary)]">← กลับไปสำรวจ VTuber</Link>
       <div className="flex items-start gap-4 p-6 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]">
         <RetryAvatar src={vtuber.avatar} alt="" className="w-16 h-16 shrink-0 rounded-full object-cover" fallback={<div className="w-16 h-16 shrink-0 rounded-full bg-[var(--primary)]/20 flex items-center justify-center text-2xl font-bold text-[var(--primary)]" aria-hidden="true">{vtuber.name.charAt(0)}</div>} />
         <div className="flex-1 min-w-0 break-words">

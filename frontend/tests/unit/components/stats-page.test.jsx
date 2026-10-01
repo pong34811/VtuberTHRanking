@@ -115,6 +115,55 @@ describe('Stats page', () => {
     expect(screen.getByText('แสดง 101 จาก 101 ช่อง')).toBeInTheDocument();
   });
 
+  it('shows the latest snapshot time explicitly in Bangkok time', async () => {
+    renderStats('/home');
+
+    expect(await screen.findByText(/เวลาไทย/)).toBeInTheDocument();
+    expect(screen.getByText(/07:00/)).toBeInTheDocument();
+  });
+
+  it('explains that monthly rankings are cumulative snapshots, not monthly gains', async () => {
+    renderStats('/home?period=monthly&month=2026-08');
+
+    expect(await screen.findByText(/ยอดสะสมของ snapshot ณ เดือนที่เลือก ไม่ใช่ยอดที่เพิ่มขึ้นในเดือนนั้น/)).toBeInTheDocument();
+  });
+
+  it('filters fetched rankings by a shareable name query and clears it without losing other filters', async () => {
+    const row = (id, name) => ({ rank: id, score: 100 - id, rank_change: 0, vtuber: {
+      id, slug: name.toLowerCase().replaceAll(' ', '-'), name, category: 'gaming', affiliation: 'indie',
+    } });
+    rankingsAPI.getList.mockResolvedValue({ data: { results: [row(1, 'Alpha Channel'), row(2, 'Beta Channel')], total: 2 } });
+    renderStats('/home?period=monthly&category=views&month=2026-08&affiliation=indie');
+
+    const search = await screen.findByRole('searchbox', { name: 'ค้นหาชื่อช่อง' });
+    await screen.findByRole('link', { name: /Alpha Channel/ });
+    fireEvent.change(search, { target: { value: 'alpha' } });
+
+    await waitFor(() => expect(screen.getByTestId('ranking-url')).toHaveTextContent(/q=alpha/));
+    expect(screen.getByTestId('ranking-url')).toHaveTextContent(/period=monthly/);
+    expect(screen.getByTestId('ranking-url')).toHaveTextContent(/category=views/);
+    expect(screen.getByTestId('ranking-url')).toHaveTextContent(/month=2026-08/);
+    expect(screen.getByTestId('ranking-url')).toHaveTextContent(/affiliation=indie/);
+    expect(screen.getByRole('link', { name: /Alpha Channel/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Beta Channel/ })).not.toBeInTheDocument();
+    expect(screen.getByText('แสดง 1 จาก 2 ช่อง')).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: 'missing' } });
+    expect(await screen.findByText('ไม่พบช่องที่ตรงกับการค้นหา')).toBeInTheDocument();
+    expect(screen.getByText('แสดง 0 จาก 2 ช่อง')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ล้างการค้นหา' }));
+    expect(search).toHaveValue('');
+    await waitFor(() => expect(screen.getByTestId('ranking-url')).not.toHaveTextContent(/q=/));
+    expect(screen.getByTestId('ranking-url')).toHaveTextContent(/period=monthly/);
+    expect(screen.getByTestId('ranking-url')).toHaveTextContent(/category=views/);
+    expect(screen.getByTestId('ranking-url')).toHaveTextContent(/month=2026-08/);
+    expect(screen.getByTestId('ranking-url')).toHaveTextContent(/affiliation=indie/);
+    expect(screen.getByRole('link', { name: /Beta Channel/ })).toBeInTheDocument();
+    expect(screen.getByText('แสดง 2 จาก 2 ช่อง')).toBeInTheDocument();
+    expect(rankingsAPI.getList).toHaveBeenCalledTimes(1);
+  });
+
   it('clears the previous group count when a new group fails to load', async () => {
     rankingsAPI.getList
       .mockResolvedValueOnce({ data: { results: [], total: 12 } })

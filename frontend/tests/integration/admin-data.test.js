@@ -40,10 +40,10 @@ describe('mounted admin input errors', () => {
 
 const youtubeId = `UC${'x'.repeat(22)}`;
 const youtubeUrl = `https://www.youtube.com/channel/${youtubeId}`;
-function youtubeFixture() {
+function youtubeFixture(statistics = { subscriberCount: '100', viewCount: '1000', videoCount: '10' }) {
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({ items: [{ id: youtubeId,
     snippet: { title: 'Imported Channel', description: 'Fixture', thumbnails: {} },
-    statistics: { subscriberCount: '100', viewCount: '1000', videoCount: '10' },
+    statistics,
   }] }), { status: 200 })));
 }
 
@@ -110,6 +110,56 @@ describe('atomic admin writes with dependent IDs', () => {
 });
 
 describe('mounted import resource and protocol boundaries', () => {
+  it.each(['subscriberCount', 'viewCount', 'videoCount'])('returns 502 for a malformed JSON counter in %s without persistence', async field => {
+    const store = database(); seedUser(store);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    youtubeFixture({ subscriberCount: '100', viewCount: '1000', videoCount: '10', [field]: { toString: 'bad' } });
+    const result = await mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
+    expect(result.status).toBe(502);
+    expect(result.body.message).toBe('YouTube returned invalid statistics');
+    for (const table of ['vtubers', 'stats_snapshots', 'audit_logs']) {
+      expect(store.sql.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n).toBe(0);
+    }
+  });
+
+  it.each([0, '0'])('persists genuine zero counters from YouTube (%j)', async zero => {
+    const store = database(); seedUser(store);
+    youtubeFixture({ hiddenSubscriberCount: false, subscriberCount: zero, viewCount: zero, videoCount: zero });
+    const result = await mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
+    expect(result.status).toBe(201);
+    expect(result.body).toMatchObject({ followers: 0, total_views: 0, video_count: 0 });
+    expect(store.sql.prepare('SELECT followers,total_views,video_count FROM stats_snapshots').get()).toEqual({ followers: 0, total_views: 0, video_count: 0 });
+  });
+
+  it.each(['subscriberCount', 'viewCount', 'videoCount'].flatMap(field => [undefined, null].map(value => [field, value])))('rejects incomplete %s=%s without replacing an existing channel or writing a zero snapshot', async (field, value) => {
+    const store = database(); seedUser(store); seedChannel(store);
+    store.sql.prepare('UPDATE vtubers SET channel_url=?,youtube_url=? WHERE id=1').run(youtubeUrl, youtubeUrl);
+    const before = store.sql.prepare('SELECT * FROM vtubers').all();
+    youtubeFixture({ subscriberCount: '100', viewCount: '1000', videoCount: '10', [field]: value });
+    const result = await mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
+    expect(result.status).toBe(502);
+    expect(result.body.message).toBe('YouTube returned incomplete statistics');
+    expect(store.sql.prepare('SELECT * FROM vtubers').all()).toEqual(before);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM stats_snapshots').get().n).toBe(0);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM audit_logs').get().n).toBe(0);
+  });
+
+  it.each([false, true])('rejects hidden subscriber counts without changing channel or snapshot data (existing: %s)', async existing => {
+    const store = database(); seedUser(store);
+    if (existing) {
+      seedChannel(store);
+      store.sql.prepare('UPDATE vtubers SET channel_url=?,youtube_url=? WHERE id=1').run(youtubeUrl, youtubeUrl);
+    }
+    const before = store.sql.prepare('SELECT * FROM vtubers').all();
+    youtubeFixture({ hiddenSubscriberCount: true, subscriberCount: '100', viewCount: '1000', videoCount: '10' });
+    const result = await mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
+    expect(result.status).toBe(502);
+    expect(result.body.message).toBe('YouTube subscriber count is hidden');
+    expect(store.sql.prepare('SELECT * FROM vtubers').all()).toEqual(before);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM stats_snapshots').get().n).toBe(0);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM audit_logs').get().n).toBe(0);
+  });
+
   it.each(['/admin/youtube/import', '/admin/agencies/youtube/import'])('caps %s at 8192 UTF-8 bytes before outbound fetch', async path => {
     const store = database(); seedUser(store); youtubeFixture();
     const result = await mountedRequest(store, path, { method: 'POST', authenticated: true, payload: { input: 'ก'.repeat(3000) }, env: { YOUTUBE_API_KEY: 'fixture-only' } });

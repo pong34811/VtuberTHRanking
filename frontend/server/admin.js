@@ -7,6 +7,7 @@ import { HOMEPAGE_TEMPLATE_IDS, normalizeHomepageTemplate } from '../../shared/h
 import { strictIsoTimestamp } from './request-validation.js';
 import { IMPORT_BODY_LIMIT, logSafeError } from './request-body.js';
 import { readSiteConfig } from './site-config.js';
+import { readYouTubeStatistics } from '../../shared/youtube-statistics.js';
 
 const app = new Hono();
 const userFields = 'id,username,display_name,email,role,status,created_at,updated_at,last_login_at';
@@ -243,8 +244,9 @@ app.post('/agencies/youtube/import', async c => {
 app.post('/youtube/import', async c => {
   const { input } = await body(c, ['input'], IMPORT_BODY_LIMIT);
   const item = await youtubeChannel(c, input);
-  const stats = item.statistics || {};
-  const followers = Number(stats.subscriberCount || 0), views = Number(stats.viewCount || 0), videos = Number(stats.videoCount || 0);
+  const stats = readYouTubeStatistics(item.statistics);
+  if (!stats.ok) fail(stats.reason, 502);
+  const { followers, total_views: views, video_count: videos } = stats;
   const thumbs = item.snippet?.thumbnails || {};
   const name = item.snippet?.title || 'Unknown';
   const avatar = thumbs.medium?.url || thumbs.default?.url || '';

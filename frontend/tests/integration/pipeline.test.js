@@ -23,6 +23,26 @@ function setup({ frequency = 'hourly', count = 2, time = '2026-09-01T10:00:00.00
 const run = database => updateAll(database.env, false, { triggerSource: 'scheduled', scheduledTime: Date.now() });
 
 describe('transactional updater pipeline', () => {
+  it.each(['subscriberCount', 'viewCount', 'videoCount'])('reports a malformed JSON counter in %s as invalid statistics rather than a network failure', async field => {
+    const database = setup({ count: 1 });
+    database.network.mockImplementation(async url => ({ ok: true, json: async () => ({ items: [{
+      id: new URL(url).searchParams.get('id'), statistics: { subscriberCount: '10', viewCount: '200', videoCount: '3', [field]: { toString: 'bad' } },
+    }] }) }));
+    await expect(run(database)).resolves.toMatchObject({ ok: false, status: 'partial', updated: 0, rankingsPublished: 0,
+      errors: [{ vtuber_id: 1, reason: 'YouTube returned invalid statistics' }] });
+    expect(database.sqlite.prepare('SELECT COUNT(*) AS count FROM stats_snapshots').get().count).toBe(0);
+  });
+
+  it.each([0, '0'])('publishes genuine zero counters from YouTube (%j)', async zero => {
+    const database = setup({ count: 1 });
+    database.network.mockImplementation(async url => ({ ok: true, json: async () => ({ items: [{
+      id: new URL(url).searchParams.get('id'), statistics: { hiddenSubscriberCount: false, subscriberCount: zero, viewCount: zero, videoCount: zero },
+    }] }) }));
+    await expect(run(database)).resolves.toMatchObject({ ok: true, status: 'succeeded', updated: 1, rankingsPublished: 6 });
+    expect(database.sqlite.prepare('SELECT followers,total_views,video_count FROM stats_snapshots').get()).toEqual({ followers: 0, total_views: 0, video_count: 0 });
+    expect(database.sqlite.prepare('SELECT DISTINCT score FROM rankings').all()).toEqual([{ score: 0 }]);
+  });
+
   it('honors the next scheduled hourly slot even when previous completion was two seconds late', async () => {
     const database = setup();
     database.sqlite.exec("INSERT INTO ranking_pipeline_runs(id,trigger_source,frequency,status,started_at,completed_at) VALUES ('previous','scheduled','hourly','succeeded','2026-09-01T09:00:00.000Z','2026-09-01T09:00:02.000Z')");
@@ -145,5 +165,39 @@ describe('transactional updater pipeline', () => {
     database.network.mockImplementation(async url => ({ ok: true, json: async () => ({ items: [{ id: new URL(url).searchParams.get('id'), statistics: { subscriberCount: true, viewCount: '1', videoCount: '1' } }] }) }));
     await expect(run(database)).resolves.toMatchObject({ ok: false, status: 'partial', updated: 0, errors: [{ vtuber_id: 1, reason: 'YouTube returned invalid statistics' }] });
     expect(database.sqlite.prepare('SELECT COUNT(*) AS count FROM stats_snapshots').get().count).toBe(0);
+  });
+
+  it('keeps the previous publication when subscriber counts are hidden and recovers on a valid retry', async () => {
+    const database = setup({ count: 1 });
+    await run(database);
+    const before = database.sqlite.prepare('SELECT * FROM rankings ORDER BY id').all();
+    vi.setSystemTime(new Date('2026-09-01T11:00:00.000Z'));
+    const validResponse = database.network.getMockImplementation();
+    database.network.mockImplementation(async url => ({ ok: true, json: async () => ({ items: [{
+      id: new URL(url).searchParams.get('id'),
+      statistics: { hiddenSubscriberCount: true, subscriberCount: '100', viewCount: '200', videoCount: '3' },
+    }] }) }));
+    const result = await run(database);
+    expect(result).toMatchObject({ ok: false, status: 'partial', updated: 0, rankingsPublished: 0,
+      errors: [{ vtuber_id: 1, reason: 'YouTube subscriber count is hidden' }] });
+    expect(database.sqlite.prepare('SELECT * FROM rankings ORDER BY id').all()).toEqual(before);
+    expect(database.sqlite.prepare('SELECT COUNT(*) AS count FROM stats_snapshots').get().count).toBe(1);
+    expect(database.sqlite.prepare('SELECT COUNT(*) AS count FROM ranking_pipeline_snapshots WHERE run_id=?').get(result.runId).count).toBe(0);
+    expect(database.sqlite.prepare('SELECT status FROM ranking_pipeline_runs WHERE id=?').get(result.runId).status).toBe('partial');
+    database.network.mockImplementation(validResponse);
+    await expect(run(database)).resolves.toMatchObject({ ok: true, status: 'succeeded', updated: 1, rankingsPublished: 6 });
+    expect(database.sqlite.prepare('SELECT COUNT(*) AS count FROM stats_snapshots').get().count).toBe(2);
+  });
+
+  it.each(['subscriberCount', 'viewCount', 'videoCount'].flatMap(field => [undefined, null].map(value => [field, value])))('does not stage or publish any channels when one has incomplete %s=%s', async (field, value) => {
+    const database = setup();
+    database.network.mockImplementation(async url => ({ ok: true, json: async () => ({ items: new URL(url).searchParams.get('id').split(',').map((id, index) => ({
+      id, statistics: { subscriberCount: '10', viewCount: '200', videoCount: '3', ...(index === 0 && { [field]: value }) },
+    })) }) }));
+    await expect(run(database)).resolves.toMatchObject({ ok: false, status: 'partial', updated: 0, rankingsPublished: 0,
+      errors: [{ vtuber_id: 1, reason: 'YouTube returned incomplete statistics' }] });
+    for (const table of ['stats_snapshots', 'ranking_pipeline_snapshots', 'rankings', 'ranking_publications']) {
+      expect(database.sqlite.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count).toBe(0);
+    }
   });
 });

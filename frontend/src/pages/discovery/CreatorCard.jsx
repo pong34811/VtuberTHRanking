@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
 import { affiliationLabel, categoryLabel } from '../../components/channelLabels';
 import RetryAvatar from '../../components/RetryAvatar';
@@ -26,6 +26,7 @@ export function directoryAddedDate(raw) {
 }
 
 export function CreatorCard({ creator, showAddedDate = false }) {
+  const location = useLocation();
   const added = showAddedDate ? directoryAddedDate(creator.created_at) : null;
   const agencyName = typeof creator.agency_name === 'string' ? creator.agency_name.trim() : '';
   const affiliation = creator.affiliation === 'agency' && agencyName
@@ -33,7 +34,7 @@ export function CreatorCard({ creator, showAddedDate = false }) {
     : affiliationLabel(creator.affiliation);
 
   return (
-    <Link className="discovery-card" to={`/profile/${encodeURIComponent(creator.slug)}`} aria-label={`${creator.name} · ${categoryLabel(creator.category)} · ${affiliation}`}>
+    <Link className="discovery-card" to={`/profile/${encodeURIComponent(creator.slug)}`} state={{ returnTo: { pathname: location.pathname, search: location.search } }} aria-label={`${creator.name} · ${categoryLabel(creator.category)} · ${affiliation}`}>
       <div className="discovery-card-media">
         <RetryAvatar src={creator.avatar} alt="" loading="lazy" fallback={<span className="discovery-avatar-fallback" aria-hidden="true">{(creator.name || '?').slice(0, 1)}</span>} />
         <span className="discovery-card-open" aria-hidden="true"><ArrowUpRight /></span>

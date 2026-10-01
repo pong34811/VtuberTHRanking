@@ -23,6 +23,9 @@ const categories = [
 export default function StatsPage({ defaultPeriod = "alltime" }) {
   const [params, setParams] = useSearchParams();
   const requestedAffiliation = params.get("affiliation");
+  const searchQuery = params.get("q") || "";
+  const [searchInput, setSearchInput] = useState(searchQuery);
+  useEffect(() => setSearchInput(searchQuery), [searchQuery]);
   const affiliation = ["indie", "agency"].includes(requestedAffiliation) ? requestedAffiliation : "";
   const groupLabel = affiliation === "indie" ? "วีทูปเบอร์อิสระ" : affiliation === "agency" ? "วีทูปเบอร์สังกัด" : "วีทูปเบอร์ไทยทั้งหมด";
   const [rankings, setRankings] = useState([]);
@@ -43,6 +46,15 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
     next.set(key, value);
     next.delete("offset");
     setParams(next);
+  };
+
+  const updateSearchQuery = (value) => {
+    setSearchInput(value);
+    const next = new URLSearchParams(params);
+    if (value) next.set("q", value);
+    else next.delete("q");
+    next.delete("offset");
+    setParams(next, { replace: true });
   };
 
   useEffect(() => {
@@ -107,13 +119,17 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
 
   const metricChoices = summary?.category_choices || categories;
   const metric = metricChoices.find((item) => item.value === category)?.label || "อันดับ";
+  const searchTerm = searchQuery.trim().toLocaleLowerCase("th");
+  const visibleRankings = searchTerm
+    ? rankings.filter((item) => String(item.vtuber?.name || "").toLocaleLowerCase("th").includes(searchTerm))
+    : rankings;
   const calendarMonth = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit" }).format(new Date());
   const selectedMonth = month || summary?.ranking_month || calendarMonth;
   const monthChoices = [...new Set([selectedMonth, ...(summary?.available_months || [])])]
     .filter(value => /^\d{4}-(0[1-9]|1[0-2])$/.test(value)).sort().reverse();
   const updated = summary?.latest_update ? new Date(summary.latest_update) : null;
   const updateLabel = updated && !Number.isNaN(updated.getTime())
-    ? updated.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })
+    ? updated.toLocaleString("th-TH", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok", hour12: false })
     : "ยังไม่มีข้อมูล";
   const summarySection = (
     <section className="home-summary" aria-label="ข้อมูลของรายการ VTuber" aria-busy={summaryLoading}>
@@ -130,7 +146,7 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
       <article className="home-fact">
         <span className="home-fact-label">ข้อมูลล่าสุด ณ</span>
         <strong className="home-fact-date">{summaryLoading ? "กำลังโหลด…" : updateLabel}</strong>
-        <span className="home-fact-note">วันที่บันทึก snapshot ล่าสุด</span>
+        <span className="home-fact-note">วันที่บันทึก snapshot ล่าสุด · เวลาไทย</span>
       </article>
       {summaryError && (
         <div className="home-summary-error" role="status">
@@ -180,20 +196,40 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
             {monthChoices.map(value => <option key={value} value={value}>{value}</option>)}
           </select>
         </div>}
+        <div className="flex-[1_1_260px]">
+          <label className="home-control-label" htmlFor="ranking-name-search">ค้นหาชื่อช่อง</label>
+          <div className="flex items-center gap-2">
+            <input
+              id="ranking-name-search"
+              className="control-input"
+              type="search"
+              value={searchInput}
+              onChange={(event) => updateSearchQuery(event.target.value)}
+              placeholder="พิมพ์ชื่อ VTuber"
+            />
+            {searchQuery && <button className="clear-button" type="button" onClick={() => updateSearchQuery("")}>ล้างการค้นหา</button>}
+          </div>
+        </div>
       </div>
+      {period === "monthly" && <p className="home-endnote">รายเดือนแสดงยอดสะสมของ snapshot ณ เดือนที่เลือก ไม่ใช่ยอดที่เพิ่มขึ้นในเดือนนั้น</p>}
 
       <div className="home-table-heading">
         <h3>{metric} <span>/ {period === "monthly" ? `ยอดสะสม ณ เดือน ${selectedMonth}` : "ยอดสะสมทั้งหมด"}</span></h3>
         <span aria-live="polite">
-          {rankingLoading ? "กำลังโหลด…" : rankingError ? "โหลดไม่สำเร็จ" : `แสดง ${rankings.length.toLocaleString("th-TH")} จาก ${totalRankings.toLocaleString("th-TH")} ช่อง`}
+          {rankingLoading ? "กำลังโหลด…" : rankingError ? "โหลดไม่สำเร็จ" : `แสดง ${visibleRankings.length.toLocaleString("th-TH")} จาก ${totalRankings.toLocaleString("th-TH")} ช่อง`}
         </span>
       </div>
       {rankingLoading ? (
         <LoadingSpinner />
       ) : rankingError ? (
         <Feedback error={rankingError} retry={() => setRankingRetry((value) => value + 1)} />
+      ) : searchTerm && !visibleRankings.length ? (
+        <div className="empty-state" role="status">
+          <strong>ไม่พบช่องที่ตรงกับการค้นหา</strong>
+          <span>ลองปรับคำค้นหาหรือกด “ล้างการค้นหา”</span>
+        </div>
       ) : (
-        <LeaderboardTable rankings={rankings} metric={metric} showChange={!affiliation} />
+        <LeaderboardTable rankings={visibleRankings} metric={metric} showChange={!affiliation} />
       )}
       <p className="home-endnote">{affiliation
         ? "อันดับในตารางนับเฉพาะกลุ่ม · อันดับรวมแสดงใต้ชื่อช่อง"

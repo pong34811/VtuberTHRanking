@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import ProfilePage from '@/pages/ProfilePage';
+import LeaderboardTable from '@/components/LeaderboardTable';
+import CreatorCard from '@/pages/discovery/CreatorCard';
 import { vtubersAPI } from '@/api/client';
 import { localDateTime } from '@/admin/channels/Snapshots';
 
@@ -9,6 +11,16 @@ vi.mock('@/api/client', () => ({
   vtubersAPI: { getList: vi.fn(), getBySlug: vi.fn(), getHistory: vi.fn() },
 }));
 afterEach(() => vi.clearAllMocks());
+
+function NavigationTestRoutes({ listing }) {
+  const location = useLocation();
+  return (
+    <>
+      {location.pathname.startsWith('/profile/') ? <ProfilePage /> : listing}
+      <output data-testid="current-location">{location.pathname}{location.search}</output>
+    </>
+  );
+}
 
 it('uses the profile image and falls back if it fails', async () => {
   vtubersAPI.getBySlug.mockResolvedValue({ data: { name: 'Aiko', avatar: 'https://example.com/aiko.png' } });
@@ -61,4 +73,72 @@ it('shows a safe YouTube creator action, latest snapshot time and video count', 
   expect(action).toHaveAttribute('rel', 'noopener noreferrer');
   expect(container.querySelector('time')).toHaveAttribute('dateTime', '2026-09-01T00:00:00.000Z');
   expect(screen.getByRole('heading', { name: 'จำนวนคลิป' }).parentElement).toHaveTextContent('7');
+});
+
+it('returns to the ranking pathname and query after opening a creator profile', async () => {
+  vtubersAPI.getBySlug.mockResolvedValue({ data: { name: 'Aiko' } });
+  vtubersAPI.getHistory.mockResolvedValue({ data: { history: [] } });
+  const rankingPath = '/rankings?period=monthly&category=all';
+  render(
+    <MemoryRouter initialEntries={[rankingPath]}>
+      <Routes>
+        <Route path="*" element={<NavigationTestRoutes listing={(
+          <LeaderboardTable
+            rankings={[{ rank: 1, score: 42, vtuber: { id: 1, slug: 'aiko', name: 'Aiko' } }]}
+            loading={false}
+          />
+        )} />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  fireEvent.click(screen.getByRole('link', { name: /Aiko/ }));
+  const backLink = await screen.findByRole('link', { name: /กลับไปสำรวจ VTuber/ });
+  expect(backLink).toHaveAttribute('href', rankingPath);
+  fireEvent.click(backLink);
+  expect(screen.getByTestId('current-location')).toHaveTextContent(rankingPath);
+});
+
+it('returns to the discovery pathname and query after opening a creator card', async () => {
+  vtubersAPI.getBySlug.mockResolvedValue({ data: { name: 'Aiko' } });
+  vtubersAPI.getHistory.mockResolvedValue({ data: { history: [] } });
+  const discoveryPath = '/discover?category=gaming&q=aiko&page=2';
+  render(
+    <MemoryRouter initialEntries={[discoveryPath]}>
+      <Routes>
+        <Route path="*" element={<NavigationTestRoutes listing={(
+          <CreatorCard creator={{
+            id: 1,
+            slug: 'aiko',
+            name: 'Aiko',
+            category: 'gaming',
+            affiliation: 'independent',
+          }} />
+        )} />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  fireEvent.click(screen.getByRole('link', { name: /Aiko/ }));
+  const backLink = await screen.findByRole('link', { name: /กลับไปสำรวจ VTuber/ });
+  expect(backLink).toHaveAttribute('href', discoveryPath);
+  fireEvent.click(backLink);
+  expect(screen.getByTestId('current-location')).toHaveTextContent(discoveryPath);
+});
+
+it('does not use an external return location from profile navigation state', async () => {
+  vtubersAPI.getBySlug.mockResolvedValue({ data: { name: 'Aiko' } });
+  vtubersAPI.getHistory.mockResolvedValue({ data: { history: [] } });
+  render(
+    <MemoryRouter initialEntries={[{
+      pathname: '/profile/aiko',
+      state: { returnTo: { pathname: '//evil.example/steal', search: '?token=secret' } },
+    }]}
+    >
+      <ProfilePage />
+    </MemoryRouter>,
+  );
+
+  const backLink = await screen.findByRole('link', { name: /กลับไปสำรวจ VTuber/ });
+  expect(backLink).toHaveAttribute('href', '/discover');
 });

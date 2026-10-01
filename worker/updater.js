@@ -1,6 +1,7 @@
 import { currentMonth } from '../frontend/server/ranking-period.js';
 import { rankingGenerationStatement } from '../frontend/server/ranking-service.js';
 import { latestSnapshotOrder, rankingEligibility } from '../shared/snapshot-policy.js';
+import { readYouTubeStatistics } from '../shared/youtube-statistics.js';
 
 // Cron slots, not completion times, drive collection. Monthly uses Thai calendar months.
 const INTERVALS = { manual: 0, hourly: 3600, daily: 86400, weekly: 604800, monthly: 2592000 };
@@ -199,16 +200,9 @@ export async function updateAll(env, force = false, metadata = {}) {
           const items = response.items;
           const statsById = new Map((Array.isArray(items) ? items : []).map(item => [item.id, item.statistics]));
           for (const channel of batchChannels) {
-            const stats = statsById.get(channel.youtubeId);
-            if (!stats) { errors.push(channelFailure(channel.id, 'YouTube returned no channel statistics')); continue; }
-            const raw = [stats.subscriberCount ?? 0, stats.viewCount ?? 0, stats.videoCount ?? 0];
-            const values = raw.map(Number);
-            if (typeof stats !== 'object' || Array.isArray(stats)
-              || !raw.every(value => typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value)))
-              || !values.every(value => Number.isSafeInteger(value) && value >= 0)) {
-              errors.push(channelFailure(channel.id, 'YouTube returned invalid statistics')); continue;
-            }
-            snapshots.push({ vtuber_id: channel.id, followers: values[0], total_views: values[1], video_count: values[2], recorded_at: run.observedAt });
+            const stats = readYouTubeStatistics(statsById.get(channel.youtubeId));
+            if (!stats.ok) { errors.push(channelFailure(channel.id, stats.reason)); continue; }
+            snapshots.push({ vtuber_id: channel.id, followers: stats.followers, total_views: stats.total_views, video_count: stats.video_count, recorded_at: run.observedAt });
           }
         } catch { errors.push(...batchChannels.map(channel => channelFailure(channel.id, 'YouTube request failed'))); }
       }

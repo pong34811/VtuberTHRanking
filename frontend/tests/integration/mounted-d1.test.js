@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { mountedRequest, managerToken, csrfToken } from '../helpers/backend-sqlite.js';
 import { DUMMY_PASSWORD_HASH } from '../../server/password.js';
+import { updateAll } from '../../../worker/updater.js';
 
 let runtime;
 afterEach(async () => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); await runtime?.dispose(); runtime = null; });
@@ -33,10 +34,10 @@ async function database() {
   return { db };
 }
 const youtubeId = `UC${'x'.repeat(22)}`;
-function youtubeFixture() {
+function youtubeFixture(statistics = { subscriberCount: '10', viewCount: '100', videoCount: '1' }) {
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({ items: [{ id: youtubeId,
     snippet: { title: 'Imported', description: 'Fixture', thumbnails: {} },
-    statistics: { subscriberCount: '10', viewCount: '100', videoCount: '1' },
+    statistics,
   }] }), { status: 200 })));
 }
 
@@ -99,4 +100,37 @@ it('validates IDs and rolls up chronological Bangkok days through mounted APIs o
   expect(history.status).toBe(200);
   expect(history.body).toMatchObject({ total: 2, count: 1, timezone: 'Asia/Bangkok', granularity: 'day', history: [{ date: '2026-09-02', followers: 30 }] });
   expect((await mountedRequest(store, '/directory/')).status).toBe(200);
+}, 30_000);
+
+it('blocks unavailable counters in both ingestion paths and accepts real zero on actual D1', async () => {
+  const store = await database();
+  const youtubeUrl = `https://www.youtube.com/channel/${youtubeId}`;
+  await store.db.prepare("INSERT INTO vtubers(id,name,slug,channel_url,youtube_url) VALUES (1,'Existing','existing',?,?)").bind(youtubeUrl, youtubeUrl).run();
+  const request = () => mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
+  const collect = () => updateAll({ DB: store.db, YOUTUBE_API_KEY: 'fixture-only' }, true, { triggerSource: 'manual' });
+  for (const [statistics, reason] of [
+    [{ hiddenSubscriberCount: true, viewCount: '100', videoCount: '1' }, 'YouTube subscriber count is hidden'],
+    [{ viewCount: '100', videoCount: '1' }, 'YouTube returned incomplete statistics'],
+    [{ subscriberCount: '10', videoCount: '1' }, 'YouTube returned incomplete statistics'],
+    [{ subscriberCount: true, viewCount: '100', videoCount: '1' }, 'YouTube returned invalid statistics'],
+    [{ subscriberCount: { toString: 'bad' }, viewCount: '100', videoCount: '1' }, 'YouTube returned invalid statistics'],
+    [null, 'YouTube returned no channel statistics'],
+  ]) {
+    youtubeFixture(statistics);
+    const response = await request();
+    expect(response.status).toBe(502);
+    expect(response.body.message).toBe(reason);
+    await expect(collect()).resolves.toMatchObject({ ok: false, status: 'partial', updated: 0, rankingsPublished: 0,
+      errors: [{ vtuber_id: 1, reason }] });
+    expect(await store.db.prepare('SELECT name FROM vtubers WHERE id=1').first()).toEqual({ name: 'Existing' });
+    for (const table of ['stats_snapshots', 'ranking_pipeline_snapshots', 'rankings', 'audit_logs']) {
+      expect(await store.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first()).toEqual({ n: 0 });
+    }
+  }
+  youtubeFixture({ hiddenSubscriberCount: false, subscriberCount: '0', viewCount: '0', videoCount: '0' });
+  expect((await request()).status).toBe(200);
+  await expect(collect()).resolves.toMatchObject({ ok: true, status: 'succeeded', updated: 1, rankingsPublished: 6 });
+  expect((await store.db.prepare('SELECT followers,total_views,video_count FROM stats_snapshots').all()).results)
+    .toEqual([{ followers: 0, total_views: 0, video_count: 0 }, { followers: 0, total_views: 0, video_count: 0 }]);
+  expect((await store.db.prepare('SELECT DISTINCT score FROM rankings').all()).results).toEqual([{ score: 0 }]);
 }, 30_000);
