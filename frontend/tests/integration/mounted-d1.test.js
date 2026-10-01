@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { mountedRequest, managerToken, csrfToken } from '../helpers/backend-sqlite.js';
@@ -9,7 +10,7 @@ import { updateAll } from '../../../worker/updater.js';
 let runtime;
 afterEach(async () => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); await runtime?.dispose(); runtime = null; });
 async function database() {
-  const scratch = 'C:/Users/win01/AppData/Local/hermes/cache/scratch';
+  const scratch = process.env.TMPDIR || tmpdir();
   runtime = new Miniflare(convertV4MiniflareOptions({
     modules: true, name: 'backend-d1-test',
     script: 'export default { fetch() { return new Response("backend D1 test"); } };',

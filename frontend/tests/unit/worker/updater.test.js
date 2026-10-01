@@ -46,6 +46,7 @@ function pipelineDb({
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   databases.splice(0).forEach(database => database.close());
@@ -62,6 +63,8 @@ describe('updateAll', () => {
   });
 
   it('skips an hourly update within its interval after a successful run', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-15T12:15:00Z'));
     const completedAt = new Date(Date.now() - 30_000).toISOString();
     const { db, calls } = pipelineDb({
       frequency: 'hourly',
