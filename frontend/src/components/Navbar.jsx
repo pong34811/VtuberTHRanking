@@ -3,7 +3,7 @@ import ThemeSelector from "./ThemeSelector";
 export default function Navbar() {
   const location = useLocation();
   const affiliation = new URLSearchParams(location.search).get("affiliation");
-  const rankingPage = ["/", "/home", "/stats"].includes(location.pathname);
+  const rankingPage = ["/home", "/stats"].includes(location.pathname);
   const groupHref = (group = "") => {
     const params = new URLSearchParams(rankingPage ? location.search : "");
     params.delete("offset");
@@ -13,15 +13,16 @@ export default function Navbar() {
     return `${path}${params.size ? `?${params}` : ""}`;
   };
   const items = [
-    [groupHref(), "อันดับทั้งหมด", rankingPage && !["indie", "agency"].includes(affiliation)],
+    ["/", "หน้าแรก", location.pathname === "/"],
+    [groupHref(), "จัดอันดับ", rankingPage && !["indie", "agency"].includes(affiliation)],
     [groupHref("indie"), "วีทูปเบอร์อิสระ", rankingPage && affiliation === "indie"],
     [groupHref("agency"), "วีทูปเบอร์สังกัด", rankingPage && affiliation === "agency"],
-    ["/discover", "ค้นพบ", location.pathname === "/discover"],
+    ["/discover", "ค้นหา", location.pathname === "/discover"],
   ];
   return (
     <header className="site-header">
       <div className="nav-shell">
-        <Link to="/home" className="brand">
+        <Link to="/" className="brand">
           <span className="brand-mark">V</span>
           <span>
             VTuber<span className="brand-th">TH</span>

@@ -20,6 +20,7 @@ const CategoriesTab = lazy(() => import("./tabs/CategoriesTab").then(module => (
 const ReportsTab = lazy(() => import("./tabs/ReportsTab").then(module => ({ default: module.ReportsTab })));
 const SettingsTab = lazy(() => import("./tabs/SettingsTab").then(module => ({ default: module.SettingsTab })));
 const HomepageTemplateTab = lazy(() => import("./tabs/HomepageTemplateTab").then(module => ({ default: module.HomepageTemplateTab })));
+const IntroHomepageTemplateTab = lazy(() => import("./tabs/IntroHomepageTemplateTab"));
 const UsersTab = lazy(() => import("./tabs/UsersTab").then(module => ({ default: module.UsersTab })));
 
 const baseTabs = [
@@ -33,6 +34,7 @@ const managerTabs = [
   ["users", "ผู้ใช้งาน", "US"],
   ["history", "ประวัติการทำงาน", "LG"],
   ["homepage", "หน้าค้นพบ", "HP"],
+  ["intro-homepage", "หน้าแรก", "IN"],
   ["settings", "ตั้งค่าระบบ", "ST"],
 ];
 
@@ -180,6 +182,7 @@ export default function AdminPage() {
           <Route path="users" element={guard(<UsersTab {...props} />)} />
           <Route path="history" element={guard(<AuditTab />)} />
           <Route path="homepage" element={guard(<HomepageTemplateTab {...props} />)} />
+          <Route path="intro-homepage" element={guard(<IntroHomepageTemplateTab {...props} />)} />
           <Route path="settings" element={guard(<SettingsTab {...props} />)} />
           <Route path="*" element={<Navigate to="channels" replace />} />
         </Routes>

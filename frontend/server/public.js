@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 
 import { normalizeHomepageTemplate } from '../../shared/homepage-templates.js';
+import { normalizeIntroHomepageTemplate } from '../../shared/intro-homepage-templates.js';
 import { DIRECTORY_AFFILIATIONS } from '../../shared/directory.js';
 import directoryApi from './directory.js';
 import { pageInteger } from './pagination.js';
@@ -35,6 +36,13 @@ api.get('/homepage-config/', async c => {
   const row = await c.env.DB.prepare('SELECT setting_value FROM settings WHERE setting_key = ?').bind('homepage_template').first();
   c.header('Cache-Control', 'no-store');
   return c.json({ template: normalizeHomepageTemplate(row?.setting_value) });
+});
+
+api.get('/intro-homepage-config/', async c => {
+  c.header('Cache-Control', 'no-store');
+  if (!c.env.DB) return c.json({ error: 'DB not available' }, 500);
+  const row = await c.env.DB.prepare('SELECT setting_value FROM settings WHERE setting_key = ?').bind('intro_homepage_template').first();
+  return c.json({ template: normalizeIntroHomepageTemplate(row?.setting_value) });
 });
 
 api.get('/rankings/', async (c) => {

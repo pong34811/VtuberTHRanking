@@ -46,7 +46,7 @@ describe('homepage template registry', () => {
 
 describe('homepage template rendering', () => {
   it.each([
-    ['search-first', 'ค้นพบ VTuber ไทย'],
+    ['search-first', 'ค้นหา VTuber ไทย'],
     ['category-first', 'ค้นพบผ่านหมวดหมู่'],
     ['newest-first', 'เพิ่มเข้ารายการล่าสุด'],
   ])('renders the published %s directory', async (template, title) => {
@@ -69,7 +69,7 @@ describe('homepage template rendering', () => {
     homepageConfigAPI.get.mockResolvedValue({ data: config });
     const { container } = renderHome();
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'ค้นพบ VTuber ไทย' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'ค้นหา VTuber ไทย' })).toBeInTheDocument();
     expect(container.querySelector('.homepage')).toHaveAttribute('data-template', 'search-first');
   });
 

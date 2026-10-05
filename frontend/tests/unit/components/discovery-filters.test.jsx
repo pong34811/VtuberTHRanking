@@ -93,11 +93,11 @@ it('keeps newer filter results when an older request finishes late', async () =>
 
 it('redirects legacy search URLs with their filters and removes the duplicate menu', async () => {
   render(<MemoryRouter initialEntries={['/search?q=Aiko&category=gaming']}><Navigation /><App /></MemoryRouter>);
-  await screen.findByRole('heading', { name: 'ค้นพบ VTuber ไทย' });
+  await screen.findByRole('heading', { name: 'ค้นหา VTuber ไทย' });
   await waitFor(() => expect(directoryAPI.getList).toHaveBeenLastCalledWith({ q: 'Aiko', category: 'gaming', sort: 'name', limit: 12, offset: 0 }));
   expect(screen.getByTestId('location')).toHaveTextContent('/discover?q=Aiko&category=gaming');
-  expect(screen.queryByRole('link', { name: 'ค้นหา' })).not.toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'ค้นพบ' })).toHaveAttribute('aria-current', 'page');
+  expect(screen.getAllByRole('link', { name: 'ค้นหา' })).toHaveLength(1);
+  expect(screen.getByRole('link', { name: 'ค้นหา' })).toHaveAttribute('aria-current', 'page');
 });
 
 it('combines affiliation and category shortcuts with the submitted name filter', async () => {

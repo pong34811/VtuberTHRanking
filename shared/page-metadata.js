@@ -1,5 +1,6 @@
 export const CANONICAL_ORIGIN = 'https://vtuberthai-ranking.pages.dev';
 export const DEFAULT_SITE_NAME = 'VTuberThai Ranking';
+import { hasLegacyRankingQuery } from './intro-homepage-routing.js';
 
 export function getPageMetadata({ pathname = '/', search = '', siteName = DEFAULT_SITE_NAME, profile = null, notFound = false, maintenance = false } = {}) {
   const path = pathname.replace(/\/+$/, '') || '/';
@@ -13,7 +14,12 @@ export function getPageMetadata({ pathname = '/', search = '', siteName = DEFAUL
   let indexable = false;
   let type = 'website';
 
-  if (['/', '/home', '/stats'].includes(path)) {
+  if (path === '/' && !hasLegacyRankingQuery(search)) {
+    heading = 'หน้าแรก · VTuber ไทย';
+    description = 'เว็บไซต์รวบรวมข้อมูลและจัดอันดับ VTuber ไทยจากสถิติ YouTube ค้นหาช่อง ทำความรู้จักผ่านโปรไฟล์ และสำรวจอันดับได้ในที่เดียว';
+    status = 200;
+    indexable = true;
+  } else if (['/', '/home', '/stats'].includes(path)) {
     heading = path === '/stats' ? `อันดับรายเดือน · ${group}` : `อันดับ${group}`;
     description = 'สำรวจอันดับ VTuber ไทยจากยอดสะสมของช่อง YouTube ที่บันทึกไว้ในระบบ พร้อมเลือกตัวชี้วัดและเดือนย้อนหลัง';
     canonicalPath = path === '/' ? '/home' : path;
@@ -21,7 +27,7 @@ export function getPageMetadata({ pathname = '/', search = '', siteName = DEFAUL
     status = 200;
     indexable = true;
   } else if (path === '/discover') {
-    heading = 'ค้นพบ VTuber ไทย';
+    heading = 'ค้นหา VTuber ไทย';
     description = 'ค้นหาช่อง VTuber ไทยในทำเนียบที่ทีมงานรวบรวม เลือกตามชื่อ แนวเนื้อหาและสังกัด โดยไม่อ้างว่าครอบคลุมทุกช่อง';
     status = 200;
     indexable = true;

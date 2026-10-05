@@ -43,6 +43,9 @@ describe('route-aware Pages responses', () => {
     const legacy = await onRequest(context('/search?q=Aiko&affiliation=indie'));
     expect(legacy.status).toBe(308);
     expect(legacy.headers.get('Location')).toBe('/discover?q=Aiko&affiliation=indie');
+    const oldRankings = await onRequest(context('/?period=monthly&category=views&month=2026-09&affiliation=indie&q=Aiko'));
+    expect(oldRankings.status).toBe(308);
+    expect(oldRankings.headers.get('Location')).toBe('/home?period=monthly&category=views&month=2026-09&affiliation=indie&q=Aiko');
   });
   it('enforces maintenance with Retry-After while Admin remains available', async () => {
     configuration.site_status = 'maintenance';

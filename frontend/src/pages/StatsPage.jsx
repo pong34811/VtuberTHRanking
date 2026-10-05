@@ -8,6 +8,7 @@ import CategorySelector from "../components/CategorySelector";
 import LoadingSpinner from "../components/LoadingSpinner";
 import LeaderboardTable from "../components/LeaderboardTable";
 import Feedback from "../components/Feedback";
+import { Sculpture } from './IntroPage';
 
 const periods = [
   { value: "monthly", label: "รายเดือน" },
@@ -258,7 +259,7 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
           <h1>อันดับ{groupLabel}</h1>
           <p>สำรวจอันดับจากข้อมูล YouTube ที่บันทึกไว้ในระบบ</p>
         </div>
-        <Link className="home-text-link" to="/discover">ค้นพบ VTuber <ArrowUpRight aria-hidden="true" /></Link>
+        <div className="ranking-hero-art"><Sculpture compact /><Link className="home-text-link" to="/discover">ค้นหา <ArrowUpRight aria-hidden="true" /></Link></div>
       </header>
       {summarySection}
       {methodSection}

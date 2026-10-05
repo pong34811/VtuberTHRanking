@@ -1,9 +1,10 @@
 import { Outlet } from 'react-router-dom'
 import Navbar from './Navbar'
+import './public-3d.css'
 
 export default function Layout() {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="public-site min-h-screen flex flex-col">
       <a className="skip-link" href="#main-content">ข้ามไปยังเนื้อหาหลัก</a>
       <Navbar />
       <main id="main-content" className="flex-1 container mx-auto px-4 py-6 max-w-6xl">

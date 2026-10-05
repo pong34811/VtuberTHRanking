@@ -7,9 +7,10 @@ import { directorySearchHref, readDirectorySearch } from '../searchParams';
 import CreatorCard from './CreatorCard';
 import useDiscoveryData from './useDiscoveryData';
 import './discovery.css';
+import { Sculpture } from '../IntroPage';
 
 const templates = {
-  'search-first': { title: 'ค้นพบ VTuber ไทย', description: 'สำรวจภาพและโปรไฟล์ VTuber ไทย แล้วเลือกค้นหาต่อจากชื่อ หมวด หรือสังกัด' },
+  'search-first': { title: 'ค้นหา VTuber ไทย', description: 'สำรวจภาพและโปรไฟล์ VTuber ไทย แล้วเลือกค้นหาต่อจากชื่อ หมวด หรือสังกัด' },
   'category-first': { title: 'ค้นพบผ่านหมวดหมู่', description: 'เลือกหมวดที่สนใจ แล้วสำรวจช่อง VTuber ไทยในแบบของคุณ' },
   'newest-first': { title: 'เพิ่มเข้ารายการล่าสุด', description: 'รายชื่อเรียงตามวันที่เพิ่มเข้าระบบ แสดงเมื่อข้อมูลวันที่ถูกต้อง' },
 };
@@ -77,6 +78,7 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
         <div className="discovery-heading">
           <h1>{template.title}</h1>
           <p>{template.description}</p>
+          <div className="discovery-hero-art"><Sculpture compact /></div>
         </div>
         <div className="discovery-header-tools">
           <form className="discovery-search" role="search" onSubmit={submitSearch}>

@@ -4,6 +4,7 @@ import { hashPassword, validatePassword } from './password.js';
 import { fail, choice, str, url, month, selection, csvCell, body, channel, channelFields } from './admin-domain.js';
 import { calculateRanking } from './ranking-service.js';
 import { HOMEPAGE_TEMPLATE_IDS, normalizeHomepageTemplate } from '../../shared/homepage-templates.js';
+import { INTRO_HOMEPAGE_TEMPLATE_IDS, normalizeIntroHomepageTemplate } from '../../shared/intro-homepage-templates.js';
 import { strictIsoTimestamp } from './request-validation.js';
 import { IMPORT_BODY_LIMIT, logSafeError } from './request-body.js';
 import { readSiteConfig } from './site-config.js';
@@ -163,6 +164,22 @@ app.put('/settings/homepage-template', async c => {
     audit(c, 'update', 'settings', 'homepage_template', { homepage_template: data.homepage_template }),
   ]);
   return c.json({ ok: true, homepage_template: data.homepage_template });
+});
+app.get('/settings/intro-homepage-template', async c => {
+  manager(c);
+  c.header('Cache-Control', 'no-store');
+  const row = await stmt(c, 'SELECT setting_value FROM settings WHERE setting_key=?', 'intro_homepage_template').first();
+  return c.json({ intro_homepage_template: normalizeIntroHomepageTemplate(row?.setting_value) });
+});
+app.put('/settings/intro-homepage-template', async c => {
+  manager(c);
+  const data = await body(c, ['intro_homepage_template']);
+  choice(data.intro_homepage_template, INTRO_HOMEPAGE_TEMPLATE_IDS, 'intro_homepage_template');
+  await c.env.DB.batch([
+    stmt(c, "INSERT INTO settings (setting_key,setting_value,updated_at) VALUES (?,?,datetime('now')) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_at=excluded.updated_at", 'intro_homepage_template', data.intro_homepage_template),
+    audit(c, 'update', 'settings', 'intro_homepage_template', { intro_homepage_template: data.intro_homepage_template }),
+  ]);
+  return c.json({ ok: true, intro_homepage_template: data.intro_homepage_template });
 });
 app.put('/settings', async c => {
   manager(c); const data = await body(c, settingsKeys);

@@ -1,8 +1,10 @@
 import { lazy, Suspense } from 'react'
 import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout'
+import { hasLegacyRankingQuery } from '../../shared/intro-homepage-routing.js'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
+const IntroPage = lazy(() => import('./pages/IntroPage'))
 const StatsPage = lazy(() => import('./pages/StatsPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const AdminPage = lazy(() => import('./admin/AdminPage'))
@@ -12,13 +14,18 @@ function LegacySearchRedirect() {
   return <Navigate to={`/discover${search}`} replace />
 }
 
+function IntroRoute() {
+  const { search } = useLocation()
+  return hasLegacyRankingQuery(search) ? <Navigate to={`/home${search}`} replace /> : <IntroPage />
+}
+
 function App() {
   return (
     <Suspense fallback={<div style={{ padding: 32 }}>กำลังโหลด…</div>}>
       <Routes>
         <Route path="/admin/*" element={<AdminPage />} />
         <Route path="/" element={<Layout />}>
-          <Route index element={<StatsPage />} />
+          <Route index element={<IntroRoute />} />
           <Route path="home" element={<StatsPage />} />
           <Route path="stats" element={<StatsPage defaultPeriod="monthly" />} />
           <Route path="discover" element={<HomePage />} />

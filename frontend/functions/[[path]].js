@@ -1,6 +1,7 @@
 import { CANONICAL_ORIGIN, DEFAULT_SITE_NAME, getPageMetadata } from '../../shared/page-metadata.js';
 import { readSiteConfig } from '../server/site-config.js';
 import { renderMetadataHtml, renderRobots, renderSitemap } from '../server/seo.js';
+import { hasLegacyRankingQuery } from '../../shared/intro-homepage-routing.js';
 
 const staticPaths = new Set(['/favicon.ico', '/favicon.svg', '/social-card.png', '/social-card.svg', '/vite.svg']);
 const adminPath = path => /^\/admin(?:\/|$)/.test(path);
@@ -28,6 +29,7 @@ export async function onRequest(context) {
     return documentResponse('Preview environment requires an isolated staging D1 binding and ENVIRONMENT=staging.', 'text/plain', 503);
   }
   if (path === '/search') return new Response(null, { status: 308, headers: { Location: `/discover${url.search}`, 'Cache-Control': 'no-store' } });
+  if (path === '/' && hasLegacyRankingQuery(url.search)) return new Response(null, { status: 308, headers: { Location: `/home${url.search}`, 'Cache-Control': 'no-store' } });
   if (path === '/robots.txt') return documentResponse(renderRobots({ indexable: indexableEnvironment }), 'text/plain');
 
   try {

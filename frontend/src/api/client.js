@@ -31,4 +31,8 @@ export const homepageConfigAPI = {
   get: () => client.get('/homepage-config/'),
 }
 
+export const introHomepageConfigAPI = {
+  get: () => client.get('/intro-homepage-config/'),
+}
+
 export default client

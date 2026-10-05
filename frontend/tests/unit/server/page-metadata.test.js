@@ -3,6 +3,12 @@ import { getPageMetadata, CANONICAL_ORIGIN } from '../../../../shared/page-metad
 import { renderMetadataHtml, renderRobots, renderSitemap } from '../../../server/seo.js';
 
 describe('public route metadata', () => {
+  it('distinguishes the introduction from legacy ranking queries and indexes the root', () => {
+    expect(getPageMetadata().canonical).toBe(`${CANONICAL_ORIGIN}/`);
+    expect(getPageMetadata().heading).toContain('หน้าแรก');
+    expect(getPageMetadata({ search: '?category=views' }).canonical).toBe(`${CANONICAL_ORIGIN}/home`);
+    expect(renderSitemap()).toContain(`<loc>${CANONICAL_ORIGIN}/</loc>`);
+  });
   it('has distinct Thai route titles, canonical URLs and crawler indexing rules', () => {
     const home = getPageMetadata({ pathname: '/home', search: '?affiliation=indie&utm_source=test', siteName: 'Fixture Ranking' });
     const discover = getPageMetadata({ pathname: '/discover', search: '?q=Aiko' });

@@ -36,7 +36,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Stats page', () => {
-  it.each(['/', '/home', '/stats', '/home?category=followers'])('uses an enabled category at %s without requesting a disabled one', async (path) => {
+  it.each(['/?category=followers', '/home', '/stats', '/home?category=followers'])('uses an enabled category at %s without requesting a disabled one', async (path) => {
     summaryAPI.get.mockResolvedValue({ data: { category_choices: [{ value: 'views', label: 'ยอดวิว' }] } });
     renderStats(path);
     await waitFor(() => expect(rankingsAPI.getList).toHaveBeenCalledTimes(1));

@@ -6,7 +6,7 @@ describe('Public discovery Home', () => {
   });
 
   it('shows real directory creators and keeps rankings off the Home request path', () => {
-    cy.contains('h1', 'ค้นพบ VTuber ไทย').should('be.visible');
+    cy.contains('h1', 'ค้นหา VTuber ไทย').should('be.visible');
     cy.contains('.discovery-card', 'Aiko').should('be.visible');
     cy.contains('.discovery-card', 'Biko').should('exist');
     cy.get('.discovery-card').first().should('have.attr', 'href', '/profile/aiko');
@@ -43,7 +43,7 @@ describe('Public discovery Home', () => {
     cy.location('pathname').should('eq', '/discover');
     cy.location('search').should('eq', '?q=Aiko&category=gaming');
     cy.get('.discovery-card').should('have.length', 1).and('contain', 'Aiko');
-    cy.get('nav[aria-label="เมนูหลัก"]').should('not.contain', 'ค้นหา');
+    cy.get('nav[aria-label="เมนูหลัก"] a[href="/discover"]').should('have.length', 1).and('contain.text', 'ค้นหา');
     cy.contains('a', 'ล้างตัวกรอง').click();
     cy.wait('@getDirectory');
     cy.location('search').should('eq', '');

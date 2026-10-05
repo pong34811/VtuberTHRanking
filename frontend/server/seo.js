@@ -23,7 +23,7 @@ export function renderMetadataHtml(html, metadata) {
     .replace(/<title\b[^>]*>[\s\S]*?<\/title>/gi, '')
     .replace(/<meta\b[^>]*(?:name=["'](?:description|robots|twitter:[^"']+)["']|property=["']og:[^"']+["'])[^>]*>/gi, '')
     .replace(/<link\b[^>]*rel=["']canonical["'][^>]*>/gi, '');
-  const fallback = `<div id="root"><main><h1>${escapeHtml(metadata.heading)}</h1><p>${escapeHtml(metadata.description)}</p><nav aria-label="สำรวจเว็บไซต์"><a href="/home">ดูอันดับ</a> · <a href="/discover">ค้นพบ VTuber</a></nav></main></div>`;
+  const fallback = `<div id="root"><main><h1>${escapeHtml(metadata.heading)}</h1><p>${escapeHtml(metadata.description)}</p><nav aria-label="สำรวจเว็บไซต์"><a href="/home">ดูอันดับ</a> · <a href="/discover">ค้นหา</a></nav></main></div>`;
   return cleaned.replace(/<\/head>/i, `${head}\n</head>`).replace(/<div\s+id=["']root["']\s*>\s*<\/div>/i, fallback);
 }
 
@@ -34,7 +34,7 @@ export function renderRobots({ indexable = true } = {}) {
 }
 
 export function renderSitemap(profiles = []) {
-  const paths = ['/home', '/home?affiliation=indie', '/home?affiliation=agency', '/stats', '/discover'];
+  const paths = ['/', '/home', '/home?affiliation=indie', '/home?affiliation=agency', '/stats', '/discover'];
   const entries = paths.map(path => ({ location: `${CANONICAL_ORIGIN}${path}` }));
   for (const profile of profiles) {
     if (typeof profile.slug !== 'string' || !profile.slug) continue;

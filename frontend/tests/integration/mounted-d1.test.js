@@ -135,3 +135,14 @@ it('blocks unavailable counters in both ingestion paths and accepts real zero on
     .toEqual([{ followers: 0, total_views: 0, video_count: 0 }, { followers: 0, total_views: 0, video_count: 0 }]);
   expect((await store.db.prepare('SELECT DISTINCT score FROM rankings').all()).results).toEqual([{ score: 0 }]);
 }, 30_000);
+
+it('persists introduction configuration and audits it through mounted APIs on actual D1', async () => {
+  const store = await database();
+  const path = '/admin/settings/intro-homepage-template';
+  expect((await mountedRequest(store, '/intro-homepage-config/')).body.template).toBe('sculpture-index-3d');
+  const result = await mountedRequest(store, path, { method: 'PUT', authenticated: true, payload: { intro_homepage_template: 'neon-portal-3d' } });
+  expect(result.status).toBe(200);
+  expect((await mountedRequest(store, '/intro-homepage-config/')).body).toEqual({ template: 'neon-portal-3d' });
+  expect(await store.db.prepare("SELECT setting_value FROM settings WHERE setting_key='intro_homepage_template'").first()).toEqual({ setting_value: 'neon-portal-3d' });
+  expect(await store.db.prepare("SELECT target_id FROM audit_logs WHERE target_id='intro_homepage_template'").first()).toEqual({ target_id: 'intro_homepage_template' });
+}, 30_000);
