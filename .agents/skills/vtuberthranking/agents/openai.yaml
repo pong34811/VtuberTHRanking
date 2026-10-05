@@ -1,0 +1,4 @@
+interface:
+  display_name: "VtuberTHRanking"
+  short_description: "Project rules and docs for VtuberTHRanking changes"
+  default_prompt: "Use $vtuberthranking to make this repository change using the relevant docs and current implementation."
