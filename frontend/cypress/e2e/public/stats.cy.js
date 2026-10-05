@@ -22,6 +22,17 @@ describe('Public stats journey', () => {
     cy.contains('Aiko').should('exist');
   });
 
+  it('shows dashes in monthly change cells and restores alltime movement', () => {
+    cy.contains('button', 'รายเดือน').click();
+    cy.wait('@getRankings');
+    cy.get('tbody .home-change').should('have.length', 2).each($cell => expect($cell.text()).to.equal('-'));
+    cy.get('.home-table-wrap').screenshot('monthly-change-dashes-fixture');
+    cy.contains('button', 'ทั้งหมด').click();
+    cy.wait('@getRankings');
+    cy.get('tbody .home-change [aria-label="ไม่แสดงการเปลี่ยนแปลงอันดับรายเดือน"]').should('not.exist');
+    cy.get('tbody .home-change').should('have.length', 2).each($cell => expect($cell.text()).not.to.equal('-'));
+  });
+
   it('recovers a disabled category URL by selecting an enabled metric', () => {
     cy.intercept('GET', '**/api/v1/summary/', {
       category_choices: [{ value: 'views', label: 'ยอดวิว' }],

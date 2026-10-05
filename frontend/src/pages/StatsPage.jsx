@@ -244,10 +244,11 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
           <span>ลองปรับคำค้นหาหรือกด “ล้างการค้นหา”</span>
         </div>
       ) : (
-        <LeaderboardTable rankings={visibleRankings} metric={metric} showChange={!affiliation} />
+        <LeaderboardTable rankings={visibleRankings} metric={metric} showChange={!affiliation} period={period} />
       )}
       <p className="home-endnote">{affiliation
         ? "อันดับในตารางนับเฉพาะกลุ่ม · อันดับรวมแสดงใต้ชื่อช่อง"
+        : period === "monthly" ? "- ไม่แสดงการเปลี่ยนแปลงอันดับรายเดือน"
         : "↑ ขึ้นอันดับ · ↓ ลดอันดับ · — อันดับเท่าเดิม · NEW ไม่มีอันดับในรอบก่อน"}</p>
     </section>
   );

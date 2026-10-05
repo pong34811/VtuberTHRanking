@@ -7,7 +7,7 @@ function ChannelAvatar({ vtuber }) {
   return <RetryAvatar src={vtuber.avatar} className="avatar" alt="" loading="lazy" fallback={<span className="avatar" aria-hidden="true">{vtuber.name.charAt(0)}</span>} />;
 }
 
-export default function LeaderboardTable({ rankings, loading, metric = 'คะแนน', showChange = true }) {
+export default function LeaderboardTable({ rankings, loading, metric = 'คะแนน', showChange = true, period = 'alltime' }) {
   const location = useLocation();
   if (loading) return null;
   if (!rankings?.length) return <div className="empty-state"><strong>ยังไม่มีอันดับในช่วงเวลานี้</strong><span>ลองเลือกช่วงเวลาหรือหมวดสถิติอื่น</span></div>;
@@ -23,7 +23,7 @@ export default function LeaderboardTable({ rankings, loading, metric = 'คะ�
             <td className="home-rank">{String(item.rank).padStart(2, '0')}</td>
             <th scope="row"><Link to={`/profile/${item.vtuber.slug}`} state={{ returnTo: { pathname: location.pathname, search: location.search } }} className="home-channel"><ChannelAvatar vtuber={item.vtuber} /><span><span className="home-channel-name">{item.vtuber.name}</span><span className="home-channel-meta">{categoryLabel(item.vtuber.category)} · {affiliationLabel(item.vtuber.affiliation)}{item.overall_rank != null && ` · อันดับรวม #${item.overall_rank.toLocaleString('th-TH')}`}</span></span></Link></th>
             <td className="home-number">{item.score?.toLocaleString('th-TH') ?? '—'}</td>
-            {showChange && <td className="home-change"><ChangeIndicator change={item.rank_change} isNew={item.rank_change === 'NEW'} /></td>}
+            {showChange && <td className="home-change">{period === 'monthly' ? <span aria-label="ไม่แสดงการเปลี่ยนแปลงอันดับรายเดือน" className="text-[var(--muted-foreground)] text-sm">-</span> : <ChangeIndicator change={item.rank_change} isNew={item.rank_change === 'NEW'} />}</td>}
           </tr>
         ))}</tbody>
       </table>

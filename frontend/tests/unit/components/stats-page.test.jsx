@@ -161,6 +161,29 @@ describe('Stats page', () => {
     expect(await screen.findByText(/ยอดสะสมของ snapshot ณ เดือนที่เลือก ไม่ใช่ยอดที่เพิ่มขึ้นในเดือนนั้น/)).toBeInTheDocument();
   });
 
+  it.each(['/home?period=monthly', '/stats'])('shows a dash for every monthly movement at %s and restores alltime indicators', async path => {
+    const results = [null, 'NEW', 0, 2, -3].map((change, index) => ({
+      rank: index + 1, score: 100 - index, rank_change: change,
+      vtuber: { id: index + 1, name: `Channel ${index}`, slug: `channel-${index}`, category: 'gaming', affiliation: 'indie' },
+    }));
+    rankingsAPI.getList.mockResolvedValue({ data: { results, total: results.length } });
+    renderStats(path);
+    await screen.findByRole('table');
+    expect(screen.getAllByLabelText('ไม่แสดงการเปลี่ยนแปลงอันดับรายเดือน')).toHaveLength(5);
+    screen.getAllByLabelText('ไม่แสดงการเปลี่ยนแปลงอันดับรายเดือน').forEach(cell => expect(cell).toHaveTextContent(/^\-$/));
+    expect(screen.queryByText('NEW')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'ทั้งหมด' }));
+    expect(await screen.findAllByText('NEW')).toHaveLength(2);
+    expect(screen.getByLabelText('อันดับไม่เปลี่ยน')).toHaveTextContent('—');
+    expect(screen.getByLabelText('ขึ้นมา 2 อันดับ')).toHaveTextContent('↑2');
+    expect(screen.getByLabelText('ลงไป 3 อันดับ')).toHaveTextContent('↓3');
+    fireEvent.click(screen.getByRole('button', { name: 'รายเดือน' }));
+    await screen.findAllByLabelText('ไม่แสดงการเปลี่ยนแปลงอันดับรายเดือน');
+    fireEvent.click(screen.getByRole('link', { name: 'วีทูปเบอร์อิสระ' }));
+    await screen.findByRole('table');
+    expect(screen.queryByRole('columnheader', { name: 'เปลี่ยนแปลง' })).not.toBeInTheDocument();
+  });
+
   it('filters fetched rankings by a shareable name query and clears it without losing other filters', async () => {
     const row = (id, name) => ({ rank: id, score: 100 - id, rank_change: 0, vtuber: {
       id, slug: name.toLowerCase().replaceAll(' ', '-'), name, category: 'gaming', affiliation: 'indie',

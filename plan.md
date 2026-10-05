@@ -230,3 +230,9 @@ Public config ใช้ `Cache-Control: no-store` เช่น endpoint เด�
 ### ตรวจรับเพิ่มเติม #7 — ระยะขอบส่วนค้นหา
 
 เจ้าของรายงาน UI เพี้ยนที่ `/discover` ใน viewport 811px พบว่า CSS discovery ที่โหลดภายหลังทับ padding ของการ์ด 3D เพราะ specificity เท่ากัน เพิ่ม specificity ของ public header ทั้ง desktop/mobile ให้ระยะขอบคงอยู่ ตรวจ Cypress ครบสาม discovery templates ที่ 390/811/1280px ทั้ง light/dark พร้อม regression assertion ระยะขอบและ overflow: 8/8 tests ผ่าน; Vitest 526 tests และ production build ผ่าน ตรวจภาพจริงที่ local 5180 แล้ว ยังรอตรวจรับใน #7 ไม่ push/deploy หรือปิด Issue
+
+## 9. คอลัมน์เปลี่ยนแปลงรายเดือน — Issue #8
+
+เจ้าของอนุมัติ #8 ในแชตหลังเสนอ Issue วันที่ 5 ตุลาคม 2026 ให้โหมดรายเดือนแสดง `-` ทุกแถวในคอลัมน์เปลี่ยนแปลง ทั้ง `/home?period=monthly` และ `/stats` พร้อมคำอธิบายสำหรับ screen reader และข้อความท้ายตารางที่สอดคล้อง โหมดทั้งหมดคง NEW/ขึ้น/ลง/อันดับเท่าเดิม กลุ่มอิสระและสังกัดยังไม่แสดงคอลัมน์นี้ ไม่เปลี่ยน API สูตรอันดับ หรือฐานข้อมูล
+
+Implementation local ผ่าน Vitest และ build; Cypress stats 8/8 journeys ผ่าน รวมการสลับรายเดือน/ทั้งหมด ภาพ `monthly-change-dashes-fixture.png` เป็นข้อมูลจำลองสำหรับตรวจ UI รอตรวจรับ ยังไม่ push/deploy หรือปิด #8
