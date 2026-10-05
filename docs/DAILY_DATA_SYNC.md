@@ -1,6 +1,6 @@
 # การค้นหาและอัปเดตข้อมูลรายวัน — Refs #10
 
-Implementation local วันที่ 5 ตุลาคม 2026 ยังไม่ได้ deploy หรือเปิดใช้งาน production
+เผยแพร่และเปิดใช้งาน production วันที่ 5 ตุลาคม 2026 เวลา 17:12 น. (Asia/Bangkok) ตามการอนุมัติใน Issue #10: `directory_sync_enabled=true`, `ranking_update_frequency=daily` ตรวจอ่านค่ากลับจาก D1 แล้ว มี audit `day-sync-1791195151093` ระบุการดำเนินการผ่าน Wrangler และหลักฐานอนุมัติ Cron production คือ `0 * * * *`; ณ เวลาตรวจยังไม่มี directory run รอบแรกคาดว่าเริ่ม 18:00 น. วันเดียวกัน ผล YouTube จริงยังไม่ยืนยัน
 
 ## การเปิดใช้งาน
 
