@@ -52,3 +52,7 @@ Cypress แจ้ง warning เรื่องลบ screenshots เก่า�
 เพิ่ม regression tests ในชุดเดิม: Vitest ผ่าน 44 ไฟล์ รวม 511 tests และ Cypress ผ่าน 8 specs รวม 30 tests; build ผ่าน หลังปรับให้ loop ออกจากการยกเลิกโดยไม่เกิด exception ได้รัน stats-page tests อีกครั้งผ่าน 18 tests และ build ผ่าน
 
 สถานะทั้งสามรายการ: **รอตรวจรับ** ยังไม่ปิด Issues และยังไม่ push/deploy ไม่เปลี่ยน API contract หรือ schema
+
+## ผลตรวจรับ
+
+เจ้าของโครงการอนุมัติผลตรวจรับและปิด #1, #2 และ #3 ผ่านแชต Codex วันที่ 5 ตุลาคม 2026 อัปเดตสถานะเป็น **เสร็จสิ้น** และปิด GitHub Issues แล้ว โค้ดอยู่ใน local commit `e49ecff` บน `main` ยังไม่ได้ push/deploy
