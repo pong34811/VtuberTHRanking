@@ -90,6 +90,15 @@ export default function ProfilePage() {
   if (profileError)
     return <Feedback error={profileError} retry={() => setProfileRetry((x) => x + 1)} />;
   if (!vtuber) return <p className="text-center py-8">ไม่พบข้อมูล</p>;
+  const rankingMonth = /^(20\d{2}|21\d{2})-(0[1-9]|1[0-2])$/.test(vtuber.ranking_month || "")
+    ? new Intl.DateTimeFormat("th-TH", { month: "long", year: "numeric", timeZone: "Asia/Bangkok" })
+      .format(new Date(`${vtuber.ranking_month}-01T00:00:00+07:00`))
+    : "ไม่ระบุเดือน";
+  const rankingCategories = vtuber.category_choices ?? [
+    { value: "followers", label: "ผู้ติดตาม" },
+    { value: "views", label: "ยอดวิว" },
+    { value: "videos", label: "จำนวนคลิป" },
+  ];
 
   return (
     <div className="space-y-6">
@@ -120,11 +129,11 @@ export default function ProfilePage() {
       <section className="p-4 bg-[var(--color-card)] rounded-xl border border-[var(--color-border)]" aria-labelledby="profile-rankings">
         <h2 id="profile-rankings" className="font-medium mb-4">อันดับปัจจุบัน</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[["monthly", "เดือนนี้"], ["alltime", "ทั้งหมด"]].map(([period, label]) => (
+          {[["monthly", `รายเดือน · ${rankingMonth}`], ["alltime", "ทั้งหมด"]].map(([period, label]) => (
             <div key={period}>
               <h3 className="text-sm font-medium mb-2">{label}</h3>
               <dl className="space-y-2 text-sm">
-                {[["followers", "ผู้ติดตาม"], ["views", "ยอดวิว"], ["videos", "จำนวนคลิป"]].map(([category, name]) => (
+                {rankingCategories.map(({ value: category, label: name }) => (
                   <div key={category} className="flex justify-between gap-4">
                     <dt>{name}</dt>
                     <dd>{vtuber.current_rank?.[`${period}_${category}`] != null
@@ -136,6 +145,7 @@ export default function ProfilePage() {
             </div>
           ))}
         </div>
+        {!rankingCategories.length && <p role="status">ยังไม่มีหมวดอันดับที่เปิดใช้งาน</p>}
       </section>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -22,6 +22,21 @@ describe('Public stats journey', () => {
     cy.contains('Aiko').should('exist');
   });
 
+  it('recovers a disabled category URL by selecting an enabled metric', () => {
+    cy.intercept('GET', '**/api/v1/summary/', {
+      category_choices: [{ value: 'views', label: 'ยอดวิว' }],
+    });
+    cy.intercept('GET', '**/api/v1/rankings/**', req => {
+      expect(req.query.category).to.eq('views');
+      req.reply({ fixture: 'rankings.json' });
+    }).as('enabledRankings');
+    cy.visit('/home?category=followers');
+    cy.wait('@enabledRankings');
+    cy.contains('button', 'ยอดวิว').should('have.attr', 'aria-pressed', 'true');
+    cy.contains('.home-table', 'Aiko').should('be.visible');
+    cy.contains('โหลดอันดับไม่สำเร็จ').should('not.exist');
+  });
+
   it('shows only channels from the selected ranking menu', () => {
     cy.get('nav[aria-label="เมนูหลัก"]').contains('a', 'วีทูปเบอร์อิสระ').click();
     cy.get('@getRankings.all').should(requests => {

@@ -32,7 +32,7 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
   const [totalRankings, setTotalRankings] = useState(null);
   const [summary, setSummary] = useState(null);
   const period = ["monthly", "alltime"].includes(params.get("period")) ? params.get("period") : defaultPeriod;
-  const category = ["followers", "views", "videos"].includes(params.get("category")) ? params.get("category") : "followers";
+  const requestedCategory = ["followers", "views", "videos"].includes(params.get("category")) ? params.get("category") : "followers";
   const month = period === "monthly" && /^\d{4}-(0[1-9]|1[0-2])$/.test(params.get("month") || "") ? params.get("month") : "";
   const [rankingLoading, setRankingLoading] = useState(true);
   const [summaryLoading, setSummaryLoading] = useState(true);
@@ -40,6 +40,10 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
   const [summaryError, setSummaryError] = useState("");
   const [rankingRetry, setRankingRetry] = useState(0);
   const [summaryRetry, setSummaryRetry] = useState(0);
+  const metricChoices = summary?.category_choices || categories;
+  const category = metricChoices.some((choice) => choice.value === requestedCategory)
+    ? requestedCategory : metricChoices[0]?.value;
+  const waitingForCategories = summaryLoading && !summary;
 
   const updateFilter = (key, value) => {
     const next = new URLSearchParams(params);
@@ -63,12 +67,20 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
     setRankingError("");
     setRankings([]);
     setTotalRankings(null);
+    if (waitingForCategories) return;
+    if (!category) {
+      setTotalRankings(0);
+      setRankingLoading(false);
+      return;
+    }
+    const controller = new AbortController();
 
     async function loadRankings() {
       const results = [];
       let total = 0;
-      while (true) {
-        const response = await rankingsAPI.getList({ period, category, ...(month && { month }), ...(affiliation && { affiliation }), limit: 100, offset: results.length });
+      while (!controller.signal.aborted) {
+        const response = await rankingsAPI.getList({ period, category, ...(month && { month }), ...(affiliation && { affiliation }), limit: 100, offset: results.length }, { signal: controller.signal });
+        if (controller.signal.aborted) break;
         const page = response.data.results || [];
         results.push(...page);
         total = response.data.total ?? results.length;
@@ -92,8 +104,9 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
 
     return () => {
       active = false;
+      controller.abort();
     };
-  }, [period, category, month, affiliation, rankingRetry]);
+  }, [period, category, month, affiliation, rankingRetry, waitingForCategories]);
 
   useEffect(() => {
     let active = true;
@@ -117,7 +130,6 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
     };
   }, [summaryRetry]);
 
-  const metricChoices = summary?.category_choices || categories;
   const metric = metricChoices.find((item) => item.value === category)?.label || "อันดับ";
   const searchTerm = searchQuery.trim().toLocaleLowerCase("th");
   const visibleRankings = searchTerm
@@ -188,7 +200,7 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
         </div>
         <div role="group" aria-label="จัดอันดับตาม">
           <span className="home-control-label">จัดอันดับตาม</span>
-          <CategorySelector value={category} onChange={(value) => updateFilter("category", value)} choices={summary?.category_choices || categories} />
+          <CategorySelector value={category} onChange={(value) => updateFilter("category", value)} choices={metricChoices} />
         </div>
         {period === "monthly" && <div>
           <label className="home-control-label" htmlFor="ranking-month">เดือนอันดับ</label>
@@ -223,6 +235,8 @@ export default function StatsPage({ defaultPeriod = "alltime" }) {
         <LoadingSpinner />
       ) : rankingError ? (
         <Feedback error={rankingError} retry={() => setRankingRetry((value) => value + 1)} />
+      ) : !category ? (
+        <div className="empty-state" role="status">ยังไม่มีหมวดอันดับที่เปิดใช้งาน</div>
       ) : searchTerm && !visibleRankings.length ? (
         <div className="empty-state" role="status">
           <strong>ไม่พบช่องที่ตรงกับการค้นหา</strong>

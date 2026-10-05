@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '@/App';
@@ -36,9 +36,42 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Stats page', () => {
+  it.each(['/', '/home', '/stats', '/home?category=followers'])('uses an enabled category at %s without requesting a disabled one', async (path) => {
+    summaryAPI.get.mockResolvedValue({ data: { category_choices: [{ value: 'views', label: 'ยอดวิว' }] } });
+    renderStats(path);
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenCalledTimes(1));
+    expect(rankingsAPI.getList.mock.calls[0][0].category).toBe('views');
+    expect(screen.getByRole('button', { name: 'ยอดวิว' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByText(/โหลดอันดับไม่สำเร็จ/)).not.toBeInTheDocument();
+  });
+
+  it('does not request rankings when no categories are enabled', async () => {
+    summaryAPI.get.mockResolvedValue({ data: { category_choices: [] } });
+    renderStats();
+    expect(await screen.findByText('ยังไม่มีหมวดอันดับที่เปิดใช้งาน')).toBeInTheDocument();
+    expect(rankingsAPI.getList).not.toHaveBeenCalled();
+  });
+
+  it.each(['filter', 'unmount'])('aborts old pagination on %s and ignores its late response', async (action) => {
+    let resolveOld;
+    rankingsAPI.getList.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; }));
+    const view = renderStats('/home');
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenCalledTimes(1));
+    const oldSignal = rankingsAPI.getList.mock.calls[0][1].signal;
+    if (action === 'filter') {
+      fireEvent.click(screen.getByRole('button', { name: 'ยอดวิว' }));
+      await waitFor(() => expect(rankingsAPI.getList).toHaveBeenCalledTimes(2));
+    } else view.unmount();
+    expect(oldSignal.aborted).toBe(true);
+    await act(async () => resolveOld({ data: { total: 2, results: [{ rank: 1, score: 1, vtuber: { name: 'Stale', slug: 'stale' } }] } }));
+    expect(rankingsAPI.getList).toHaveBeenCalledTimes(action === 'filter' ? 2 : 1);
+    expect(screen.queryByText('Stale')).not.toBeInTheDocument();
+    expect(screen.queryByText(/โหลดอันดับไม่สำเร็จ/)).not.toBeInTheDocument();
+  });
+
   it('restores a shared metric, period, archive month and affiliation from the URL', async () => {
     renderStats('/home?period=monthly&category=views&month=2026-08&affiliation=agency');
-    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'agency', limit: 100, offset: 0 }));
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'agency', limit: 100, offset: 0 }, { signal: expect.any(AbortSignal) }));
     expect(screen.getByRole('button', { name: 'ยอดวิว' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'รายเดือน' })).toHaveAttribute('aria-pressed', 'true');
   });
@@ -48,9 +81,9 @@ describe('Stats page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ยอดวิว' }));
     expect(screen.getByTestId('ranking-url')).toHaveTextContent('category=views');
     fireEvent.click(screen.getByRole('button', { name: 'ทั้งหมด' }));
-    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'alltime', category: 'views', affiliation: 'indie', limit: 100, offset: 0 }));
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'alltime', category: 'views', affiliation: 'indie', limit: 100, offset: 0 }, { signal: expect.any(AbortSignal) }));
     fireEvent.click(screen.getByRole('button', { name: 'ย้อนกลับ' }));
-    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'indie', limit: 100, offset: 0 }));
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'indie', limit: 100, offset: 0 }, { signal: expect.any(AbortSignal) }));
   });
 
   it('offers published archive months and keeps the selected filters when switching group', async () => {
@@ -61,9 +94,9 @@ describe('Stats page', () => {
     renderStats('/stats?period=monthly&category=views&affiliation=agency');
     const month = await screen.findByLabelText('เดือนอันดับ');
     fireEvent.change(month, { target: { value: '2026-08' } });
-    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'agency', limit: 100, offset: 0 }));
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'agency', limit: 100, offset: 0 }, { signal: expect.any(AbortSignal) }));
     fireEvent.click(screen.getByRole('link', { name: 'วีทูปเบอร์อิสระ' }));
-    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'indie', limit: 100, offset: 0 }));
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', month: '2026-08', affiliation: 'indie', limit: 100, offset: 0 }, { signal: expect.any(AbortSignal) }));
     expect(screen.getByRole('heading', { name: /ยอดสะสม ณ เดือน 2026-08/ })).toBeInTheDocument();
   });
   it('keeps ranking controls usable when the summary fails', async () => {
@@ -72,9 +105,9 @@ describe('Stats page', () => {
 
     expect(await screen.findByText('โหลดข้อมูลภาพรวมไม่สำเร็จ')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'ยอดวิว' }));
-    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', limit: 100, offset: 0 }));
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'monthly', category: 'views', limit: 100, offset: 0 }, { signal: expect.any(AbortSignal) }));
     fireEvent.click(screen.getByRole('button', { name: 'ทั้งหมด' }));
-    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'alltime', category: 'views', limit: 100, offset: 0 }));
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({ period: 'alltime', category: 'views', limit: 100, offset: 0 }, { signal: expect.any(AbortSignal) }));
   });
 
   it('retries rankings without refetching the successful summary', async () => {
@@ -91,11 +124,11 @@ describe('Stats page', () => {
   it('opens the all ranking at /home and filters the ranking menu by affiliation', async () => {
     renderStats('/home');
     expect(await screen.findByRole('heading', { name: 'อันดับวีทูปเบอร์ไทยทั้งหมด', level: 1 })).toBeInTheDocument();
-    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenCalledWith({ period: 'alltime', category: 'followers', limit: 100, offset: 0 }));
+    await waitFor(() => expect(rankingsAPI.getList).toHaveBeenCalledWith({ period: 'alltime', category: 'followers', limit: 100, offset: 0 }, { signal: expect.any(AbortSignal) }));
     fireEvent.click(screen.getByRole('link', { name: 'วีทูปเบอร์อิสระ' }));
     await waitFor(() => expect(rankingsAPI.getList).toHaveBeenLastCalledWith({
       period: 'alltime', category: 'followers', affiliation: 'indie', limit: 100, offset: 0,
-    }));
+    }, { signal: expect.any(AbortSignal) }));
     expect(await screen.findByRole('heading', { name: 'อันดับวีทูปเบอร์อิสระ', level: 1 })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'วีทูปเบอร์อิสระ' })).toHaveAttribute('aria-current', 'page');
   });
@@ -111,7 +144,7 @@ describe('Stats page', () => {
     expect(await screen.findByRole('link', { name: /Channel 100/ })).toBeInTheDocument();
     expect(rankingsAPI.getList).toHaveBeenNthCalledWith(2, {
       period: 'alltime', category: 'followers', affiliation: 'agency', limit: 100, offset: 100,
-    });
+    }, { signal: expect.any(AbortSignal) });
     expect(screen.getByText('แสดง 101 จาก 101 ช่อง')).toBeInTheDocument();
   });
 

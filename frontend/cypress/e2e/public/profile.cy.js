@@ -31,4 +31,21 @@ describe('VTuber profile journey', () => {
     cy.contains('แนวโน้มผู้ติดตาม').should('exist');
     cy.contains('แนวโน้มยอดวิว').should('exist');
   });
+
+  it('shows the published archive month and only enabled ranking metrics', () => {
+    cy.intercept('GET', '**/api/v1/vtubers/aiko/', {
+      name: 'Aiko', slug: 'aiko', ranking_month: '2026-08',
+      category_choices: [{ value: 'views', label: 'ยอดวิวรวม' }],
+      current_rank: { monthly_views: 1 },
+    });
+    cy.visit('/profile/aiko');
+    cy.get('section[aria-labelledby="profile-rankings"]').within(() => {
+      cy.contains('สิงหาคม').should('be.visible');
+      cy.contains('2569').should('be.visible');
+      cy.contains('ยอดวิวรวม').should('be.visible');
+      cy.contains('#1').should('be.visible');
+      cy.contains('ผู้ติดตาม').should('not.exist');
+      cy.contains('เดือนนี้').should('not.exist');
+    });
+  });
 });

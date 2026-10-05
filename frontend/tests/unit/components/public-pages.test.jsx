@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import ProfilePage from '@/pages/ProfilePage';
@@ -48,6 +48,35 @@ it('shows current profile ranks and distinguishes missing rankings', async () =>
   expect(screen.getByText('#2')).toBeInTheDocument();
   expect(screen.getByText('#7')).toBeInTheDocument();
   expect(screen.getAllByText('ยังไม่มีอันดับ')).toHaveLength(4);
+});
+
+it.each(['2026-08', '2026-10'])('labels profile ranks with the actual month %s and enabled metrics', async (month) => {
+  vtubersAPI.getBySlug.mockResolvedValue({ data: {
+    name: 'Aiko', ranking_month: month,
+    category_choices: [{ value: 'views', label: 'ยอดวิวรวม' }],
+    current_rank: { monthly_views: 1 },
+  } });
+  vtubersAPI.getHistory.mockResolvedValue({ data: { history: [] } });
+  render(<MemoryRouter><ProfilePage /></MemoryRouter>);
+  const heading = await screen.findByRole('heading', { name: 'อันดับปัจจุบัน' });
+  const ranks = within(heading.closest('section'));
+  const expectedMonth = new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' })
+    .format(new Date(`${month}-01T00:00:00+07:00`));
+  expect(ranks.getByRole('heading', { name: `รายเดือน · ${expectedMonth}` })).toBeInTheDocument();
+  expect(ranks.queryByText('เดือนนี้')).not.toBeInTheDocument();
+  expect(ranks.queryByText('ผู้ติดตาม')).not.toBeInTheDocument();
+  expect(ranks.getAllByText('ยอดวิวรวม')).toHaveLength(2);
+  expect(ranks.getByText('#1')).toBeInTheDocument();
+  expect(ranks.getByText('ยังไม่มีอันดับ')).toBeInTheDocument();
+});
+
+it('explains missing profile month metadata and an empty enabled category list', async () => {
+  vtubersAPI.getBySlug.mockResolvedValue({ data: { name: 'Aiko', ranking_month: 'invalid', category_choices: [] } });
+  vtubersAPI.getHistory.mockResolvedValue({ data: { history: [] } });
+  render(<MemoryRouter><ProfilePage /></MemoryRouter>);
+  expect(await screen.findByText('รายเดือน · ไม่ระบุเดือน')).toBeInTheDocument();
+  expect(screen.getByText('ยังไม่มีหมวดอันดับที่เปิดใช้งาน')).toBeInTheDocument();
+  expect(screen.queryByText('ยังไม่มีอันดับ')).not.toBeInTheDocument();
 });
 
 it('offers discovery recovery instead of retrying a permanent missing profile', async () => {

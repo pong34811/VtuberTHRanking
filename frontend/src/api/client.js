@@ -9,7 +9,7 @@ const client = axios.create({
 })
 
 export const rankingsAPI = {
-  getList: (params = {}) => client.get('/rankings/', { params }),
+  getList: (params = {}, { signal } = {}) => client.get('/rankings/', { params, signal }),
 }
 
 export const directoryAPI = {
