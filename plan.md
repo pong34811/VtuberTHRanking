@@ -236,3 +236,9 @@ Public config ใช้ `Cache-Control: no-store` เช่น endpoint เด�
 เจ้าของอนุมัติ #8 ในแชตหลังเสนอ Issue วันที่ 5 ตุลาคม 2026 ให้โหมดรายเดือนแสดง `-` ทุกแถวในคอลัมน์เปลี่ยนแปลง ทั้ง `/home?period=monthly` และ `/stats` พร้อมคำอธิบายสำหรับ screen reader และข้อความท้ายตารางที่สอดคล้อง โหมดทั้งหมดคง NEW/ขึ้น/ลง/อันดับเท่าเดิม กลุ่มอิสระและสังกัดยังไม่แสดงคอลัมน์นี้ ไม่เปลี่ยน API สูตรอันดับ หรือฐานข้อมูล
 
 Implementation local ผ่าน Vitest และ build; Cypress stats 8/8 journeys ผ่าน รวมการสลับรายเดือน/ทั้งหมด ภาพ `monthly-change-dashes-fixture.png` เป็นข้อมูลจำลองสำหรับตรวจ UI รอตรวจรับ ยังไม่ push/deploy หรือปิด #8
+
+## 10. Responsive header — Issue #9
+
+เจ้าของอนุมัติ #9 ในแชตวันที่ 5 ตุลาคม 2026 ปรับ header ร่วมที่ความกว้างไม่เกิน 980px เป็นโลโก้ ธีม และปุ่มเมนูในแถวเดียว เปิดห้าเมนูเมื่อกด ปิดเมื่อเลือกหน้า/URL เปลี่ยนหรือกด Escape คืน focus ให้ปุ่ม และใช้ aria-expanded/aria-controls จอใหญ่แสดงเมนูเดิม ไม่มี dependency/API/schema เปลี่ยน
+
+ตรวจ 320/390/789/980/1280px, light/dark, ไม่ล้น, active state และ query preservation ผ่าน Cypress; full run 10 specs ได้ 34/35 ผ่าน โดย test ใหม่ส่ง Enter ไม่เปิดปุ่มใน Cypress จึงใช้ click ตรวจการเปิดและ keyboard Escape แล้วรัน spec ใหม่ผ่าน 1/1 ยืนยัน Enter และ Escape แยกบนเบราว์เซอร์จริงที่ 789px ผ่าน รวม current journeys 35 ผ่าน Vitest 528 tests และ build ผ่าน รอตรวจรับ ยังไม่ push/deploy หรือปิด #9

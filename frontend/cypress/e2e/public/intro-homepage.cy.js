@@ -14,6 +14,7 @@ describe('Intro homepage and shared 3D navigation', () => {
     cy.document().its('documentElement.scrollWidth').should('be.lte', 390);
     cy.get('[aria-label="ธีมหน้าจอ"]').select('dark');
     cy.get('html').should('have.attr', 'data-theme', 'dark');
+    cy.get('.public-menu-toggle').click();
     cy.get('nav').contains('a', 'ค้นหา').click();
     cy.location('pathname').should('eq', '/discover');
     cy.contains('h1', 'ค้นหา VTuber ไทย').should('be.visible');
