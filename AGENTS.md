@@ -4,6 +4,8 @@
 
 Work only on `main` in the primary checkout. Do not create branches or worktrees unless the user explicitly changes this instruction.
 
+Follow [plan.md](plan.md) for development workflow: record findings in GitHub Issues before implementation, obtain explicit approval for each issue, and keep it open until closure is approved. Push/deploy requires separate approval. Reference issues with `Refs #N`; avoid automatic closing keywords.
+
 ## Project Structure & Module Organization
 
 - `frontend/src/`: React pages, reusable components, admin features, and styles. Shared UI primitives live in `components/ui/`; static assets live in `frontend/public/`.
