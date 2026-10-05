@@ -242,3 +242,18 @@ Implementation local ผ่าน Vitest และ build; Cypress stats 8/8 jour
 เจ้าของอนุมัติ #9 ในแชตวันที่ 5 ตุลาคม 2026 ปรับ header ร่วมที่ความกว้างไม่เกิน 980px เป็นโลโก้ ธีม และปุ่มเมนูในแถวเดียว เปิดห้าเมนูเมื่อกด ปิดเมื่อเลือกหน้า/URL เปลี่ยนหรือกด Escape คืน focus ให้ปุ่ม และใช้ aria-expanded/aria-controls จอใหญ่แสดงเมนูเดิม ไม่มี dependency/API/schema เปลี่ยน
 
 ตรวจ 320/390/789/980/1280px, light/dark, ไม่ล้น, active state และ query preservation ผ่าน Cypress; full run 10 specs ได้ 34/35 ผ่าน โดย test ใหม่ส่ง Enter ไม่เปิดปุ่มใน Cypress จึงใช้ click ตรวจการเปิดและ keyboard Escape แล้วรัน spec ใหม่ผ่าน 1/1 ยืนยัน Enter และ Escape แยกบนเบราว์เซอร์จริงที่ 789px ผ่าน รวม current journeys 35 ผ่าน Vitest 528 tests และ build ผ่าน รอตรวจรับ ยังไม่ push/deploy หรือปิด #9
+
+## 11. ค้นหาและอัปเดตข้อมูลรายวัน — Issue #10
+
+เจ้าของขอค้นหา VTuber ไทยและอัปเดตทั้งโปรไฟล์กับสถิติ YouTube ลงฐานข้อมูลอัตโนมัติ และตอบ **อนุมัติ** หลังเสนอ #10 ในแชตวันที่ 5 ตุลาคม 2026 บันทึกหลักฐานใน Issue ก่อน implementation บน `main` ใน primary checkout
+
+- ใช้ cron เดิมทุกต้นชั่วโมง แยก directory sync วันละครั้งตามวันประเทศไทยจาก pipeline สถิติที่รองรับ daily อยู่แล้ว Directory ล้มเหลวไม่หยุดสถิติ
+- เพิ่ม migration `0010_daily_directory_sync.sql`: source baseline/provenance, candidate queue/tombstones, directory lease/fence และ run outcomes; ไม่มี dependency ใหม่
+- รีเฟรชชื่อ/avatar/bio เฉพาะฟิลด์ว่างหรือยังตรงกับต้นทางครั้งก่อน รอบแรกคงฟิลด์เดิมที่ไม่มีหลักฐาน ownership รักษา slug, สังกัด, วันเดบิว, notes, inactive และการแก้ไข/เปลี่ยน URL ขณะ fetch ค้าง
+- อ่านการ์ดรายชื่อทางการ Pixela ด้วย HTMLRewriter และค้นหาอิสระผ่าน YouTube ใหม่สุดไม่เกิน 10 ช่องต่อครั้ง รับเข้าอัตโนมัติเฉพาะหลักฐานชัดเจนและสถิติครบ รายการ Graduated/กำกวม/ซ่อน counter รอตรวจ ไม่เดาสังกัดหรือวันเดบิว ARP ยังดึงเว็บไม่ได้จึงไม่มี adapter ในรอบนี้
+- Admin มีสวิตช์รายวัน ผลรอบโปรไฟล์ คิวพร้อมแหล่งอ้างอิง และปุ่มข้ามแบบ manager/CSRF/audit ใช้ shared natural-key lookup กับ manual import เพื่อไม่เพิ่มช่องเดิมซ้ำจาก canonical URL หรือ handle ที่มีหลักฐานตรงกัน
+- Vitest **48 files / 541 tests ผ่าน** บน Node 24; production build ผ่าน; Cypress system-history **4/4 journeys ผ่าน** รวม save/refresh/ignore และ 390px ไม่ล้น มีภาพ fixture `frontend/cypress/screenshots/system-history.cy.js/daily-directory-sync-settings.png`
+- Ephemeral Miniflare ใช้ D1 และ HTMLRewriter จริง ตรวจ daily gate, partial/retry, hidden counters, concurrent runs, fence takeover, profile/URL edit races, inactive/deletion tombstones และ atomic ranking publication เดิม; Wrangler local migration ผ่าน
+- ตรวจ parser กับหน้า Pixela จริงวันที่นี้ได้ 20 การ์ด: Graduated 5 และไม่ติด marker 15 ไม่ได้ใช้ผลนี้เขียน production หรือยืนยัน activity นอกเหนือจากสถานะบนต้นทาง
+
+สถานะ **รอตรวจรับ** รายละเอียดและขั้นเปิดใช้อยู่ใน [docs/DAILY_DATA_SYNC.md](docs/DAILY_DATA_SYNC.md) local setting ยัง `directory_sync_enabled=false` และสถิติ `manual` ไม่มีการอ่าน secrets/เรียก YouTube API ด้วยคีย์จริง/แก้ production ยังไม่ push/deploy หรือปิด #10 การเปิดจริงต้อง migrate/deploy แล้ว Manager เปิดโปรไฟล์รายวันและสถิติ daily หลังอนุมัติ release แยกต่างหาก

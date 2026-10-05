@@ -2,6 +2,7 @@ import { currentMonth } from '../frontend/server/ranking-period.js';
 import { rankingGenerationStatement } from '../frontend/server/ranking-service.js';
 import { latestSnapshotOrder, rankingEligibility } from '../shared/snapshot-policy.js';
 import { readYouTubeStatistics } from '../shared/youtube-statistics.js';
+import { syncDirectory } from './directory-sync.js';
 
 // Cron slots, not completion times, drive collection. Monthly uses Thai calendar months.
 const INTERVALS = { manual: 0, hourly: 3600, daily: 86400, weekly: 604800, monthly: 2592000 };
@@ -280,6 +281,9 @@ export default {
     return Response.json(result);
   },
   async scheduled(controller, env) {
+    // Directory failures must not prevent the statistics pipeline from running.
+    try { await syncDirectory(env, { scheduledTime: controller.scheduledTime }); }
+    catch { console.error('Directory sync failed'); }
     await updateAll(env, false, { triggerSource: 'scheduled', scheduledTime: controller.scheduledTime });
   },
 };

@@ -40,12 +40,38 @@ describe('mounted admin input errors', () => {
 
 const youtubeId = `UC${'x'.repeat(22)}`;
 const youtubeUrl = `https://www.youtube.com/channel/${youtubeId}`;
+
+it.each(['https://youtube.com/channel/', 'https://m.youtube.com/channel/', 'https://www.youtube.com/@known-creator'])('reuses the daily sync channel identity during manual import from %s', async prefix => {
+  const store = database(); seedUser(store); seedChannel(store); youtubeFixture();
+  const existingUrl = prefix.includes('@') ? prefix : `${prefix}${youtubeId}/`;
+  store.sql.prepare('UPDATE vtubers SET channel_url=?,youtube_url=? WHERE id=1').run(existingUrl, existingUrl);
+  store.sql.prepare('INSERT INTO youtube_profile_state(vtuber_id,channel_id,profile_json,reference_json,source_url,checked_at) VALUES (1,?,?,?,?,datetime(\'now\'))')
+    .run(youtubeId, '{}', JSON.stringify({ youtube_url: existingUrl, channel_url: existingUrl }), youtubeUrl);
+  const result = await mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
+  expect(result.status).toBe(200); expect(result.body).toMatchObject({ id: 1, updated: true });
+  expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers').get()).toEqual({ n: 1 });
+  expect(JSON.parse(store.sql.prepare('SELECT profile_json FROM youtube_profile_state').get().profile_json).name).toBe('Imported Channel');
+});
 function youtubeFixture(statistics = { subscriberCount: '100', viewCount: '1000', videoCount: '10' }) {
   vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({ items: [{ id: youtubeId,
     snippet: { title: 'Imported Channel', description: 'Fixture', thumbnails: {} },
     statistics,
   }] }), { status: 200 })));
 }
+
+it('keeps a newly imported long description equal to its source baseline for later automatic refresh', async () => {
+  const store = database(); seedUser(store);
+  const description = 'ก'.repeat(4500);
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ items: [{ id: youtubeId,
+    snippet: { title: '  Long description  ', description, thumbnails: {} },
+    statistics: { subscriberCount: '100', viewCount: '1000', videoCount: '10' },
+  }] })));
+  const result = await mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
+  expect(result.status).toBe(201);
+  expect(store.sql.prepare('SELECT name,bio FROM vtubers').get()).toEqual({ name: 'Long description', bio: description });
+  const baseline = JSON.parse(store.sql.prepare('SELECT profile_json FROM youtube_profile_state').get().profile_json);
+  expect(baseline).toMatchObject({ name: 'Long description', bio: description });
+});
 
 describe('atomic admin writes with dependent IDs', () => {
   it.each([

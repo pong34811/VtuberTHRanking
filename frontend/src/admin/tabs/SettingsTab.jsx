@@ -2,12 +2,24 @@ import { useEffect, useState } from "react";
 import { adminApi } from "../api";
 import { Button, Card, Field, Loading, Notice, useSubmit } from "../ui";
 
+function DirectoryCandidate({ candidate, csrfToken, onIgnored }) {
+  const ignore = useSubmit(() => adminApi(`/directory-candidates/${candidate.channel_id}/ignore`, { method: "POST", csrfToken }), onIgnored);
+  return <article className="pipeline-run">
+    <a href={`https://www.youtube.com/channel/${candidate.channel_id}`} target="_blank" rel="noreferrer">{candidate.name}</a>
+    <p>{candidate.reason}</p>
+    <a href={candidate.source_url} target="_blank" rel="noreferrer">แหล่งอ้างอิง</a>
+    <Button type="button" busy={ignore.busy} onClick={ignore.submit} aria-label={`ข้าม ${candidate.name}`}>ข้ามช่องนี้</Button>
+    <Notice>{ignore.error}</Notice>
+  </article>;
+}
+
 export function SettingsTab({ csrfToken }) {
   const [form, setForm] = useState({
       site_name: "",
       site_status: "active",
       current_ranking_period: "",
       ranking_update_frequency: "manual",
+      directory_sync_enabled: "false",
     }),
     [loading, setLoading] = useState(true),
     [loadError, setLoadError] = useState(""),
@@ -17,6 +29,18 @@ export function SettingsTab({ csrfToken }) {
   const [runsLoading, setRunsLoading] = useState(true);
   const [runsError, setRunsError] = useState("");
   const [runsRetry, setRunsRetry] = useState(0);
+  const [directory, setDirectory] = useState(null);
+  const [directoryError, setDirectoryError] = useState("");
+  const [directoryRetry, setDirectoryRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setDirectory(null); setDirectoryError("");
+    adminApi("/directory-sync").then(data => {
+      if (!Array.isArray(data.runs) || !Array.isArray(data.candidates)) throw new Error("โหลดสถานะโปรไฟล์ไม่สำเร็จ");
+      if (active) setDirectory(data);
+    }).catch(error => { if (active) setDirectoryError(error.message); });
+    return () => { active = false; };
+  }, [directoryRetry]);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -89,6 +113,24 @@ export function SettingsTab({ csrfToken }) {
           ))
         ) : <p className="admin-state">ยังไม่มีรอบอัปเดต</p>}
       </section>
+      <section className="pipeline-runs" aria-labelledby="directory-sync-title">
+        <header>
+          <div><h3 id="directory-sync-title">ค้นหาและอัปเดตโปรไฟล์รายวัน</h3><small>ตรวจแหล่งทางการก่อนเพิ่มช่อง และรักษาข้อมูลที่ผู้ดูแลแก้เอง</small></div>
+          <Button type="button" onClick={() => setDirectoryRetry(value => value + 1)}>รีเฟรชโปรไฟล์</Button>
+        </header>
+        {directoryError ? <Notice>{directoryError}</Notice> : !directory ? <Loading /> : <>
+          {directory.runs.length ? directory.runs.map(run => <article className="pipeline-run" key={run.id}>
+            <header><h3>{runStatus(run)}</h3><time dateTime={run.completed_at || run.started_at}>{runTime(run.completed_at || run.started_at)}</time></header>
+            <p>ตรวจโปรไฟล์ {run.profiles_checked} · เพิ่มช่อง {run.channels_added} · รอตรวจ {run.candidates_pending}</p>
+            {run.error_summary && <Notice>{run.error_summary}</Notice>}
+          </article>) : <p className="admin-state">ยังไม่มีรอบอัปเดตโปรไฟล์</p>}
+          {directory.candidates.length > 0 && <>
+            <h4>ช่องที่รอหลักฐานเพิ่มเติม</h4>
+            <p>ตรวจแหล่งอ้างอิงแล้วใช้เมนูจัดการช่องเพื่อนำเข้า YouTube หากต้องการเพิ่มเอง</p>
+            {directory.candidates.map(candidate => <DirectoryCandidate key={candidate.channel_id} candidate={candidate} csrfToken={csrfToken} onIgnored={() => setDirectoryRetry(value => value + 1)} />)}
+          </>}
+        </>}
+      </section>
       {loading ? (
         <Loading />
       ) : loadError ? (
@@ -141,6 +183,12 @@ export function SettingsTab({ csrfToken }) {
                 <option value="daily">ทุก 24 ชั่วโมง</option>
                 <option value="weekly">ทุก 7 วัน</option>
                 <option value="monthly">ทุก 30 วัน</option>
+              </select>
+            </Field>
+            <Field label="ค้นหาและอัปเดตโปรไฟล์" hint="ค้นหาช่องใหม่และรีเฟรชโปรไฟล์วันละครั้งตามวันในประเทศไทย แยกจากรอบสถิติ">
+              <select value={form.directory_sync_enabled} onChange={event => setForm({ ...form, directory_sync_enabled: event.target.value })}>
+                <option value="false">ปิด</option>
+                <option value="true">อัตโนมัติรายวัน</option>
               </select>
             </Field>
           </div>

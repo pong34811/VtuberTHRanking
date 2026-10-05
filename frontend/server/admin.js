@@ -9,6 +9,7 @@ import { strictIsoTimestamp } from './request-validation.js';
 import { IMPORT_BODY_LIMIT, logSafeError } from './request-body.js';
 import { readSiteConfig } from './site-config.js';
 import { readYouTubeStatistics } from '../../shared/youtube-statistics.js';
+import { youtubeChannelLookup as importedChannelLookup, readYouTubeProfile } from '../../shared/youtube-profile.js';
 
 const app = new Hono();
 const userFields = 'id,username,display_name,email,role,status,created_at,updated_at,last_login_at';
@@ -22,7 +23,6 @@ const audit = (c, action, target, id, details = {}) => stmt(c, 'INSERT INTO audi
 const auditLookup = (c, action, target, lookup, values, details = {}) => stmt(c,
   `INSERT INTO audit_logs (id,user_id,action,target_type,target_id,details) VALUES (?,?,?,?,CAST((${lookup}) AS TEXT),?)`,
   crypto.randomUUID(), c.get('user').id, action, target, ...values, JSON.stringify(details));
-const importedChannelLookup = 'SELECT id FROM vtubers WHERE youtube_url=? OR channel_url=? ORDER BY id LIMIT 1';
 const exists = async (c, table, id) => { const row = await stmt(c, `SELECT * FROM ${table} WHERE id=?`, id).first(); if (!row) fail('Record not found', 404); return row; };
 app.use('*', async (c, next) => { if (!c.get('user') || c.get('user').status !== 'active') fail('Authentication required', 401); await next(); });
 app.onError((error, c) => {
@@ -148,7 +148,27 @@ app.get('/pipeline-runs', c => {
   return list(c, 'SELECT id,trigger_source,frequency,status,started_at,completed_at,channels_total,snapshots_written,rankings_published,error_summary FROM ranking_pipeline_runs ORDER BY started_at DESC,id DESC LIMIT 10');
 });
 
-const settingsKeys = ['site_name','site_status','current_ranking_period','ranking_update_frequency'];
+app.get('/directory-sync', async c => {
+  manager(c); c.header('Cache-Control', 'no-store');
+  const [runs, candidates] = await Promise.all([
+    stmt(c, 'SELECT * FROM directory_sync_runs ORDER BY started_at DESC,id DESC LIMIT 10').all(),
+    stmt(c, "SELECT channel_id,name,source_url,reason,checked_at FROM directory_candidates WHERE status='pending' ORDER BY checked_at DESC,channel_id LIMIT 100").all(),
+  ]);
+  return c.json({ runs: runs.results, candidates: candidates.results });
+});
+app.post('/directory-candidates/:id/ignore', async c => {
+  manager(c);
+  const id = c.req.param('id');
+  if (!/^UC[A-Za-z0-9_-]{22}$/.test(id)) fail('Invalid channel ID');
+  const row = await stmt(c, 'SELECT status FROM directory_candidates WHERE channel_id=?', id).first();
+  if (!row || row.status !== 'pending') fail('Pending candidate not found', 404);
+  await c.env.DB.batch([
+    stmt(c, "UPDATE directory_candidates SET status='ignored' WHERE channel_id=? AND status='pending'", id),
+    audit(c, 'update', 'directory_candidate', id, { status: 'ignored' }),
+  ]);
+  return c.json({ ok: true });
+});
+const settingsKeys = ['site_name','site_status','current_ranking_period','ranking_update_frequency','directory_sync_enabled'];
 app.get('/settings', c => list(c, `SELECT * FROM settings WHERE setting_key IN (${settingsKeys.map(() => '?').join(',')}) ORDER BY setting_key`, ...settingsKeys));
 app.get('/settings/homepage-template', async c => {
   manager(c);
@@ -185,6 +205,9 @@ app.put('/settings', async c => {
   manager(c); const data = await body(c, settingsKeys);
   data.site_name = str(data.site_name, 'site_name', 100, true);
   choice(data.site_status, ['active','maintenance'], 'site_status'); month(data.current_ranking_period); choice(data.ranking_update_frequency, ['manual','hourly','daily','weekly','monthly'], 'ranking_update_frequency');
+  // Older clients omit this field; preserve the saved value rather than disabling discovery.
+  data.directory_sync_enabled ??= (await stmt(c, "SELECT setting_value FROM settings WHERE setting_key='directory_sync_enabled'").first())?.setting_value || 'false';
+  choice(data.directory_sync_enabled, ['true','false'], 'directory_sync_enabled');
   await c.env.DB.batch([...settingsKeys.map(key => stmt(c, "INSERT INTO settings (setting_key,setting_value,updated_at) VALUES (?,?,datetime('now')) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_at=excluded.updated_at", key, data[key])), audit(c, 'update', 'settings', 'site', data)]);
   return c.json({ ok: true });
 });
@@ -264,17 +287,23 @@ app.post('/youtube/import', async c => {
   const stats = readYouTubeStatistics(item.statistics);
   if (!stats.ok) fail(stats.reason, 502);
   const { followers, total_views: views, video_count: videos } = stats;
+  const profile = readYouTubeProfile(item);
   const thumbs = item.snippet?.thumbnails || {};
-  const name = item.snippet?.title || 'Unknown';
+  const name = profile?.name || item.snippet?.title || 'Unknown';
   const avatar = thumbs.medium?.url || thumbs.default?.url || '';
   const youtubeUrl = `https://www.youtube.com/channel/${item.id}`;
   const now = new Date().toISOString();
+  const sourceStatements = profile ? [stmt(c, `INSERT INTO youtube_profile_state(vtuber_id,channel_id,profile_json,reference_json,source_url,checked_at)
+    SELECT id,?,?,json_object('youtube_url',youtube_url,'channel_url',channel_url),?,? FROM vtubers WHERE id=(${importedChannelLookup})
+    ON CONFLICT(vtuber_id) DO UPDATE SET channel_id=excluded.channel_id,profile_json=excluded.profile_json,reference_json=excluded.reference_json,source_url=excluded.source_url,checked_at=excluded.checked_at`,
+    item.id, JSON.stringify(profile), youtubeUrl, now, youtubeUrl, youtubeUrl)] : [];
   const existing = await stmt(c, importedChannelLookup, youtubeUrl, youtubeUrl).first();
   if (existing) {
     await c.env.DB.batch([
       stmt(c, 'UPDATE vtubers SET name=?,avatar=?,youtube_url=?,channel_url=?,updated_at=datetime(?) WHERE id=?', name, avatar, youtubeUrl, youtubeUrl, now, existing.id),
       stmt(c, 'INSERT INTO stats_snapshots (vtuber_id,followers,total_views,video_count,avg_views,recorded_at) VALUES (?,?,?,?,0,?)', existing.id, followers, views, videos, now),
       audit(c, 'youtube.import', 'vtuber', existing.id, { followers }),
+      ...sourceStatements,
     ]);
     return c.json({ ok: true, id: existing.id, name, followers, total_views: views, video_count: videos, updated: true });
   }
@@ -284,11 +313,12 @@ app.post('/youtube/import', async c => {
   const result = await c.env.DB.batch([
     stmt(c, `INSERT INTO vtubers (name,slug,bio,avatar,channel_url,platform,category,affiliation,is_active,youtube_url,created_at,updated_at)
       SELECT ?,?,?,?,?,?,'other','indie',1,?,datetime('now'),datetime('now') WHERE NOT EXISTS (${importedChannelLookup})`,
-      name, slug, (item.snippet?.description || '').slice(0, 2000), avatar, youtubeUrl, 'youtube', youtubeUrl, youtubeUrl, youtubeUrl),
+      name, slug, profile?.bio ?? (item.snippet?.description || '').slice(0, 2000), avatar, youtubeUrl, 'youtube', youtubeUrl, youtubeUrl, youtubeUrl),
     stmt(c, `UPDATE vtubers SET name=?,avatar=?,youtube_url=?,channel_url=?,updated_at=datetime(?) WHERE id=(${importedChannelLookup})`, name, avatar, youtubeUrl, youtubeUrl, now, youtubeUrl, youtubeUrl),
     stmt(c, `INSERT INTO stats_snapshots (vtuber_id,followers,total_views,video_count,avg_views,recorded_at) VALUES ((${importedChannelLookup}),?,?,?,0,?)`, youtubeUrl, youtubeUrl, followers, views, videos, now),
     auditLookup(c, 'youtube.import', 'vtuber', importedChannelLookup, [youtubeUrl, youtubeUrl], { followers }),
     stmt(c, `SELECT id,slug FROM vtubers WHERE id=(${importedChannelLookup})`, youtubeUrl, youtubeUrl),
+    ...sourceStatements,
   ]);
   const saved = result[4].results[0];
   const updated = result[0].meta.changes === 0;

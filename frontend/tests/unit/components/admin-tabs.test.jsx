@@ -235,11 +235,12 @@ it('recovers from a failed channels request without crashing', async () => {
 
 it('does not expose default settings after a failed load and allows retry', async () => {
   const settingsBody = { results: [{ setting_key: 'site_name', setting_value: 'VTuber Thai' }] };
-  vi.stubGlobal('fetch', vi.fn()
-    .mockRejectedValueOnce(new Error('Settings unavailable'))
-    .mockImplementation((url) => Promise.resolve(Response.json(
-      String(url).endsWith('/pipeline-runs') ? { results: [] } : settingsBody,
-    ))));
+  let settingsFailed = false;
+  vi.stubGlobal('fetch', vi.fn(url => {
+    if (String(url).endsWith('/directory-sync')) return Promise.resolve(Response.json({ runs: [], candidates: [] }));
+    if (String(url).endsWith('/settings') && !settingsFailed) { settingsFailed = true; return Promise.reject(new Error('Settings unavailable')); }
+    return Promise.resolve(Response.json(String(url).endsWith('/pipeline-runs') ? { results: [] } : settingsBody));
+  }));
   render(<SettingsTab csrfToken="token" />);
   expect(await screen.findByRole('alert')).toHaveTextContent('Settings unavailable');
   expect(screen.queryByRole('button', { name: 'บันทึกการตั้งค่า' })).not.toBeInTheDocument();
