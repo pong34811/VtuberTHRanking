@@ -80,4 +80,32 @@ describe('Public discovery Home', () => {
     cy.viewport(1280, 720);
     cy.document().its('documentElement.scrollWidth').should('be.lte', 1280);
   });
+
+  it('keeps the 3D header inset after lazy CSS loads in every discovery template', () => {
+    ['search-first', 'category-first', 'newest-first'].forEach(template => {
+      cy.intercept('GET', '**/api/v1/homepage-config/', { template });
+      cy.visit('/discover');
+      cy.get('.discovery-home').should('have.attr', 'data-template', template);
+      [390, 811, 1280].forEach(width => {
+        cy.viewport(width, 884);
+        ['light', 'dark'].forEach(theme => {
+          cy.get('[aria-label="ธีมหน้าจอ"]').select(theme);
+          cy.get('.discovery-header').should($header => {
+            const header = $header[0];
+            const bounds = header.getBoundingClientRect();
+            const style = getComputedStyle(header);
+            expect(parseFloat(style.paddingLeft)).to.be.at.least(18);
+            expect(parseFloat(style.paddingTop)).to.be.at.least(18);
+            expect(parseFloat(style.paddingBottom)).to.be.at.least(18);
+            [header.querySelector('h1'), header.querySelector('.discovery-search-row')].forEach(element => {
+              const rect = element.getBoundingClientRect();
+              expect(rect.left).to.be.at.least(bounds.left + 18);
+              expect(rect.right).to.be.at.most(bounds.right - 18);
+            });
+          });
+          cy.document().its('documentElement.scrollWidth').should('be.lte', width);
+        });
+      });
+    });
+  });
 });

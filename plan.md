@@ -226,3 +226,7 @@ Public config ใช้ `Cache-Control: no-store` เช่น endpoint เด�
 - พรีวิวเว็บไซต์จริงที่ `http://127.0.0.1:5180/` กับ API local ที่ 8788; ต้นแบบ 4174 ยังคงเป็น reference แยกจาก app
 
 ยังไม่ push/deploy และยังไม่ปิด #4/#6/#7 รอเจ้าของตรวจรับและอนุมัติขั้นตอนเผยแพร่ต่างหาก #5 ยังคงเป็นงานแยกที่ไม่อนุมัติในรอบนี้
+
+### ตรวจรับเพิ่มเติม #7 — ระยะขอบส่วนค้นหา
+
+เจ้าของรายงาน UI เพี้ยนที่ `/discover` ใน viewport 811px พบว่า CSS discovery ที่โหลดภายหลังทับ padding ของการ์ด 3D เพราะ specificity เท่ากัน เพิ่ม specificity ของ public header ทั้ง desktop/mobile ให้ระยะขอบคงอยู่ ตรวจ Cypress ครบสาม discovery templates ที่ 390/811/1280px ทั้ง light/dark พร้อม regression assertion ระยะขอบและ overflow: 8/8 tests ผ่าน; Vitest 526 tests และ production build ผ่าน ตรวจภาพจริงที่ local 5180 แล้ว ยังรอตรวจรับใน #7 ไม่ push/deploy หรือปิด Issue
