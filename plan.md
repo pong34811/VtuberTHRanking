@@ -260,3 +260,13 @@ Implementation local ผ่าน Vitest และ build; Cypress stats 8/8 jour
 - smoke production: `intro-homepage-config/` → `{"template":"sculpture-index-3d"}` 200; `directory/?limit=1` → 200 ข้อมูล production ยังไม่สูญหาย (27 ช่อง); `admin/settings` ไม่มี auth → 401 ตาม contract; ไม่มี secrets ถูกส่งไป frontend
 
 เจ้าของอนุมัติ push/deploy และเปิดอัปเดตรายวันในแชตแล้ว ([หลักฐานอนุมัติ](https://github.com/pong34811/VtuberTHRanking/issues/10#issuecomment-5990737508)) วันที่ 5 ตุลาคม 2026 เวลา 17:12:39 น. (Asia/Bangkok) เปิด production ผ่าน authenticated Wrangler D1: `directory_sync_enabled=true`, `ranking_update_frequency=daily` พร้อม audit `day-sync-1791195151093` บันทึกวิธีดำเนินการและหลักฐานอนุมัติ อ่านกลับยืนยันทั้งสองค่าและ audit แล้ว Worker มี secret names `YOUTUBE_API_KEY`/`UPDATER_RUN_TOKEN` และ Cloudflare schedules API ยืนยัน cron `0 * * * *`; public directory ตอบ 200 หลังเปิด ณ เวลาตรวจยังไม่มี directory run รอบแรกคาดว่าจะเริ่ม 18:00 น. วันนี้ จึงยังไม่ยืนยันผล YouTube จริง Issue #10 ยังเปิดอยู่รออนุมัติปิดแยกต่างหาก
+
+## 12. ช่องใหม่รอผู้จัดการอนุมัติ — Issue #12 (local)
+
+เจ้าของอนุมัติ #12 ในแชตและ Issue ก่อน implementation บน main วันที่ 6 ตุลาคม 2026 ช่อง YouTube ใหม่จาก discovery/manual import/ChannelForm เข้าคิว 202 ก่อนเผยแพร่ ไม่มี public channel หรือสถิติอันดับจนผู้จัดการอนุมัติ ยังคง existing-channel editorial editing, source ownership, auth/CSRF, leases และ atomic publication เดิม
+
+Admin มี lazy route `/admin/channel-approvals` สำหรับ manager: ค้นหาชื่อ/แบ่งหน้า 20 ช่อง ตรวจคำอธิบายจริงและลิงก์ HTTPS YouTube เลือกประเภทสังกัดเองก่อนอนุมัติ และข้ามรายการ คง YouTube identity/แพลตฟอร์มเดิม แยกการตรวจประจำวันออกจาก Settings ซึ่งยังมีสวิตช์และผลรอบ UI บอก queued ตามจริงทั้งแบบฟอร์มและ import; staff ไม่เข้าคิวจัดการ ยอดเข้าคิวใหม่สะสมต่างจากจำนวน pending ปัจจุบัน YouTube Search ไม่รับประกันรายชื่อครบทั้งหมด
+
+ดู [คำศัพท์และการตัดสินใจ](docs/CHANNEL_APPROVALS.md) และ [แผน #12](docs/superpowers/plans/2026-10-05-channel-approvals.md) ต้องใช้ migrations 0011/0012 เมื่อได้รับอนุมัติ release แยก งานรอบนี้ local/synthetic เท่านั้น ยังไม่ push/deploy หรือปิด #12 ผลตรวจสุดท้ายบันทึกหลัง tests/build/Cypress/local D1 ผ่าน
+
+Local Task2 verification: Node24 unit/Admin 35 files /301 tests passed; three synthetic Cypress specs9/9 passed; production build passed; actual ephemeral D1 queue/concurrent-approval smoke1/1 passed (4 unrelated tests skipped). Final focused coverage adds stale approval and malformed pagination checks; final report records its result. No production data, push/deploy or Issue closure. Mandatory independent review pending.

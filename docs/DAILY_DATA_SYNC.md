@@ -33,3 +33,7 @@ Admin แสดงสถานะรอบโปรไฟล์ จำนวน�
 ทดสอบด้วยข้อมูลจำลองและ ephemeral Miniflare D1/HTMLRewriter รวม daily gate ตามเวลาไทย, admission, snapshot/ranking, การรันชนกัน, malformed profile, hidden counter, source failure, retry, curated field/URL race, tombstone และ manager/CSRF/audit rollback พร้อม Cypress journey บันทึกค่ารายวันและข้าม candidate
 
 อ้างอิง API: [YouTube channels.list](https://developers.google.com/youtube/v3/docs/channels/list), [search.list](https://developers.google.com/youtube/v3/docs/search/list), [Cloudflare HTMLRewriter](https://developers.cloudflare.com/workers/runtime-apis/html-rewriter/). Lifecycle/use-case approval ที่ยังไม่ยืนยันใน [policy review](YOUTUBE_DATA_POLICY_REVIEW.md) ต้องตรวจรับแยกก่อนเปิดใช้ production; งานนี้ไม่รับรอง compliance หรือแก้ retention ของ snapshot เดิม
+
+## Issue #12 — Local approval queue (2026-10-06, awaiting release)
+
+New YouTube discoveries/imports are pending until manager approval. Daily review moved to `/admin/channel-approvals`; Settings retains controls and history. Manual YouTube creation and imports announce `202 queued`; existing edits retain ordinary saves. Affiliation is explicitly selected and YouTube identity fixed. Search/page progress and cumulative/current counts are distinguished; evidence remains literal and uncertain. See [approval decisions and glossary](CHANNEL_APPROVALS.md). Apply migrations 0011/0012 only with separate release approval; no #12 production changes have been made. The Issue #10 paragraphs above describe its prior deployment, not the new approval behavior.

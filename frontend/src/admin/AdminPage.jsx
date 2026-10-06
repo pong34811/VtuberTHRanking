@@ -12,6 +12,7 @@ import ThemeSelector from "../components/ThemeSelector";
 import { Button, Field, Loading, Modal, Notice, useSubmit } from "./ui";
 import "./admin.css";
 
+const ChannelApprovalsTab = lazy(() => import("./tabs/ChannelApprovalsTab").then(module => ({ default: module.ChannelApprovalsTab })));
 const ChannelsTab = lazy(() => import("./ChannelsTab"));
 const AgenciesTab = lazy(() => import("./AgenciesTab"));
 const RankingsTab = lazy(() => import("./RankingsTab"));
@@ -31,6 +32,7 @@ const baseTabs = [
   ["reports", "รายงาน", "RP"],
 ];
 const managerTabs = [
+  ["channel-approvals", "ช่องรออนุมัติ", "AP"],
   ["users", "ผู้ใช้งาน", "US"],
   ["history", "ประวัติการทำงาน", "LG"],
   ["homepage", "หน้าค้นพบ", "HP"],
@@ -179,6 +181,7 @@ export default function AdminPage() {
           <Route path="rankings" element={<RankingsTab {...props} />} />
           <Route path="categories" element={<CategoriesTab {...props} />} />
           <Route path="reports" element={<ReportsTab {...props} />} />
+          <Route path="channel-approvals" element={guard(<ChannelApprovalsTab {...props} />)} />
           <Route path="users" element={guard(<UsersTab {...props} />)} />
           <Route path="history" element={guard(<AuditTab />)} />
           <Route path="homepage" element={guard(<HomepageTemplateTab {...props} />)} />

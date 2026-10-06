@@ -4,11 +4,11 @@ import { useSubmit } from "../ui";
 import { Button } from "../components/ui/button";
 import { Alert, Field, FormActions, Input } from "../components/ui/field";
 
-export function YouTubeImport({ csrfToken, onClose, onSaved }) {
+export function YouTubeImport({ csrfToken, onClose, onSaved, endpoint = "/youtube/import" }) {
   const [input, setInput] = useState("");
   const { busy, error, submit } = useSubmit(
     () =>
-      adminApi("/youtube/import", {
+      adminApi(endpoint, {
         method: "POST",
         csrfToken,
         body: { input },

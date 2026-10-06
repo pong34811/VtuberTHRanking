@@ -8,7 +8,7 @@ import { Alert, Check, Field, FormActions, Input, Select, Textarea } from "../co
 import { Avatar } from "../components/ui/feedback";
 import { useList } from "../tabs/useList";
 
-export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
+export function ChannelForm({ value, csrfToken, onClose, onSaved, submitEndpoint, submitLabel = "บันทึก", requireAffiliation = false, lockIdentity = false }) {
   const [form, setForm] = useState(value), isEdit = Boolean(value.id);
   const { rows: agencies, error: agencyError, load: reloadAgencies } = useList("/agencies");
   useEffect(() => setForm(value), [value]);
@@ -18,12 +18,18 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
     channelFields.map(key => [key, form[key]]),
   );
   const { busy, error, submit } = useSubmit(
-    () =>
-      adminApi(`/vtubers${isEdit ? `/${value.id}` : ""}`, {
-        method: isEdit ? "PUT" : "POST",
-        body: payload,
-        csrfToken,
-      }),
+    async () => {
+      try {
+        return await adminApi(submitEndpoint || `/vtubers${isEdit ? `/${value.id}` : ""}`, {
+          method: isEdit ? "PUT" : "POST",
+          body: payload,
+          csrfToken,
+        });
+      } catch (error) {
+        if (submitEndpoint && error.status === 409) throw new Error("รายการนี้เปลี่ยนไปแล้ว กรุณาปิดและรีเฟรชคิวก่อนตรวจใหม่");
+        throw error;
+      }
+    },
     onSaved,
     value,
   );
@@ -84,7 +90,7 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
         hint="กำหนดช่องหลักและลิงก์โซเชียล"
       >
         <Field label="แพลตฟอร์ม">
-          <Select value={form.platform ?? "youtube"} onChange={set("platform")}>
+          <Select disabled={lockIdentity} value={form.platform ?? "youtube"} onChange={set("platform")}>
             {platforms.map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -94,9 +100,11 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
         </Field>
         <Field label="ประเภทสังกัด">
           <Select
-            value={form.affiliation ?? "indie"}
+            required={requireAffiliation}
+            value={form.affiliation ?? (requireAffiliation ? "" : "indie")}
             onChange={(e) => setForm({ ...form, affiliation: e.target.value, agency_id: e.target.value === "indie" ? null : form.agency_id })}
           >
+            {requireAffiliation && <option value="">เลือกประเภทสังกัดเพื่อยืนยัน</option>}
             {affiliations.map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -122,6 +130,7 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
           <Input
             type="url"
             inputMode="url"
+            readOnly={lockIdentity}
             value={form.youtube_url ?? ""}
             onChange={set("youtube_url")}
             placeholder="https://youtube.com/@handle"
@@ -131,6 +140,7 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
           <Input
             type="url"
             inputMode="url"
+            readOnly={lockIdentity}
             value={form.channel_url ?? ""}
             onChange={set("channel_url")}
             placeholder="https://…"
@@ -193,8 +203,8 @@ export function ChannelForm({ value, csrfToken, onClose, onSaved }) {
         <Button type="button" variant="ghost" onClick={onClose}>
           ยกเลิก
         </Button>
-        <Button type="submit" variant="primary" disabled={busy}>
-          {busy ? "กำลังบันทึก…" : "บันทึก"}
+        <Button type="submit" variant="primary" disabled={busy || (requireAffiliation && !form.affiliation)}>
+          {busy ? "กำลังบันทึก…" : submitLabel}
         </Button>
       </FormActions>
     </form>

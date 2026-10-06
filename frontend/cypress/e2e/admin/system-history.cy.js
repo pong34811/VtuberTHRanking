@@ -25,9 +25,7 @@ describe('Manager system history', () => {
     cy.contains('4/6').should('exist');
   });
 
-  it('saves daily profile discovery, displays primary evidence and ignores an unverified candidate', () => {
-    const channelId = `UC${'i'.repeat(22)}`;
-    let ignored = false;
+  it('saves daily discovery settings while linking to the approval queue', () => {
     let settings = [
       { setting_key: 'site_name', setting_value: 'VTuber Thai' },
       { setting_key: 'current_ranking_period', setting_value: '2026-10' },
@@ -38,8 +36,8 @@ describe('Manager system history', () => {
     cy.intercept('GET', '**/api/v1/admin/settings', req => req.reply({ results: settings }));
     cy.intercept('GET', '**/api/v1/admin/pipeline-runs', { results: [] });
     cy.intercept('GET', '**/api/v1/admin/directory-sync', req => req.reply({
-      runs: [{ id: 'directory-fixture', status: 'partial', started_at: '2026-10-05T02:00:00Z', profiles_checked: 12, channels_added: 2, candidates_pending: 1, error_summary: 'Pixela official roster could not be checked' }],
-      candidates: ignored ? [] : [{ channel_id: channelId, name: 'Pending creator', source_url: `https://www.youtube.com/channel/${channelId}`, reason: 'Thai VTuber / independent affiliation needs primary evidence' }],
+      runs: [{ id: 'directory-fixture', status: 'partial', started_at: '2026-10-05T02:00:00Z', profiles_checked: 12, candidates_new: 2, candidates_pending: 1, error_summary: 'Pixela official roster could not be checked' }],
+      candidates: [],
     })).as('getDirectorySync');
     cy.intercept('PUT', '**/api/v1/admin/settings', req => {
       expect(req.headers['x-csrf-token']).to.eq('test-csrf-token');
@@ -47,17 +45,14 @@ describe('Manager system history', () => {
       settings = Object.entries(req.body).map(([setting_key, setting_value]) => ({ setting_key, setting_value }));
       req.reply({ ok: true });
     }).as('saveDailySettings');
-    cy.intercept('POST', `**/api/v1/admin/directory-candidates/${channelId}/ignore`, req => {
-      expect(req.headers['x-csrf-token']).to.eq('test-csrf-token'); ignored = true; req.reply({ ok: true });
-    }).as('ignoreCandidate');
     cy.visit('/admin/settings'); cy.wait('@getDirectorySync');
-    cy.contains('ตรวจโปรไฟล์ 12 · เพิ่มช่อง 2 · รอตรวจ 1').should('be.visible');
-    cy.contains('a', 'แหล่งอ้างอิง').should('have.attr', 'href', `https://www.youtube.com/channel/${channelId}`);
+    cy.contains('ตรวจโปรไฟล์เดิม 12 · เข้าคิวใหม่ 2 · รออนุมัติทั้งหมด 1').should('be.visible');
+    cy.contains('a', 'ช่องรออนุมัติ').should('have.attr', 'href', '/admin/channel-approvals');
+    cy.contains('Pending creator').should('not.exist');
     cy.contains('label', 'ความถี่การอัปเดต').find('select').select('daily');
     cy.contains('label', 'ค้นหาและอัปเดตโปรไฟล์').find('select').select('true');
     cy.contains('button', 'บันทึกการตั้งค่า').click(); cy.wait('@saveDailySettings');
     cy.contains('บันทึกการตั้งค่าแล้ว').should('be.visible');
-    cy.get('button[aria-label="ข้าม Pending creator"]').click(); cy.wait(['@ignoreCandidate', '@getDirectorySync']);
     cy.contains('Pending creator').should('not.exist');
     cy.reload();
     cy.contains('label', 'ความถี่การอัปเดต').find('select').should('have.value', 'daily');

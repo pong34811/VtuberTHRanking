@@ -1086,3 +1086,10 @@ label.check {
   .homepage-template-thumbnail .thumbnail-category-tiles { height: 18px; }
   .homepage-template-actions button { width: 100%; }
 }
+
+.approval-candidate { display: grid; gap: 12px; }
+.approval-candidate h3 { margin: 0; overflow-wrap: anywhere; }
+.approval-evidence { display: grid; gap: 8px; overflow-wrap: anywhere; }
+.approval-evidence > div { display: grid; gap: 6px; }
+.approval-evidence p { margin: 0; }
+.approval-evidence a { text-decoration: underline; text-underline-offset: 3px; }

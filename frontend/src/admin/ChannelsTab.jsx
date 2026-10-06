@@ -12,11 +12,16 @@ import { Alert, Input, Select } from "./components/ui/field";
 import { TD, TH, THead, TR, Table, TableWrap } from "./components/ui/table";
 import { Avatar, EmptyState, SkeletonRows } from "./components/ui/feedback";
 
-export default function ChannelsTab({ csrfToken }) {
+export default function ChannelsTab({ csrfToken, isManager }) {
   const { rows, loading, error, load } = useList("/vtubers");
   const [editing, setEditing] = useState(null),
     [snapshots, setSnapshots] = useState(null),
     [ytOpen, setYtOpen] = useState(false);
+  const [saved, setSaved] = useState(null);
+  const onSaved = result => {
+    setEditing(null); setYtOpen(false); setSaved(result);
+    if (!result.queued) load();
+  };
   const [query, setQuery] = useState(""),
     [status, setStatus] = useState("all");
 
@@ -48,6 +53,9 @@ export default function ChannelsTab({ csrfToken }) {
           </Button>
         </CardActions>
       </div>
+      {saved && <Alert tone="success">{saved.queued ? "ส่งช่องเข้าคิวรอผู้จัดการอนุมัติแล้ว ยังไม่แสดงบนเว็บไซต์" : "บันทึกข้อมูลช่องแล้ว"}
+        {saved.queued && isManager && <> · <a href="/admin/channel-approvals">ไปที่ช่องรออนุมัติ</a></>}
+      </Alert>}
       <div className="channel-metrics" aria-label="ภาพรวมช่อง">
         <button
           onClick={() => setStatus("all")}
@@ -222,10 +230,7 @@ export default function ChannelsTab({ csrfToken }) {
               value={editing}
               csrfToken={csrfToken}
               onClose={() => setEditing(null)}
-              onSaved={() => {
-                setEditing(null);
-                load();
-              }}
+              onSaved={onSaved}
             />
           )}
         </Dialog>
@@ -233,15 +238,12 @@ export default function ChannelsTab({ csrfToken }) {
           open={ytOpen}
           onClose={() => setYtOpen(false)}
           title="ดึงข้อมูลจาก YouTube"
-          description="วาง Channel ID, @handle หรือลิงก์ แล้วระบบจะสร้างช่องพร้อมสถิติล่าสุดให้"
+          description="ช่องใหม่จะเข้าคิวรอผู้จัดการอนุมัติ ช่องที่มีอยู่แล้วจะอัปเดตข้อมูลและสถิติ"
         >
           <YouTubeImport
             csrfToken={csrfToken}
             onClose={() => setYtOpen(false)}
-            onSaved={() => {
-              setYtOpen(false);
-              load();
-            }}
+            onSaved={onSaved}
           />
         </Dialog>
         <Dialog

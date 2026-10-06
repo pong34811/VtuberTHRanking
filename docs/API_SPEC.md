@@ -355,3 +355,7 @@ GET /summary/
 - ประวัติสถิติเรียงจากเก่าไปใหม่; ตัวอย่างข้อมูลด้านบนใช้แสดงโครงสร้าง response
 - summary.total_followers_all ปัจจุบันใช้ MAX(followers) จาก snapshots ของช่อง active ไม่ใช่ผลรวม ต้องแก้ implementation ก่อนใช้เป็นยอดรวม
 - ยังไม่มี rate limit สำหรับ public API ใน router นี้; authentication มีการจำกัดความพยายามเข้าสู่ระบบแยกต่างหาก
+
+### Issue #12 approval queue (local, not deployed)
+
+Manager-only `/admin/channel-approvals` reads `/directory-candidates?q=&limit=20&offset=0` returning `{results,total,limit,offset}`; profile/evidence/review JSON remains string fields. Manual queue POST takes `{input}`. New YouTube `/vtubers` and `/youtube/import` also return 202 queued, while existing imports return saved updates. Manager `POST /directory-candidates/:channel_id/approve` requires flat reviewed channelFields, explicit affiliation, fixed canonical YouTube identity and valid agency when selected. It returns 201 `{ok:true,id,channel_id,snapshot}`. Ignore returns 200; missing 404, stale 409. Both require existing auth/CSRF. Sweep status and run counters are described in [CHANNEL_APPROVALS.md](CHANNEL_APPROVALS.md). New pending identities are absent from public lists and rankings. No automatic approval based on search/profile keywords.
