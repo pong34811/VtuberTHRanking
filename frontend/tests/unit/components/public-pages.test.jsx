@@ -129,13 +129,12 @@ it('returns to the ranking pathname and query after opening a creator profile', 
 });
 
 it.each([
-  [{ affiliation: 'agency', agency_name: '  PIXELA  ' }, /สังกัด PIXELA/],
-  [{ affiliation: 'agency', agency_name: '  ' }, /สังกัด/],
-  [{ affiliation: 'indie', agency_name: 'PIXELA' }, /อิสระ/],
-])('shows the expected affiliation label for %o', (vtuber, label) => {
-  render(<MemoryRouter><LeaderboardTable rankings={[{ rank: 1, score: 1, vtuber: { id: 1, slug: 'aiko', name: 'Aiko', ...vtuber } }]} loading={false} /></MemoryRouter>);
-  expect(screen.getByText(label)).toBeInTheDocument();
-  expect(screen.queryByText(/undefined|·\s*$/)).not.toBeInTheDocument();
+  [{ affiliation: 'agency', agency_name: '  PIXELA  ' }, 'เกม · สังกัด PIXELA'],
+  [{ affiliation: 'agency', agency_name: '  ' }, 'เกม · สังกัด'],
+  [{ affiliation: 'indie', agency_name: 'PIXELA' }, 'เกม · อิสระ'],
+])('shows exact affiliation metadata for %o', (vtuber, expected) => {
+  const { container } = render(<MemoryRouter><LeaderboardTable rankings={[{ rank: 1, score: 1, vtuber: { id: 1, slug: 'aiko', name: 'Aiko', category: 'gaming', ...vtuber } }]} loading={false} /></MemoryRouter>);
+  expect(container.querySelector('.home-channel-meta').textContent).toBe(expected);
 });
 
 it('returns to the discovery pathname and query after opening a creator card', async () => {
