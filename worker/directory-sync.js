@@ -73,38 +73,60 @@ export async function syncDirectory(env, metadata = {}) {
       checkpoint = { day, query_index: 0, page_token: '', items_json: '[]', next_page_token: '', completed: 0 };
     }
     const budget = { requests: 0, deadline: Date.now() + 60_000 };
-    const { results: channels = [] } = await db.prepare(`SELECT v.id,v.youtube_url,v.channel_url,v.is_active,s.channel_id,s.reference_json FROM vtubers v
-      LEFT JOIN youtube_profile_state s ON s.vtuber_id=v.id WHERE v.platform='youtube' OR v.platform IS NULL ORDER BY v.id`).all();
+    const cursor = (await db.prepare('SELECT last_vtuber_id FROM directory_profile_cursor WHERE id=1').first()).last_vtuber_id;
+    const channelQuery = `SELECT v.id,v.youtube_url,v.channel_url,v.is_active,s.channel_id,s.reference_json FROM vtubers v
+      LEFT JOIN youtube_profile_state s ON s.vtuber_id=v.id WHERE (v.platform='youtube' OR v.platform IS NULL)`;
+    const [afterCursor, beforeCursor] = await Promise.all([
+      db.prepare(`${channelQuery} AND v.id>? ORDER BY v.id`).bind(cursor).all(),
+      db.prepare(`${channelQuery} AND v.id<=? ORDER BY v.id`).bind(cursor).all(),
+    ]);
+    const channels = [...afterCursor.results, ...beforeCursor.results];
     const known = new Map();
-    for (const row of channels) {
-      const ref = youtubeReference(row.youtube_url) || youtubeReference(row.channel_url);
-      if (row.channel_id && ref?.forHandle && row.reference_json === JSON.stringify({ youtube_url: row.youtube_url || '', channel_url: row.channel_url || '' })) ref.id = row.channel_id;
-      if (ref?.id) { if (!known.has(ref.id)) known.set(ref.id, []); known.get(ref.id).push(row); }
-      else if (ref?.forHandle) {
-        if (budget.requests >= 10) { errors.push('Existing handle refresh deferred'); continue; }
-        try {
-          const [item] = await youtube(env, ref, budget);
-          if (!readYouTubeProfile(item)) throw new Error('Invalid channel profile');
-          if (!known.has(item.id)) known.set(item.id, []); known.get(item.id).push(row);
-        } catch { errors.push(`Channel ${row.id}: handle lookup failed`); }
-      } else if (row.is_active) errors.push(`Channel ${row.id}: no usable YouTube reference`);
-    }
-    const ids = [...known.keys()];
-    for (let offset = 0; offset < ids.length; offset += 50) {
-      if (budget.requests >= 20) { errors.push('Existing profile refresh deferred to preserve discovery budget'); break; }
-      const requested = ids.slice(offset, offset + 50);
-      try {
-        const items = await youtube(env, { id: requested.join(',') }, budget);
-        const byId = new Map(items.map(item => [item.id, item]));
-        for (const id of requested) {
-          const profile = readYouTubeProfile(byId.get(id));
-          if (!profile) { errors.push(`Channel ${id}: profile unavailable`); continue; }
-          for (const row of known.get(id).filter(row => row.is_active)) {
-            await batch(profileStatements(db, row, id, profile, startedAt)); result.profilesChecked++;
-          }
+    let handlesResolved = 0;
+    let position = 0;
+    while (position < channels.length && budget.requests < 20 && Date.now() < budget.deadline) {
+      const requested = new Map();
+      let lastId;
+      while (position < channels.length && requested.size < 50) {
+        const row = channels[position];
+        const ref = youtubeReference(row.youtube_url) || youtubeReference(row.channel_url);
+        if (row.channel_id && ref?.forHandle && row.reference_json === JSON.stringify({ youtube_url: row.youtube_url || '', channel_url: row.channel_url || '' })) ref.id = row.channel_id;
+        if (ref?.forHandle && !ref.id) {
+          if (handlesResolved >= 10 || budget.requests >= 19 || Date.now() >= budget.deadline) break;
+          handlesResolved++;
+          try {
+            const [item] = await youtube(env, ref, budget);
+            if (!readYouTubeProfile(item)) throw new Error('Invalid channel profile');
+            ref.id = item.id;
+          } catch { errors.push(`Channel ${row.id}: handle lookup failed`); }
         }
-      } catch { errors.push('Existing channel profiles could not be refreshed'); }
+        if (ref?.id) {
+          if (!known.has(ref.id)) known.set(ref.id, []);
+          known.get(ref.id).push(row);
+          if (!requested.has(ref.id)) requested.set(ref.id, []);
+          requested.get(ref.id).push(row);
+        } else if (row.is_active && !ref?.forHandle) errors.push(`Channel ${row.id}: no usable YouTube reference`);
+        lastId = row.id;
+        position++;
+      }
+      if (lastId === undefined) break;
+      if (requested.size) {
+        try {
+          const items = await youtube(env, { id: [...requested.keys()].join(',') }, budget);
+          const byId = new Map(items.map(item => [item.id, item]));
+          for (const [id, rows] of requested) {
+            const profile = readYouTubeProfile(byId.get(id));
+            if (!profile) { errors.push(`Channel ${id}: profile unavailable`); continue; }
+            for (const row of rows.filter(row => row.is_active)) {
+              await batch(profileStatements(db, row, id, profile, startedAt)); result.profilesChecked++;
+            }
+          }
+        } catch { errors.push('Existing channel profiles could not be refreshed'); }
+      }
+      // Advance even after an unavailable profile; the next rotation retries it without starving later IDs.
+      await batch([db.prepare('UPDATE directory_profile_cursor SET last_vtuber_id=? WHERE id=1').bind(lastId)]);
     }
+    if (position < channels.length) errors.push('Existing profile refresh deferred; rotating cursor resumes next invocation');
     const seenCandidates = new Set();
     while (!checkpoint.completed && budget.requests < 40 && Date.now() < budget.deadline) {
       let items = JSON.parse(checkpoint.items_json);

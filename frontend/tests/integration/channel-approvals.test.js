@@ -132,3 +132,27 @@ it('records the selected agency on approval rather than inferring affiliation fr
   expect((await request(store,`/directory-candidates/${id}/approve`,{...review,affiliation:'agency',agency_id:7,agency_name:'Untrusted name'})).status).toBe(201);
   expect(store.sql.prepare('SELECT affiliation,agency_id,agency_name FROM vtubers').get()).toEqual({affiliation:'agency',agency_id:7,agency_name:'Reviewed agency'});
 });
+it.each([
+  suffix => `https://www.youtube.com/channel/${id}/${suffix}`,
+  suffix => `http://m.youtube.com/channel/${id}${suffix}`,
+  suffix => `HTTPS://YOUTUBE.COM:443/channel/${id}/${suffix}`,
+  suffix => `https://www.youtube.com/@%63reator/${suffix}`,
+])('deduplicates accepted URL query/fragment forms before queue/import and inside the approval transaction', async variant => {
+  const {store} = setup();
+  await request(store,'/directory-candidates',{input:id});
+  seedChannel(store);
+  const reference=variant('?view=creator#about');
+  store.sql.prepare('UPDATE vtubers SET youtube_url=?,channel_url=?').run(reference,reference);
+  expect((await request(store,'/directory-candidates',{input:id})).status).toBe(409);
+  expect((await request(store,`/directory-candidates/${id}/approve`,review)).status).toBe(409);
+  expect((await request(store,'/youtube/import',{input:id})).body).toMatchObject({id:1,updated:true});
+  expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers').get().n).toBe(1);
+  store.sql.exec('DELETE FROM vtubers');
+  store.control.beforeBatch=()=>{
+    store.control.beforeBatch=null;seedChannel(store);
+    store.sql.prepare('UPDATE vtubers SET youtube_url=?,channel_url=?').run(reference,reference);
+  };
+  expect((await request(store,`/directory-candidates/${id}/approve`,review)).status).toBe(409);
+  expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers').get().n).toBe(1);
+  expect(store.sql.prepare("SELECT COUNT(*) AS n FROM audit_logs WHERE action='candidate.approve'").get().n).toBe(0);
+});

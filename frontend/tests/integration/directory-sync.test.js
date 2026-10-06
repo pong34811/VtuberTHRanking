@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
+import { syncDirectory as syncSQLiteDirectory } from '../../../worker/directory-sync.js';
 import { backendDatabase, mountedRequest, seedUser, staffToken } from '../helpers/backend-sqlite.js';
 
 const id = letter => `UC${letter.repeat(22)}`;
@@ -32,10 +33,10 @@ beforeAll(async () => {
   });
   script = (Array.isArray(built) ? built[0] : built).output.find(file => file.type === 'chunk').code;
 });
-afterEach(async () => { vi.restoreAllMocks(); stores.splice(0).forEach(store => store.close()); await Promise.all(runtimes.splice(0).map(runtime => runtime.dispose())); });
+afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllGlobals(); stores.splice(0).forEach(store => store.close()); await Promise.all(runtimes.splice(0).map(runtime => runtime.dispose())); });
 
 async function setup({ enabled = true, existing = true } = {}) {
-  const state = { searchPage: null, items: structuredClone(fixtures), searchFails: false, onChannels: null };
+  const state = { searchPage: null, handleItems: {}, items: structuredClone(fixtures), searchFails: false, onChannels: null };
   const network = vi.fn(async request => {
     const requestUrl = new URL(request.url);
     if (requestUrl.pathname.endsWith('/search')) {
@@ -44,7 +45,7 @@ async function setup({ enabled = true, existing = true } = {}) {
       return Response.json({ items: ['i','u'].map(letter => ({ id: { channelId: id(letter),videoId: 'abcdefghijk' },snippet: { channelId: id(letter) } })) });
     }
     await state.onChannels?.(requestUrl);
-    const ids = requestUrl.searchParams.get('id')?.split(',') || [id(requestUrl.searchParams.get('forHandle') === '@active' ? 'p' : 'g')];
+    const ids = requestUrl.searchParams.get('id')?.split(',') || [state.handleItems[requestUrl.searchParams.get('forHandle')] || id(requestUrl.searchParams.get('forHandle') === '@active' ? 'p' : 'g')];
     return Response.json({ items: ids.map(channelId => state.items[channelId]).filter(Boolean) });
   });
   const runtime = new Miniflare(convertV4MiniflareOptions({
@@ -225,4 +226,49 @@ it('uses nextPageToken despite a short page, extracts video channel identity and
   expect(row.status).toBe('pending');
   expect(JSON.parse(row.evidence_json)).toContainEqual({kind:'search-hint',query:'Thai VTuber',type:'video',source:'https://www.youtube.com/watch?v=abcdefghijk'});
   expect(JSON.parse(row.evidence_json)).toContainEqual({kind:'youtube-profile',source:url('u'),description:'Games and entertainment'});
+},30_000);
+it('rotates existing handle profiles beyond the per-run budget and refreshes all25 without timing assumptions', async () => {
+  const {db,sync,state} = await setup({existing:false});
+  state.searchPage=()=>({items:[]});
+  const statements=[];
+  for(let n=0;n<25;n++) {
+    const channelId=`UC${String(n).padStart(22,'0')}`;
+    const handle=`@creator-${n}`;
+    state.handleItems[handle]=channelId;
+    state.items[channelId]={id:channelId,snippet:{title:`Refreshed ${n}`,description:'Source',thumbnails:{}},statistics:{subscriberCount:'0',viewCount:'0',videoCount:'0'}};
+    statements.push(db.prepare("INSERT INTO vtubers(name,slug,youtube_url,channel_url) VALUES ('',?,?,?)").bind(`creator-${n}`,`https://www.youtube.com/${handle}`,`https://www.youtube.com/${handle}`));
+  }
+  await db.batch(statements);
+  expect(await sync()).toMatchObject({status:'partial',profilesChecked:10});
+  expect((await db.prepare('SELECT last_vtuber_id FROM directory_profile_cursor').first()).last_vtuber_id).toBe(10);
+  expect(await sync()).toMatchObject({status:'partial',profilesChecked:10});
+  await sync();
+  expect(await db.prepare("SELECT COUNT(*) AS n FROM vtubers WHERE name LIKE 'Refreshed %'").first()).toEqual({n:25});
+  expect(await db.prepare('SELECT name FROM vtubers WHERE id=25').first()).toEqual({name:'Refreshed 24'});
+},30_000);
+
+it('refreshes canonical channel1001 on a later invocation instead of permanently repeating the first1000', async () => {
+  const store=backendDatabase();stores.push(store);
+  store.sql.exec("UPDATE settings SET setting_value='true' WHERE setting_key='directory_sync_enabled'");
+  const channelItems=new Map();
+  const insert=store.sql.prepare('INSERT INTO vtubers(id,name,slug,youtube_url,channel_url) VALUES (?,\'\',?,?,?)');
+  for(let n=1;n<=1001;n++) {
+    const channelId=`UC${String(n).padStart(22,'0')}`;
+    const reference=`https://www.youtube.com/channel/${channelId}`;
+    insert.run(n,`creator-${n}`,reference,reference);
+    channelItems.set(channelId,{id:channelId,snippet:{title:`Refreshed ${n}`,description:'Source',thumbnails:{}},statistics:{subscriberCount:'0',viewCount:'0',videoCount:'0'}});
+  }
+  vi.stubGlobal('fetch',vi.fn(async input=>{
+    const requestUrl=new URL(input);
+    return Response.json({items:requestUrl.pathname.endsWith('/search')?[]:requestUrl.searchParams.get('id').split(',').map(channelId=>channelItems.get(channelId))});
+  }));
+  const env={DB:store.db,YOUTUBE_API_KEY:'synthetic-only'};
+  expect(await syncSQLiteDirectory(env,{scheduledTime:Date.parse('2026-10-05T02:00:00Z')})).toMatchObject({status:'partial',profilesChecked:1000});
+  expect(store.sql.prepare('SELECT name FROM vtubers WHERE id=1001').get().name).toBe('');
+  expect(store.sql.prepare('SELECT last_vtuber_id FROM directory_profile_cursor').get().last_vtuber_id).toBe(1000);
+  const firstCalls=globalThis.fetch.mock.calls.length;
+  await syncSQLiteDirectory(env,{scheduledTime:Date.parse('2026-10-05T03:00:00Z')});
+  expect(new URL(globalThis.fetch.mock.calls[firstCalls][0]).searchParams.get('id').split(',')[0]).toBe(`UC${String(1001).padStart(22,'0')}`);
+  expect(store.sql.prepare('SELECT name FROM vtubers WHERE id=1001').get().name).toBe('Refreshed 1001');
+  expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE name<>\'\'').get().n).toBe(1001);
 },30_000);

@@ -31,14 +31,29 @@ export function isIndependentThaiVTuber(profile) {
 }
 
 // Canonical URLs and recorded handle identities share one natural-key lookup for both import paths.
-export const youtubeChannelLookup = `WITH source(url,alias) AS (VALUES (?,?)) SELECT v.id FROM vtubers v CROSS JOIN source
+export const youtubeChannelLookup = `WITH RECURSIVE source(url,alias) AS (VALUES (?,?)),
+  raw(vtuber_id,url) AS (SELECT id,COALESCE(youtube_url,'') FROM vtubers UNION ALL SELECT id,COALESCE(channel_url,'') FROM vtubers),
+  without_query AS (SELECT vtuber_id,substr(url,1,instr(url||'?','?')-1) AS url FROM raw),
+  clean AS (SELECT vtuber_id,replace(replace(replace(trim(substr(url,1,instr(url||'#','#')-1)),char(9),''),char(10),''),char(13),'') AS url FROM without_query),
+  decoded(vtuber_id,remaining,bytes) AS (
+    SELECT vtuber_id,url,'' FROM clean WHERE instr(url,'%')>0
+    UNION ALL SELECT vtuber_id,
+      substr(remaining,CASE WHEN substr(remaining,1,1)='%' THEN 4 ELSE 2 END),
+      bytes||CASE WHEN substr(remaining,1,1)='%' THEN substr(remaining,2,2) ELSE hex(substr(remaining,1,1)) END
+    FROM decoded WHERE remaining<>''
+  ),
+  urls AS (SELECT vtuber_id,url FROM clean WHERE instr(url,'%')=0
+    UNION ALL SELECT vtuber_id,CAST(unhex(bytes) AS TEXT) FROM decoded WHERE remaining=''),
+  authority AS (SELECT vtuber_id,lower(substr(url,1,instr(url,':')-1)) AS scheme,
+    ltrim(replace(substr(url,instr(url,':')+1),char(92),'/'),'/') AS rest FROM urls),
+  locations AS (SELECT vtuber_id,scheme,lower(substr(rest,1,instr(rest||'/','/')-1)) AS host,
+    substr(rest,instr(rest||'/','/')) AS path FROM authority),
+  normalized AS (SELECT vtuber_id,'https://www.youtube.com'||rtrim(path,'/') AS url FROM locations
+    WHERE scheme IN ('http','https') AND replace(replace(replace(substr(host,1,instr(host||':',':')-1),'。','.'),'．','.'),'｡','.') IN ('youtube.com','www.youtube.com','m.youtube.com'))
+  SELECT v.id FROM vtubers v CROSS JOIN source
   LEFT JOIN youtube_profile_state s ON s.vtuber_id=v.id
     AND json_extract(s.reference_json,'$.youtube_url')=COALESCE(v.youtube_url,'')
     AND json_extract(s.reference_json,'$.channel_url')=COALESCE(v.channel_url,'')
-  WHERE s.source_url=source.url
-    OR rtrim(replace(replace(replace(v.youtube_url,'http://','https://'),'https://youtube.com/','https://www.youtube.com/'),'https://m.youtube.com/','https://www.youtube.com/'),'/') IN (source.url,source.alias)
-    OR rtrim(replace(replace(replace(v.channel_url,'http://','https://'),'https://youtube.com/','https://www.youtube.com/'),'https://m.youtube.com/','https://www.youtube.com/'),'/') IN (source.url,source.alias)
-    OR (instr(source.alias,'/@')>0 AND (
-      lower(rtrim(replace(replace(replace(v.youtube_url,'http://','https://'),'https://youtube.com/','https://www.youtube.com/'),'https://m.youtube.com/','https://www.youtube.com/'),'/'))=lower(source.alias)
-      OR lower(rtrim(replace(replace(replace(v.channel_url,'http://','https://'),'https://youtube.com/','https://www.youtube.com/'),'https://m.youtube.com/','https://www.youtube.com/'),'/'))=lower(source.alias)))
+  WHERE s.source_url=source.url OR EXISTS (SELECT 1 FROM normalized n WHERE n.vtuber_id=v.id
+    AND (n.url IN (source.url,source.alias) OR (instr(source.alias,'/@')>0 AND lower(n.url)=lower(source.alias))))
   ORDER BY v.id LIMIT 1`;
