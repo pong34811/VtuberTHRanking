@@ -1,5 +1,9 @@
 export function youtubeReference(value) {
   try {
+    if (typeof value !== 'string') return null;
+    // URL removes dot segments; reject them before parsing so SQL sees the same identity path.
+    const rawPath = value.trim().replace(/[\t\r\n]/g, '').replaceAll('\\', '/').match(/^https?:\/*[^/?#]+([^?#]*)/i)?.[1] || '';
+    if (decodeURIComponent(rawPath).split('/').some(segment => segment === '.' || segment === '..')) return null;
     const url = new URL(value);
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
     if (url.username || url.password || !['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(url.hostname)) return null;

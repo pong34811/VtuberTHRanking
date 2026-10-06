@@ -12,3 +12,12 @@ it('requires canonical YouTube references and complete, safe source profiles', (
   expect(isIndependentThaiVTuber(readYouTubeProfile(item))).toBe(true);
   for (const bio of ['I watch independent Thai VTuber streams', 'Not an independent Thai VTuber', 'Former independent Thai VTuber, now an agency member', 'Thai VTuber fan. Indie games enthusiast', 'Independent Thai VTuber\nAgency member now']) expect(isIndependentThaiVTuber({ bio })).toBe(false);
 });
+
+it('rejects literal/encoded dot segments and malformed path encodings before URL normalizes identity', () => {
+  const id=`UC${'z'.repeat(22)}`;
+  for(const path of [`/channel/./${id}`,`/channel/../channel/${id}`,`/channel/%2e/${id}`,`/channel/.%2E/channel/${id}`,`/channel/%2e%2e/channel/${id}`,`/channel/%/${id}`,`/channel/%GG/${id}`,`/channel/%FF/${id}`]) {
+    expect(youtubeReference(`https://www.youtube.com${path}`)).toBeNull();
+  }
+  expect(youtubeReference(`https://www.youtube.com/channel/${id}/?view=creator#about`)).toEqual({id});
+  expect(youtubeReference('https://www.youtube.com/@%63reator/')).toEqual({forHandle:'@creator'});
+});

@@ -156,3 +156,13 @@ it.each([
   expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers').get().n).toBe(1);
   expect(store.sql.prepare("SELECT COUNT(*) AS n FROM audit_logs WHERE action='candidate.approve'").get().n).toBe(0);
 });
+
+it.each(['.','..','%2e','.%2E','%2e%2e','%','%GG','%FF'])('rejects ambiguous dot or malformed path segment %s at queue/import boundary without SQL writes', async segment => {
+  const {store} = setup();
+  const input=`https://www.youtube.com/channel/${segment}/${id}`;
+  for(const path of ['/directory-candidates','/youtube/import']) {
+    expect((await request(store,path,{input})).status).toBe(400);
+  }
+  expect(globalThis.fetch).not.toHaveBeenCalled();
+  for(const table of ['directory_candidates','vtubers','stats_snapshots','audit_logs']) expect(store.sql.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n).toBe(0);
+});
