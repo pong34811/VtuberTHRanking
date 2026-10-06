@@ -9,7 +9,7 @@ import { strictIsoTimestamp } from './request-validation.js';
 import { IMPORT_BODY_LIMIT, logSafeError } from './request-body.js';
 import { readSiteConfig } from './site-config.js';
 import { readYouTubeStatistics } from '../../shared/youtube-statistics.js';
-import { candidateUpsert, canonicalYouTubeUrl } from '../../shared/directory-candidates.js';
+import { candidateUpsert, canonicalYouTubeUrl, youtubeChannelAlias as channelAlias } from '../../shared/directory-candidates.js';
 import { youtubeReference, youtubeChannelLookup as importedChannelLookup, readYouTubeProfile } from '../../shared/youtube-profile.js';
 
 const app = new Hono();
@@ -185,10 +185,6 @@ function candidateId(c) {
   if (!/^UC[A-Za-z0-9_-]{22}$/.test(id)) fail('Invalid channel ID');
   return id;
 }
-const channelAlias = item => {
-  const handle = item.snippet?.customUrl || item.inputHandle;
-  return typeof handle === 'string' && /^@[^/?#\s]+$/.test(handle) ? `https://www.youtube.com/${handle}` : canonicalYouTubeUrl(item.id);
-};
 const pendingAssertion = (c, id, newIdentity = false, alias = canonicalYouTubeUrl(id)) => stmt(c, `INSERT INTO directory_candidate_assertions(valid)
   SELECT CASE WHEN EXISTS (SELECT 1 FROM directory_candidates WHERE channel_id=? AND status='pending')
   ${newIdentity ? `AND NOT EXISTS (${importedChannelLookup})` : ''} THEN 1 ELSE 0 END`,
@@ -197,7 +193,7 @@ async function existingYouTubeChannel(c, item) {
   const canonical = canonicalYouTubeUrl(item.id);
   const alias = channelAlias(item);
   const existing = await stmt(c, importedChannelLookup, canonical, alias).first();
-  if (existing || item.snippet?.customUrl) return existing;
+  if (existing) return existing;
   const { results: rows = [] } = await stmt(c, `SELECT id,youtube_url,channel_url FROM vtubers WHERE platform='youtube' OR platform IS NULL`).all();
   let requests = 0;
   for (const row of rows) {
@@ -222,7 +218,7 @@ async function queueCandidate(c, item, review = {}) {
   const stats = readYouTubeStatistics(item.statistics);
   await c.env.DB.batch([
     stmt(c, candidateUpsert, item.id, profile.name, url, url, stats.ok ? 'Manager review required' : stats.reason,
-      new Date().toISOString(), JSON.stringify(profile), JSON.stringify([{ source: url, kind: 'youtube-profile', description: profile.bio }]), JSON.stringify(review)),
+      new Date().toISOString(), JSON.stringify(profile), JSON.stringify([{ source: url, kind: 'youtube-profile', description: profile.bio }]), JSON.stringify(review), url, channelAlias(item)),
     pendingAssertion(c, item.id, true, channelAlias(item)),
     audit(c, 'candidate.queue', 'directory_candidate', item.id),
     stmt(c, 'DELETE FROM directory_candidate_assertions'),

@@ -81,6 +81,7 @@ it('deduplicates legacy handle identities without a source baseline and honors r
   const {store} = setup();seedChannel(store);
   store.sql.prepare('UPDATE vtubers SET youtube_url=?,channel_url=?').run('https://www.youtube.com/@creator','https://www.youtube.com/@creator');
   expect((await request(store,'/directory-candidates',{input:id})).status).toBe(409);
+  expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   store.sql.exec('DELETE FROM vtubers');
   await request(store,'/directory-candidates',{input:id});
   await request(store,`/directory-candidates/${id}/ignore`,{});
@@ -165,4 +166,18 @@ it.each(['.','..','%2e','.%2E','%2e%2e','%','%GG','%FF'])('rejects ambiguous dot
   }
   expect(globalThis.fetch).not.toHaveBeenCalled();
   for(const table of ['directory_candidates','vtubers','stats_snapshots','audit_logs']) expect(store.sql.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n).toBe(0);
+});
+
+it('resolves stored @old identity even when its YouTube profile advertises @new', async () => {
+  const {store,item} = setup();
+  item.snippet.customUrl='@new';
+  await request(store,'/directory-candidates',{input:id});
+  seedChannel(store);
+  store.sql.prepare('UPDATE vtubers SET youtube_url=?,channel_url=?').run('https://www.youtube.com/@old','https://www.youtube.com/@old');
+  expect((await request(store,'/directory-candidates',{input:id})).status).toBe(409);
+  expect((await request(store,`/directory-candidates/${id}/approve`,review)).status).toBe(409);
+  expect((await request(store,'/youtube/import',{input:id})).body).toMatchObject({id:1,updated:true});
+  expect(globalThis.fetch.mock.calls.some(([input])=>new URL(input).searchParams.get('forHandle')==='@old')).toBe(true);
+  expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers').get().n).toBe(1);
+  expect(store.sql.prepare("SELECT COUNT(*) AS n FROM audit_logs WHERE action='candidate.approve'").get().n).toBe(0);
 });

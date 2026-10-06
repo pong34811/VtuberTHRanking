@@ -272,3 +272,42 @@ it('refreshes canonical channel1001 on a later invocation instead of permanently
   expect(store.sql.prepare('SELECT name FROM vtubers WHERE id=1001').get().name).toBe('Refreshed 1001');
   expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE name<>\'\'').get().n).toBe(1001);
 },30_000);
+
+it('classifies a registered handle outside the10-handle refresh slice as duplicate after profile alias lookup', async () => {
+  const {db,sync,state} = await setup({existing:false});
+  const statements=[];
+  const tailId=`UC${String(10).padStart(22,'0')}`;
+  for(let n=0;n<11;n++) {
+    const channelId=`UC${String(n).padStart(22,'0')}`;
+    const handle=n===10?'@existing':`@creator-${n}`;
+    state.handleItems[handle]=channelId;
+    state.items[channelId]={id:channelId,snippet:{title:`Source ${n}`,description:'Source',customUrl:handle,thumbnails:{}},statistics:{subscriberCount:'0',viewCount:'0',videoCount:'0'}};
+    statements.push(db.prepare("INSERT INTO vtubers(name,slug,youtube_url,channel_url) VALUES ('',?,?,?)").bind(`creator-${n}`,`https://www.youtube.com/${handle}`,`https://www.youtube.com/${handle}`));
+  }
+  await db.batch(statements);
+  state.searchPage=requestUrl=>({items:requestUrl.searchParams.get('q')==='Thai VTuber' && requestUrl.searchParams.get('type')==='channel'?[{id:{channelId:tailId}}]:[]});
+  expect(await sync()).toMatchObject({status:'partial',profilesChecked:10,candidatesNew:0,candidatesPending:0,candidatesDuplicate:1});
+  expect(await db.prepare('SELECT COUNT(*) AS n FROM directory_candidates').first()).toEqual({n:0});
+  expect(await db.prepare('SELECT COUNT(*) AS n FROM vtubers').first()).toEqual({n:11});
+  expect(await db.prepare('SELECT COUNT(*) AS n FROM youtube_profile_state WHERE channel_id=?').bind(tailId).first()).toEqual({n:0});
+},30_000);
+
+it('rechecks the fetched channel alias inside the fenced candidate write when registration wins after lookup', async () => {
+  const store=backendDatabase();stores.push(store);
+  store.sql.exec("UPDATE settings SET setting_value='true' WHERE setting_key='directory_sync_enabled'");
+  const channelId=id('z');
+  const item={id:channelId,snippet:{title:'Discovered',description:'Source',customUrl:'@existing',thumbnails:{}},statistics:{subscriberCount:'0',viewCount:'0',videoCount:'0'}};
+  vi.stubGlobal('fetch',vi.fn(async input=>{
+    const requestUrl=new URL(input);
+    if(requestUrl.pathname.endsWith('/search')) return Response.json({items:requestUrl.searchParams.get('q')==='Thai VTuber' && requestUrl.searchParams.get('type')==='channel'?[{id:{channelId}}]:[]});
+    store.control.beforeBatch=()=>{
+      store.control.beforeBatch=null;
+      store.sql.prepare("INSERT INTO vtubers(name,slug,youtube_url,channel_url) VALUES ('Concurrent','concurrent',?,?)").run('https://www.youtube.com/@existing','https://www.youtube.com/@existing');
+    };
+    return Response.json({items:[item]});
+  }));
+  const result=await syncSQLiteDirectory({DB:store.db,YOUTUBE_API_KEY:'synthetic-only'},{scheduledTime:Date.parse('2026-10-05T02:00:00Z')});
+  expect(result).toMatchObject({status:'succeeded',candidatesNew:0,candidatesPending:0,candidatesDuplicate:1});
+  expect(store.sql.prepare('SELECT COUNT(*) AS n FROM directory_candidates').get().n).toBe(0);
+  expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers').get().n).toBe(1);
+});

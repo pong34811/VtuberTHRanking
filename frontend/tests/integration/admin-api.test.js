@@ -269,7 +269,7 @@ describe('admin youtube import', () => {
     youtubeOk();
     const { calls, response } = await authedRequest('/youtube/import', {
       env: key,
-      responses: [null, null, null, {}, {}, {}, {}],
+      responses: [],
       init: post({ input: '@aiko' }),
     });
 

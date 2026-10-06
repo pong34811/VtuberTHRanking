@@ -1,5 +1,5 @@
 import { readYouTubeStatistics } from '../shared/youtube-statistics.js';
-import { candidateUpsert, canonicalYouTubeUrl } from '../shared/directory-candidates.js';
+import { candidateUpsert, canonicalYouTubeUrl, youtubeChannelAlias as channelAlias } from '../shared/directory-candidates.js';
 import { youtubeReference, readYouTubeProfile, youtubeChannelLookup as lookup } from '../shared/youtube-profile.js';
 
 export const DIRECTORY_SEARCHES = ['Thai VTuber', 'VTuber ไทย', 'วีทูบเบอร์ไทย', 'วีทูปเบอร์ไทย', 'Thai VTuber debut', 'VTuber ไทย debut', 'วีทูบเบอร์ไทย เดบิว', 'วีทูปเบอร์ไทย เดบิว'].flatMap(q => ['channel','video'].map(type => ({ q, type })));
@@ -148,25 +148,33 @@ export async function syncDirectory(env, metadata = {}) {
         const channelId = search.type === 'video' ? hint.snippet?.channelId : hint.id?.channelId;
         const statements = [];
         let candidateWrite = false;
+        let countedDuplicate = false;
         try {
           if (/^UC[A-Za-z0-9_-]{22}$/.test(channelId || '')) {
             result.candidatesChecked++;
             const url = canonicalYouTubeUrl(channelId);
             const registered = known.has(channelId) || await db.prepare(lookup).bind(url, url).first();
             const previous = await db.prepare('SELECT status FROM directory_candidates WHERE channel_id=?').bind(channelId).first();
-            if (registered || previous) result.candidatesDuplicate++;
+            if (registered || previous) { result.candidatesDuplicate++; countedDuplicate = true; }
             if (!registered && !seenCandidates.has(channelId) && (!previous || previous.status === 'pending')) {
               const [item] = await youtube(env, { id: channelId }, budget);
               const profile = item?.id === channelId ? readYouTubeProfile(item) : null;
-              if (!profile) { result.candidatesUnavailable++; errors.push('Candidate channel profile unavailable'); }
-              const evidence = [{ kind: 'search-hint', query: search.q, type: search.type,
-                source: search.type === 'video' && /^[A-Za-z0-9_-]{11}$/.test(hint.id?.videoId || '') ? `https://www.youtube.com/watch?v=${hint.id.videoId}` : url },
-                ...(profile ? [{ kind: 'youtube-profile', source: url, description: profile.bio }] : [])];
-              candidateWrite = true;
-              statements.push(db.prepare('SELECT status FROM directory_candidates WHERE channel_id=?').bind(channelId));
-              statements.push(db.prepare(candidateUpsert).bind(channelId, profile?.name || String(hint.snippet?.channelTitle || hint.snippet?.title || channelId).slice(0,100),
-                url, url, profile ? (readYouTubeStatistics(item.statistics).ok ? 'Manager review required; search is only a hint' : readYouTubeStatistics(item.statistics).reason) : 'YouTube channel profile unavailable; manager review required',
-                startedAt, JSON.stringify(profile || {}), JSON.stringify(evidence), '{}'));
+              const alias = profile ? channelAlias(item) : url;
+              const fetchedExisting = known.has(channelId) || await db.prepare(lookup).bind(url, alias).first();
+              if (fetchedExisting) {
+                if (!countedDuplicate) result.candidatesDuplicate++;
+                known.set(channelId, [fetchedExisting]);
+              } else {
+                if (!profile) { result.candidatesUnavailable++; errors.push('Candidate channel profile unavailable'); }
+                const evidence = [{ kind: 'search-hint', query: search.q, type: search.type,
+                  source: search.type === 'video' && /^[A-Za-z0-9_-]{11}$/.test(hint.id?.videoId || '') ? `https://www.youtube.com/watch?v=${hint.id.videoId}` : url },
+                  ...(profile ? [{ kind: 'youtube-profile', source: url, description: profile.bio }] : [])];
+                candidateWrite = true;
+                statements.push(db.prepare('SELECT status FROM directory_candidates WHERE channel_id=?').bind(channelId));
+                statements.push(db.prepare(candidateUpsert).bind(channelId, profile?.name || String(hint.snippet?.channelTitle || hint.snippet?.title || channelId).slice(0,100),
+                  url, url, profile ? (readYouTubeStatistics(item.statistics).ok ? 'Manager review required; search is only a hint' : readYouTubeStatistics(item.statistics).reason) : 'YouTube channel profile unavailable; manager review required',
+                  startedAt, JSON.stringify(profile || {}), JSON.stringify(evidence), '{}', url, alias));
+              }
 
             }
           } else result.candidatesUnavailable++;
@@ -176,6 +184,7 @@ export async function syncDirectory(env, metadata = {}) {
           if (candidateWrite) {
             seenCandidates.add(channelId);
             if (!saved[1].results.length && saved[2].meta.changes) result.candidatesNew++;
+            if (!saved[2].meta.changes && !countedDuplicate) result.candidatesDuplicate++;
           }
           items = remaining;
           checkpoint.items_json = JSON.stringify(items);
