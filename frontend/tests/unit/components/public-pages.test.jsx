@@ -128,6 +128,16 @@ it('returns to the ranking pathname and query after opening a creator profile', 
   expect(screen.getByTestId('current-location')).toHaveTextContent(rankingPath);
 });
 
+it.each([
+  [{ affiliation: 'agency', agency_name: '  PIXELA  ' }, /สังกัด PIXELA/],
+  [{ affiliation: 'agency', agency_name: '  ' }, /สังกัด/],
+  [{ affiliation: 'indie', agency_name: 'PIXELA' }, /อิสระ/],
+])('shows the expected affiliation label for %o', (vtuber, label) => {
+  render(<MemoryRouter><LeaderboardTable rankings={[{ rank: 1, score: 1, vtuber: { id: 1, slug: 'aiko', name: 'Aiko', ...vtuber } }]} loading={false} /></MemoryRouter>);
+  expect(screen.getByText(label)).toBeInTheDocument();
+  expect(screen.queryByText(/undefined|·\s*$/)).not.toBeInTheDocument();
+});
+
 it('returns to the discovery pathname and query after opening a creator card', async () => {
   vtubersAPI.getBySlug.mockResolvedValue({ data: { name: 'Aiko' } });
   vtubersAPI.getHistory.mockResolvedValue({ data: { history: [] } });

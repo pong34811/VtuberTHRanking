@@ -52,15 +52,16 @@ describe('public API status', () => {
 
 describe('public rankings', () => {
   it.each(['indie', 'agency'])('filters %s rankings and numbers ranks within the group', async affiliation => {
-    const row = { rank: 1, overall_rank: 27, score: 999, rank_change: 2, video_count: 10, id: 7, name: 'Aiko', slug: 'aiko', avatar: 'a.png', vtuber_category: 'gaming', affiliation };
+    const row = { rank: 1, overall_rank: 27, score: 999, rank_change: 2, video_count: 10, id: 7, name: 'Aiko', slug: 'aiko', avatar: 'a.png', vtuber_category: 'gaming', affiliation, agency_name: affiliation === 'agency' ? 'PIXELA' : '' };
     const { response, calls } = await publicRequest(`/rankings/?affiliation=${affiliation}&limit=10&offset=20`, [{ total: 80 }, { results: [row] }]);
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toMatchObject({ affiliation, total: 80, count: 1, results: [{ rank: 1, overall_rank: 27, rank_change: null, vtuber: { affiliation } }] });
+    expect(body).toMatchObject({ affiliation, total: 80, count: 1, results: [{ rank: 1, overall_rank: 27, rank_change: null, vtuber: { affiliation, agency_name: row.agency_name } }] });
     expect(calls[0].sql).toContain('v.affiliation = ?');
     expect(calls[1].sql).toContain('v.affiliation = ?');
     expect(calls[1].sql).toContain('RANK() OVER (ORDER BY r.score DESC)');
+    expect(calls[1].sql).toContain('v.agency_name');
     expect(calls[0].values.at(-1)).toBe(affiliation);
     expect(calls[1].values.at(-3)).toBe(affiliation);
     for (const link of [body.next, body.previous]) {
@@ -164,7 +165,7 @@ describe('public rankings', () => {
   });
 
   it('shapes ranking rows with nested vtuber data', async () => {
-    const row = { rank: 1, score: 999, rank_change: 2, video_count: 10, id: 7, name: 'Aiko', slug: 'aiko', avatar: 'a.png', vtuber_category: 'gaming', affiliation: 'indie' };
+    const row = { rank: 1, score: 999, rank_change: 2, video_count: 10, id: 7, name: 'Aiko', slug: 'aiko', avatar: 'a.png', vtuber_category: 'gaming', affiliation: 'indie', agency_name: '' };
     const { response } = await publicRequest('/rankings/', [{ total: 1 }, { results: [row] }]);
 
     await expect(response.json()).resolves.toMatchObject({
@@ -172,7 +173,7 @@ describe('public rankings', () => {
       count: 1,
       results: [{
         rank: 1,
-        vtuber: { id: 7, name: 'Aiko', slug: 'aiko', avatar: 'a.png', category: 'gaming', affiliation: 'indie', video_count: 10 },
+        vtuber: { id: 7, name: 'Aiko', slug: 'aiko', avatar: 'a.png', category: 'gaming', affiliation: 'indie', agency_name: '', video_count: 10 },
         score: 999,
         rank_change: 2,
       }],

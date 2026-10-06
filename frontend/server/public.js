@@ -90,7 +90,7 @@ api.get('/rankings/', async (c) => {
   const total = countResult?.total || 0;
 
   const rankExpression = affiliation ? 'RANK() OVER (ORDER BY r.score DESC)' : 'r.rank';
-  const query = `SELECT ${rankExpression} AS rank, r.rank AS overall_rank, r.score, r.rank_change, r.video_count, v.id, v.name, v.slug, v.avatar, v.category as vtuber_category, v.affiliation
+  const query = `SELECT ${rankExpression} AS rank, r.rank AS overall_rank, r.score, r.rank_change, r.video_count, v.id, v.name, v.slug, v.avatar, v.category as vtuber_category, v.affiliation, v.agency_name
     FROM rankings r JOIN vtubers v ON r.vtuber_id = v.id ${whereClause} ORDER BY r.rank ASC, r.vtuber_id ASC LIMIT ? OFFSET ?`;
 
   const { results } = await db.prepare(query).bind(...params, limit, offset).all();
@@ -112,7 +112,7 @@ api.get('/rankings/', async (c) => {
     results: results.map(row => ({
       rank: row.rank,
       ...(affiliation && { overall_rank: row.overall_rank }),
-      vtuber: { id: row.id, name: row.name, slug: row.slug, avatar: row.avatar, category: row.vtuber_category, affiliation: row.affiliation, video_count: row.video_count },
+      vtuber: { id: row.id, name: row.name, slug: row.slug, avatar: row.avatar, category: row.vtuber_category, affiliation: row.affiliation, agency_name: row.agency_name, video_count: row.video_count },
       score: row.score, rank_change: affiliation ? null : row.rank_change,
     })),
   });
