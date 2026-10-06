@@ -9,7 +9,8 @@ import { strictIsoTimestamp } from './request-validation.js';
 import { IMPORT_BODY_LIMIT, logSafeError } from './request-body.js';
 import { readSiteConfig } from './site-config.js';
 import { readYouTubeStatistics } from '../../shared/youtube-statistics.js';
-import { youtubeChannelLookup as importedChannelLookup, readYouTubeProfile } from '../../shared/youtube-profile.js';
+import { candidateUpsert, canonicalYouTubeUrl } from '../../shared/directory-candidates.js';
+import { youtubeReference, youtubeChannelLookup as importedChannelLookup, readYouTubeProfile } from '../../shared/youtube-profile.js';
 
 const app = new Hono();
 const userFields = 'id,username,display_name,email,role,status,created_at,updated_at,last_login_at';
@@ -28,6 +29,7 @@ app.use('*', async (c, next) => { if (!c.get('user') || c.get('user').status !==
 app.onError((error, c) => {
   if (error instanceof HTTPException) return c.json({ message: error.message }, error.status);
   if (error.code === 'RANKING_CHANNEL_LIMIT') return c.json({ message: error.message }, 409);
+  if (/directory_candidate_stale/.test(error.message)) return c.json({ message: 'Candidate changed or channel already registered' }, 409);
   if (/UNIQUE constraint failed/i.test(error.message)) return c.json({ message: 'A record with this unique value already exists' }, 409);
   logSafeError('Admin operation failed');
   return c.json({ message: 'Unable to complete operation' }, 500);
@@ -41,7 +43,12 @@ async function channelAgency(c, data) {
   return { ...data, agency_name: agency.name };
 }
 app.post('/vtubers', async c => {
-  const data = await channelAgency(c, channel(await body(c, channelFields))); const fields = Object.keys(data);
+  const data = await channelAgency(c, channel(await body(c, channelFields)));
+  if (data.platform === 'youtube' || data.youtube_url || youtubeReference(data.channel_url)) {
+    const item = await youtubeChannel(c, data.youtube_url || data.channel_url);
+    return queueCandidate(c, item, data);
+  }
+  const fields = Object.keys(data);
   const result = await c.env.DB.batch([
     stmt(c, `INSERT INTO vtubers (${fields.join(',')},created_at,updated_at) VALUES (${fields.map(() => '?').join(',')},datetime('now'),datetime('now'))`, ...Object.values(data)),
     auditLookup(c, 'create', 'vtuber', 'SELECT id FROM vtubers WHERE slug=?', [data.slug], { slug: data.slug }),
@@ -49,8 +56,24 @@ app.post('/vtubers', async c => {
   return c.json({ ok: true, id: result[0].meta.last_row_id }, 201);
 });
 app.put('/vtubers/:id', async c => {
-  const id = numericId(c); await exists(c, 'vtubers', id);
+  const id = numericId(c); const old = await exists(c, 'vtubers', id);
   const data = await channelAgency(c, channel(await body(c, channelFields)));
+  if (data.platform === 'youtube' || data.youtube_url || youtubeReference(data.channel_url)) {
+    const changed = ['youtube_url','channel_url'].filter(field => data[field] && data[field] !== (old[field] || ''));
+    if (changed.length) {
+      const oldReference = youtubeReference(old.youtube_url) || youtubeReference(old.channel_url);
+      if (!oldReference) fail('Channel identity changes require queue and approval', 409);
+      const oldId = oldReference.id || (await youtubeChannel(c, old.youtube_url || old.channel_url)).id;
+      for (const field of changed) {
+        const reference = youtubeReference(data[field]);
+        if (!reference) fail('Invalid YouTube channel reference');
+        const nextId = reference.id || (await youtubeChannel(c, data[field])).id;
+        if (nextId !== oldId) fail('Channel identity changes require queue and approval', 409);
+        const pending = await stmt(c, "SELECT channel_id FROM directory_candidates WHERE channel_id=? AND status='pending'", nextId).first();
+        if (pending) fail('Pending channel requires manager approval', 409);
+      }
+    }
+  }
   await c.env.DB.batch([stmt(c, `UPDATE vtubers SET ${Object.keys(data).map(key => `${key}=?`).join(',')},updated_at=datetime('now') WHERE id=?`, ...Object.values(data), id), audit(c, 'update', 'vtuber', id, { fields: Object.keys(data) })]);
   return c.json({ ok: true, id });
 });
@@ -150,21 +173,121 @@ app.get('/pipeline-runs', c => {
 
 app.get('/directory-sync', async c => {
   manager(c); c.header('Cache-Control', 'no-store');
-  const [runs, candidates] = await Promise.all([
+  const [runs, candidates, sweep] = await Promise.all([
     stmt(c, 'SELECT * FROM directory_sync_runs ORDER BY started_at DESC,id DESC LIMIT 10').all(),
     stmt(c, "SELECT channel_id,name,source_url,reason,checked_at FROM directory_candidates WHERE status='pending' ORDER BY checked_at DESC,channel_id LIMIT 100").all(),
+    stmt(c, 'SELECT day,query_index,completed,json_array_length(items_json) AS remaining_items FROM directory_search_checkpoint WHERE id=1').first(),
   ]);
-  return c.json({ runs: runs.results, candidates: candidates.results });
+  return c.json({ runs: runs.results, candidates: candidates.results, sweep });
 });
-app.post('/directory-candidates/:id/ignore', async c => {
-  manager(c);
+function candidateId(c) {
   const id = c.req.param('id');
   if (!/^UC[A-Za-z0-9_-]{22}$/.test(id)) fail('Invalid channel ID');
-  const row = await stmt(c, 'SELECT status FROM directory_candidates WHERE channel_id=?', id).first();
-  if (!row || row.status !== 'pending') fail('Pending candidate not found', 404);
+  return id;
+}
+const channelAlias = item => {
+  const handle = item.snippet?.customUrl || item.inputHandle;
+  return typeof handle === 'string' && /^@[^/?#\s]+$/.test(handle) ? `https://www.youtube.com/${handle}` : canonicalYouTubeUrl(item.id);
+};
+const pendingAssertion = (c, id, newIdentity = false, alias = canonicalYouTubeUrl(id)) => stmt(c, `INSERT INTO directory_candidate_assertions(valid)
+  SELECT CASE WHEN EXISTS (SELECT 1 FROM directory_candidates WHERE channel_id=? AND status='pending')
+  ${newIdentity ? `AND NOT EXISTS (${importedChannelLookup})` : ''} THEN 1 ELSE 0 END`,
+  id, ...(newIdentity ? [canonicalYouTubeUrl(id), alias] : []));
+async function existingYouTubeChannel(c, item) {
+  const canonical = canonicalYouTubeUrl(item.id);
+  const alias = channelAlias(item);
+  const existing = await stmt(c, importedChannelLookup, canonical, alias).first();
+  if (existing || item.snippet?.customUrl) return existing;
+  const { results: rows = [] } = await stmt(c, `SELECT id,youtube_url,channel_url FROM vtubers WHERE platform='youtube' OR platform IS NULL`).all();
+  let requests = 0;
+  for (const row of rows) {
+    const ref = youtubeReference(row.youtube_url) || youtubeReference(row.channel_url);
+    if (!ref?.forHandle) continue;
+    // ponytail: at most 20 legacy handle resolutions per manual action; record baselines for larger legacy directories.
+    if (++requests > 20) fail('Existing channel identities need verification before queueing', 409);
+    let resolved;
+    try { resolved = await youtubeChannel(c, ref.forHandle); }
+    catch { fail('Existing channel identity could not be verified', 409); }
+    if (resolved.id === item.id) return row;
+  }
+  return null;
+}
+async function queueCandidate(c, item, review = {}) {
+  const profile = readYouTubeProfile(item);
+  if (!profile) fail('Invalid YouTube channel profile', 502);
+  const url = canonicalYouTubeUrl(item.id);
+  const existing = await existingYouTubeChannel(c, item);
+  const previous = await stmt(c, 'SELECT status FROM directory_candidates WHERE channel_id=?', item.id).first();
+  if (existing || (previous && previous.status !== 'pending')) fail('Channel already registered or reviewed', 409);
+  const stats = readYouTubeStatistics(item.statistics);
   await c.env.DB.batch([
+    stmt(c, candidateUpsert, item.id, profile.name, url, url, stats.ok ? 'Manager review required' : stats.reason,
+      new Date().toISOString(), JSON.stringify(profile), JSON.stringify([{ source: url, kind: 'youtube-profile', description: profile.bio }]), JSON.stringify(review)),
+    pendingAssertion(c, item.id, true, channelAlias(item)),
+    audit(c, 'candidate.queue', 'directory_candidate', item.id),
+    stmt(c, 'DELETE FROM directory_candidate_assertions'),
+  ]);
+  return c.json({ ok: true, queued: true, channel_id: item.id, name: profile.name }, 202);
+}
+app.get('/directory-candidates', async c => {
+  manager(c); c.header('Cache-Control', 'no-store');
+  const q = str(c.req.query('q') ?? '', 'q', 100);
+  const parse = (value, fallback, max) => {
+    if (value === undefined) return fallback;
+    if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) > max) fail('Invalid pagination');
+    return Number(value);
+  };
+  const limit = parse(c.req.query('limit'), 20, 100);
+  const offset = parse(c.req.query('offset'), 0, 1000000);
+  if (limit < 1) fail('Invalid pagination');
+  const filter = "status='pending' AND instr(lower(name),lower(?))>0";
+  const [rows, count] = await Promise.all([
+    stmt(c, `SELECT * FROM directory_candidates WHERE ${filter} ORDER BY checked_at DESC,channel_id LIMIT ? OFFSET ?`, q, limit, offset).all(),
+    stmt(c, `SELECT COUNT(*) AS total FROM directory_candidates WHERE ${filter}`, q).first(),
+  ]);
+  return c.json({ results: rows.results, total: count.total, limit, offset });
+});
+app.post('/directory-candidates', async c => {
+  manager(c);
+  const { input } = await body(c, ['input'], IMPORT_BODY_LIMIT);
+  return queueCandidate(c, await youtubeChannel(c, input));
+});
+app.post('/directory-candidates/:id/approve', async c => {
+  manager(c); const id = candidateId(c);
+  const pending = await stmt(c, 'SELECT * FROM directory_candidates WHERE channel_id=?', id).first();
+  if (!pending) fail('Candidate not found', 404);
+  if (pending.status !== 'pending') fail('Candidate changed or already reviewed', 409);
+  const input = await body(c, channelFields);
+  choice(input.affiliation, ['indie','agency'], 'affiliation');
+  const url = canonicalYouTubeUrl(id);
+  if ((input.youtube_url && input.youtube_url !== url) || (input.channel_url && input.channel_url !== url) || (input.platform && input.platform !== 'youtube')) fail('Candidate channel identity cannot change');
+  const item = await youtubeChannel(c, id);
+  const profile = readYouTubeProfile(item);
+  if (!profile || item.id !== id) fail('YouTube channel profile unavailable', 502);
+  if (await existingYouTubeChannel(c, item)) fail('Channel already registered', 409);
+  const data = await channelAgency(c, channel({ ...input, platform: 'youtube', youtube_url: url, channel_url: url }));
+  const stats = readYouTubeStatistics(item.statistics);
+  const now = new Date().toISOString();
+  const saved = await c.env.DB.batch([
+    pendingAssertion(c, id, true, channelAlias(item)),
+    stmt(c, `INSERT INTO vtubers (${Object.keys(data).join(',')},created_at,updated_at) VALUES (${Object.keys(data).map(() => '?').join(',')},datetime('now'),datetime('now'))`, ...Object.values(data)),
+    stmt(c, `UPDATE directory_candidates SET status='imported',vtuber_id=(SELECT id FROM vtubers WHERE slug=?),checked_at=?,profile_json=? WHERE channel_id=? AND status='pending'`, data.slug, now, JSON.stringify(profile), id),
+    ...(stats.ok ? [stmt(c, `INSERT INTO stats_snapshots(vtuber_id,followers,total_views,video_count,avg_views,recorded_at) VALUES ((SELECT vtuber_id FROM directory_candidates WHERE channel_id=?),?,?,?,0,?)`, id, stats.followers, stats.total_views, stats.video_count, now)] : []),
+    stmt(c, `INSERT INTO youtube_profile_state(vtuber_id,channel_id,profile_json,reference_json,source_url,checked_at) SELECT vtuber_id,?,?,json_object('youtube_url',?,'channel_url',?),?,? FROM directory_candidates WHERE channel_id=?`, id, JSON.stringify(profile), url, url, url, now, id),
+    audit(c, 'candidate.approve', 'directory_candidate', id, { slug: data.slug, snapshot: stats.ok, affiliation: data.affiliation }),
+    stmt(c, 'DELETE FROM directory_candidate_assertions'),
+    stmt(c, 'SELECT vtuber_id FROM directory_candidates WHERE channel_id=?', id),
+  ]);
+  return c.json({ ok: true, id: saved.at(-1).results[0].vtuber_id, channel_id: id, snapshot: stats.ok }, 201);
+});
+app.post('/directory-candidates/:id/ignore', async c => {
+  manager(c); const id = candidateId(c);
+  if (!await stmt(c, 'SELECT channel_id FROM directory_candidates WHERE channel_id=?', id).first()) fail('Candidate not found', 404);
+  await c.env.DB.batch([
+    pendingAssertion(c, id),
     stmt(c, "UPDATE directory_candidates SET status='ignored' WHERE channel_id=? AND status='pending'", id),
     audit(c, 'update', 'directory_candidate', id, { status: 'ignored' }),
+    stmt(c, 'DELETE FROM directory_candidate_assertions'),
   ]);
   return c.json({ ok: true });
 });
@@ -248,9 +371,10 @@ async function youtubeChannel(c, input) {
   const key = c.env.YOUTUBE_API_KEY;
   if (!key) fail('ยังไม่ได้ตั้งค่า YOUTUBE_API_KEY บนเซิร์ฟเวอร์', 500);
   const ref = str(input, 'ช่อง YouTube', 200, true);
-  const idMatch = ref.match(/(UC[\w-]{22})/);
-  const handleMatch = ref.match(/@([\w.-]{3,})/);
-  const query = idMatch ? `id=${idMatch[1]}` : handleMatch ? `forHandle=${encodeURIComponent(handleMatch[1])}` : fail('ใส่ channel ID, @handle หรือลิงก์ YouTube', 400);
+  const reference = /^UC[A-Za-z0-9_-]{22}$/.test(ref) ? { id: ref }
+    : /^@[^/?#\s]+$/.test(ref) ? { forHandle: ref } : youtubeReference(ref);
+  if (!reference) fail('ใส่ channel ID, @handle หรือลิงก์ YouTube', 400);
+  const query = new URLSearchParams(reference).toString();
   let res;
   try {
     res = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&${query}&key=${encodeURIComponent(key)}`, { headers: { Referer: new URL(c.req.url).origin }, signal: AbortSignal.timeout(15000) });
@@ -262,6 +386,8 @@ async function youtubeChannel(c, input) {
   const item = payload.items[0];
   if (!item) fail('ไม่พบช่องนี้บน YouTube', 404);
   if (typeof item.id !== 'string' || !/^UC[\w-]{22}$/.test(item.id)) fail('Invalid YouTube API response', 502);
+  if (reference.id && reference.id !== item.id) fail('Invalid YouTube API response', 502);
+  item.inputHandle = reference.forHandle;
   return item;
 }
 app.post('/agencies/youtube/import', async c => {
@@ -284,6 +410,10 @@ app.post('/agencies/youtube/import', async c => {
 app.post('/youtube/import', async c => {
   const { input } = await body(c, ['input'], IMPORT_BODY_LIMIT);
   const item = await youtubeChannel(c, input);
+  const youtubeUrl = canonicalYouTubeUrl(item.id);
+  const existing = await existingYouTubeChannel(c, item);
+  if (!existing) return queueCandidate(c, item);
+  const current = await exists(c, 'vtubers', existing.id);
   const stats = readYouTubeStatistics(item.statistics);
   if (!stats.ok) fail(stats.reason, 502);
   const { followers, total_views: views, video_count: videos } = stats;
@@ -291,37 +421,19 @@ app.post('/youtube/import', async c => {
   const thumbs = item.snippet?.thumbnails || {};
   const name = profile?.name || item.snippet?.title || 'Unknown';
   const avatar = thumbs.medium?.url || thumbs.default?.url || '';
-  const youtubeUrl = `https://www.youtube.com/channel/${item.id}`;
   const now = new Date().toISOString();
   const sourceStatements = profile ? [stmt(c, `INSERT INTO youtube_profile_state(vtuber_id,channel_id,profile_json,reference_json,source_url,checked_at)
     SELECT id,?,?,json_object('youtube_url',youtube_url,'channel_url',channel_url),?,? FROM vtubers WHERE id=(${importedChannelLookup})
     ON CONFLICT(vtuber_id) DO UPDATE SET channel_id=excluded.channel_id,profile_json=excluded.profile_json,reference_json=excluded.reference_json,source_url=excluded.source_url,checked_at=excluded.checked_at`,
     item.id, JSON.stringify(profile), youtubeUrl, now, youtubeUrl, youtubeUrl)] : [];
-  const existing = await stmt(c, importedChannelLookup, youtubeUrl, youtubeUrl).first();
-  if (existing) {
-    await c.env.DB.batch([
-      stmt(c, 'UPDATE vtubers SET name=?,avatar=?,youtube_url=?,channel_url=?,updated_at=datetime(?) WHERE id=?', name, avatar, youtubeUrl, youtubeUrl, now, existing.id),
-      stmt(c, 'INSERT INTO stats_snapshots (vtuber_id,followers,total_views,video_count,avg_views,recorded_at) VALUES (?,?,?,?,0,?)', existing.id, followers, views, videos, now),
-      audit(c, 'youtube.import', 'vtuber', existing.id, { followers }),
-      ...sourceStatements,
-    ]);
-    return c.json({ ok: true, id: existing.id, name, followers, total_views: views, video_count: videos, updated: true });
-  }
-  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'channel';
-  let slug = base, n = 1;
-  while (await stmt(c, 'SELECT id FROM vtubers WHERE slug=?', slug).first()) { n += 1; if (n > 9) fail('Slug ซ้ำเกินไป'); slug = `${base}-${n}`; }
-  const result = await c.env.DB.batch([
-    stmt(c, `INSERT INTO vtubers (name,slug,bio,avatar,channel_url,platform,category,affiliation,is_active,youtube_url,created_at,updated_at)
-      SELECT ?,?,?,?,?,?,'other','indie',1,?,datetime('now'),datetime('now') WHERE NOT EXISTS (${importedChannelLookup})`,
-      name, slug, profile?.bio ?? (item.snippet?.description || '').slice(0, 2000), avatar, youtubeUrl, 'youtube', youtubeUrl, youtubeUrl, youtubeUrl),
-    stmt(c, `UPDATE vtubers SET name=?,avatar=?,youtube_url=?,channel_url=?,updated_at=datetime(?) WHERE id=(${importedChannelLookup})`, name, avatar, youtubeUrl, youtubeUrl, now, youtubeUrl, youtubeUrl),
-    stmt(c, `INSERT INTO stats_snapshots (vtuber_id,followers,total_views,video_count,avg_views,recorded_at) VALUES ((${importedChannelLookup}),?,?,?,0,?)`, youtubeUrl, youtubeUrl, followers, views, videos, now),
-    auditLookup(c, 'youtube.import', 'vtuber', importedChannelLookup, [youtubeUrl, youtubeUrl], { followers }),
-    stmt(c, `SELECT id,slug FROM vtubers WHERE id=(${importedChannelLookup})`, youtubeUrl, youtubeUrl),
+  await c.env.DB.batch([
+    stmt(c, `INSERT INTO directory_candidate_assertions(valid) SELECT CASE WHEN EXISTS (SELECT 1 FROM vtubers WHERE id=? AND COALESCE(youtube_url,'')=? AND COALESCE(channel_url,'')=?) THEN 1 ELSE 0 END`, existing.id, current.youtube_url || '', current.channel_url || ''),
+    stmt(c, 'UPDATE vtubers SET name=?,avatar=?,youtube_url=?,channel_url=?,updated_at=datetime(?) WHERE id=?', name, avatar, youtubeUrl, youtubeUrl, now, existing.id),
+    stmt(c, 'INSERT INTO stats_snapshots (vtuber_id,followers,total_views,video_count,avg_views,recorded_at) VALUES (?,?,?,?,0,?)', existing.id, followers, views, videos, now),
+    audit(c, 'youtube.import', 'vtuber', existing.id, { followers }),
     ...sourceStatements,
+    stmt(c, 'DELETE FROM directory_candidate_assertions'),
   ]);
-  const saved = result[4].results[0];
-  const updated = result[0].meta.changes === 0;
-  return c.json({ ok: true, id: saved.id, name, slug: saved.slug, followers, total_views: views, video_count: videos, ...(updated && { updated: true }) }, updated ? 200 : 201);
+  return c.json({ ok: true, id: existing.id, name, followers, total_views: views, video_count: videos, updated: true });
 });
 export default app;

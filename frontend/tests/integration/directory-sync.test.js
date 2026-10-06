@@ -9,9 +9,6 @@ import { backendDatabase, mountedRequest, seedUser, staffToken } from '../helper
 
 const id = letter => `UC${letter.repeat(22)}`;
 const url = letter => `https://www.youtube.com/channel/${id(letter)}`;
-const roster = `<a href="${url('x')}">Corporate account</a>
-  <div class="wixui-repeater__item"><a href="https://www.youtube.com/@active">Active</a><p>Current member</p></div>
-  <div class="wixui-repeater__item"><a href="https://www.youtube.com/@graduated">Graduate</a><p>[Graduated]</p></div>`;
 const fixtures = {
   [id('a')]: { id: id('a'), snippet: { title: 'Current title', description: 'Channel bio', thumbnails: { medium: { url: 'https://images.example/avatar.png' } } }, statistics: { subscriberCount: '10', viewCount: '100', videoCount: '2' } },
   [id('p')]: { id: id('p'), snippet: { title: 'Pixela member', description: 'Primary channel description', thumbnails: {} }, statistics: { subscriberCount: '20', viewCount: '200', videoCount: '3' } },
@@ -26,9 +23,8 @@ beforeAll(async () => {
   const built = await build({
     configFile: false, logLevel: 'silent',
     plugins: [{ name: 'directory-test-entry', resolveId(value) { if (value.endsWith('directory-test-entry')) return '\0directory-test-entry'; },
-      load(value) { if (value === '\0directory-test-entry') return `import updater from ${JSON.stringify(fileURLToPath(new URL('../../../worker/updater.js', import.meta.url)).replaceAll('\\', '/'))}; import {syncDirectory,readPixelaRoster} from ${JSON.stringify(fileURLToPath(new URL('../../../worker/directory-sync.js', import.meta.url)).replaceAll('\\', '/'))};
+      load(value) { if (value === '\0directory-test-entry') return `import updater from ${JSON.stringify(fileURLToPath(new URL('../../../worker/updater.js', import.meta.url)).replaceAll('\\', '/'))}; import {syncDirectory} from ${JSON.stringify(fileURLToPath(new URL('../../../worker/directory-sync.js', import.meta.url)).replaceAll('\\', '/'))};
       export default {async fetch(request,env) { const u=new URL(request.url);
-        if(u.pathname==='/roster') return Response.json(await readPixelaRoster(new Response(await request.text())));
         const metadata={scheduledTime:Date.parse(u.searchParams.get('time')||'2026-10-05T02:00:00Z')};
         if(u.pathname==='/scheduled') {await updater.scheduled(metadata,env);return Response.json({ok:true});}
         return Response.json(await syncDirectory(env,metadata)); }};`; } }],
@@ -39,12 +35,14 @@ beforeAll(async () => {
 afterEach(async () => { vi.restoreAllMocks(); stores.splice(0).forEach(store => store.close()); await Promise.all(runtimes.splice(0).map(runtime => runtime.dispose())); });
 
 async function setup({ enabled = true, existing = true } = {}) {
-  const state = { roster, rosterFails: false, items: structuredClone(fixtures), searchFails: false, onChannels: null };
+  const state = { searchPage: null, items: structuredClone(fixtures), searchFails: false, onChannels: null };
   const network = vi.fn(async request => {
     const requestUrl = new URL(request.url);
-    if (requestUrl.hostname === 'www.pixela.me') return new Response(state.roster, { status: state.rosterFails ? 503 : 200, headers: { 'content-type': 'text/html' } });
-    if (requestUrl.pathname.endsWith('/search')) return state.searchFails ? new Response('', { status: 403 })
-      : Response.json({ items: ['i', 'u'].map(letter => ({ id: { channelId: id(letter) } })) });
+    if (requestUrl.pathname.endsWith('/search')) {
+      if (state.searchFails) return new Response('', { status: 403 });
+      if (state.searchPage) return Response.json(await state.searchPage(requestUrl));
+      return Response.json({ items: ['i','u'].map(letter => ({ id: { channelId: id(letter),videoId: 'abcdefghijk' },snippet: { channelId: id(letter) } })) });
+    }
     await state.onChannels?.(requestUrl);
     const ids = requestUrl.searchParams.get('id')?.split(',') || [id(requestUrl.searchParams.get('forHandle') === '@active' ? 'p' : 'g')];
     return Response.json({ items: ids.map(channelId => state.items[channelId]).filter(Boolean) });
@@ -73,34 +71,24 @@ async function setup({ enabled = true, existing = true } = {}) {
   return { runtime, db, state, network, sync };
 }
 
-it('parses actual Cloudflare HTML cards, confines links to talent cards and reads graduation markers', async () => {
-  const { runtime } = await setup({ enabled: false });
-  const response = await runtime.dispatchFetch('https://test.invalid/roster', { method: 'POST', body: roster });
-  expect(await response.json()).toEqual([
-    { url: 'https://www.youtube.com/@active', graduated: false },
-    { url: 'https://www.youtube.com/@graduated', graduated: true },
-  ]);
-}, 30_000);
-
-it('imports only primary verified creators, preserves editorial fields, and publishes their daily statistics once', async () => {
+it('queues every discovery, preserves editorial fields, and publishes statistics only for registered channels', async () => {
   const { db, sync, network } = await setup();
-  expect(await sync()).toMatchObject({ ok: true, status: 'succeeded', profilesChecked: 1, channelsAdded: 2, candidatesPending: 2 });
+  expect(await sync()).toMatchObject({ ok: true, status: 'succeeded', profilesChecked: 1, channelsAdded: 0, candidatesPending: 2, candidatesNew: 2 });
   const creators = (await db.prepare('SELECT name,bio,affiliation,agency_name,debut_date FROM vtubers ORDER BY id').all()).results;
   expect(creators).toEqual([
     { name: 'Editorial name', bio: 'Editorial bio', affiliation: 'indie', agency_name: '', debut_date: '' },
-    { name: 'Pixela member', bio: 'Primary channel description', affiliation: 'agency', agency_name: 'Pixela Project', debut_date: '' },
-    { name: 'Independent creator', bio: 'Independent Thai VTuber', affiliation: 'indie', agency_name: '', debut_date: '' },
   ]);
   expect((await db.prepare('SELECT name FROM directory_candidates WHERE status=\'pending\' ORDER BY name').all()).results)
-    .toEqual([{ name: 'Graduated member' }, { name: 'Unverified creator' }]);
+    .toEqual([{ name: 'Independent creator' }, { name: 'Unverified creator' }]);
+  expect(network.mock.calls.every(([request]) => new URL(request.url).hostname === 'www.googleapis.com')).toBe(true);
   const calls = network.mock.calls.length;
   expect(await sync('2026-10-05T16:59:59Z')).toEqual({ ok: true, skipped: 'not due' });
   expect(network).toHaveBeenCalledTimes(calls);
   await sync('2026-10-05T02:00:00Z', '/scheduled');
-  expect(await db.prepare('SELECT COUNT(*) AS n FROM stats_snapshots').first()).toEqual({ n: 3 });
-  expect(await db.prepare('SELECT COUNT(*) AS n FROM rankings').first()).toEqual({ n: 18 });
+  expect(await db.prepare('SELECT COUNT(*) AS n FROM stats_snapshots').first()).toEqual({ n: 1 });
+  expect(await db.prepare('SELECT COUNT(*) AS n FROM rankings').first()).toEqual({ n: 6 });
   await sync('2026-10-05T02:00:00Z', '/scheduled');
-  expect(await db.prepare('SELECT COUNT(*) AS n FROM stats_snapshots').first()).toEqual({ n: 3 });
+  expect(await db.prepare('SELECT COUNT(*) AS n FROM stats_snapshots').first()).toEqual({ n: 1 });
   expect((await db.prepare('PRAGMA foreign_key_check').all()).results).toEqual([]);
 }, 30_000);
 
@@ -115,8 +103,8 @@ it('updates fields still matching the last source while protecting concurrent ed
       await db.prepare("UPDATE vtubers SET bio='Concurrent edit' WHERE id=1").run();
     }
   };
-  await db.prepare("UPDATE vtubers SET is_active=0 WHERE name='Pixela member'").run();
-  await db.prepare("DELETE FROM vtubers WHERE name='Independent creator'").run();
+  await db.prepare("INSERT INTO vtubers(name,slug,youtube_url,channel_url,is_active) VALUES ('Pixela member','pixela',?,?,0)").bind(url('p'),url('p')).run();
+  await db.prepare("UPDATE directory_candidates SET status='imported' WHERE channel_id=?").bind(id('i')).run();
   expect(await sync('2026-10-05T17:00:00Z')).toMatchObject({ ok: true, channelsAdded: 0 });
   expect(await db.prepare('SELECT name,bio,slug FROM vtubers WHERE id=1').first()).toEqual({ name: 'New source title', bio: 'Concurrent edit', slug: 'editorial' });
   expect(await db.prepare("SELECT is_active FROM vtubers WHERE name='Pixela member'").first()).toEqual({ is_active: 0 });
@@ -124,28 +112,28 @@ it('updates fields still matching the last source while protecting concurrent ed
   expect(await db.prepare('SELECT day FROM directory_sync_runs ORDER BY day DESC LIMIT 1').first()).toEqual({ day: '2026-10-06' });
 }, 30_000);
 
-it('retains good profiles during malformed metadata, retries partial discovery and runs statistics when a roster fails', async () => {
+it('retains good profiles during malformed metadata, retries search failures and still runs statistics', async () => {
   const { db, sync, state } = await setup();
-  state.rosterFails = true;
+  state.searchFails = true;
   state.items[id('a')].snippet.title = '';
-  expect(await sync()).toMatchObject({ ok: false, status: 'partial', channelsAdded: 1 });
+  expect(await sync()).toMatchObject({ ok: false, status: 'partial', channelsAdded: 0 });
   expect(await db.prepare('SELECT name FROM vtubers WHERE id=1').first()).toEqual({ name: 'Editorial name' });
   await sync('2026-10-05T02:00:00Z', '/scheduled');
-  expect(await db.prepare('SELECT COUNT(*) AS n FROM stats_snapshots').first()).toEqual({ n: 2 });
-  state.rosterFails = false; state.items[id('a')].snippet.title = 'Current title';
-  expect(await sync()).toMatchObject({ ok: true, status: 'succeeded', channelsAdded: 1 });
-  expect(await db.prepare('SELECT COUNT(*) AS n FROM vtubers').first()).toEqual({ n: 3 });
+  expect(await db.prepare('SELECT COUNT(*) AS n FROM stats_snapshots').first()).toEqual({ n: 1 });
+  state.searchFails = false; state.items[id('a')].snippet.title = 'Current title';
+  expect(await sync()).toMatchObject({ ok: true, status: 'succeeded', channelsAdded: 0 });
+  expect(await db.prepare('SELECT COUNT(*) AS n FROM vtubers').first()).toEqual({ n: 1 });
 }, 30_000);
 
 it('keeps hidden-counter candidates pending, honors ignored candidates and serializes concurrent runs', async () => {
   const { db, sync, state } = await setup({ existing: false });
-  state.items[id('p')].statistics.hiddenSubscriberCount = true;
+  state.items[id('u')].statistics.hiddenSubscriberCount = true;
   await db.prepare("INSERT INTO directory_candidates(channel_id,name,source_url,reference_url,reason,status,checked_at) VALUES (?,'Ignored',?,?,'Manager decision','ignored',datetime('now'))")
     .bind(id('i'), url('i'), url('i')).run();
   const results = await Promise.all([sync(), sync()]);
   expect(results.some(result => result.skipped === 'in progress' || result.skipped === 'not due')).toBe(true);
   expect(await db.prepare('SELECT COUNT(*) AS n FROM vtubers').first()).toEqual({ n: 0 });
-  expect(await db.prepare('SELECT reason FROM directory_candidates WHERE channel_id=?').bind(id('p')).first()).toEqual({ reason: 'YouTube subscriber count is hidden' });
+  expect(await db.prepare('SELECT reason FROM directory_candidates WHERE channel_id=?').bind(id('u')).first()).toEqual({ reason: 'YouTube subscriber count is hidden' });
   expect(await db.prepare('SELECT COUNT(*) AS n FROM directory_sync_runs').first()).toEqual({ n: 1 });
 }, 30_000);
 
@@ -196,3 +184,45 @@ it('does not apply a fetched profile after the manager switches its channel URL'
   expect(await db.prepare('SELECT name FROM vtubers WHERE id=1').first()).toEqual({ name: 'Current title' });
   expect(await db.prepare('SELECT channel_id FROM youtube_profile_state WHERE vtuber_id=1').first()).toEqual({ channel_id: id('a') });
 }, 30_000);
+it('persists pagination and every unprocessed item at the request budget and resumes the old sweep before a new day', async () => {
+  const {db,sync,state,network} = await setup();
+  const discovered = Array.from({length:50},(_,n) => `UC${String(n).padStart(22,'0')}`);
+  for (const channelId of discovered) state.items[channelId] = {id:channelId,snippet:{title:channelId,description:'Uncertain context',thumbnails:{}},statistics:{hiddenSubscriberCount:true}};
+  state.searchPage = requestUrl => {
+    if (requestUrl.searchParams.get('q') !== 'Thai VTuber' || requestUrl.searchParams.get('type') !== 'channel') return {items:[]};
+    const page = Number(requestUrl.searchParams.get('pageToken') || 0);
+    return {items:discovered.slice(page*10,page*10+10).map(channelId => ({id:{channelId}})),...(page<4 && {nextPageToken:String(page+1)})};
+  };
+  const first = await sync();
+  expect(first).toMatchObject({status:'partial',channelsAdded:0,sweep:{day:'2026-10-05',completed:false,queryIndex:0,remainingItems:5}});
+  expect(network.mock.calls.length).toBe(40);
+  const checkpoint = await db.prepare('SELECT * FROM directory_search_checkpoint').first();
+  expect(JSON.parse(checkpoint.items_json).map(item => item.id.channelId)).toEqual(discovered.slice(35,40));
+  network.mockClear();
+  const second = await sync('2026-10-05T17:00:00Z');
+  expect(second.sweep.day).toBe('2026-10-05');
+  expect(network.mock.calls.length).toBeLessThanOrEqual(40);
+  expect(await db.prepare('SELECT COUNT(*) AS n FROM directory_candidates').first()).toEqual({n:50});
+  expect(await db.prepare('SELECT COUNT(*) AS n FROM vtubers').first()).toEqual({n:1});
+  expect((await db.prepare('SELECT day FROM directory_sync_runs').all()).results).toEqual([{day:'2026-10-05'}]);
+  if (!second.sweep.completed) await sync('2026-10-05T18:00:00Z');
+  expect((await db.prepare('SELECT completed FROM directory_search_checkpoint').first()).completed).toBe(1);
+  await sync('2026-10-05T19:00:00Z');
+  expect((await db.prepare('SELECT day FROM directory_search_checkpoint').first()).day).toBe('2026-10-06');
+},30_000);
+
+it('uses nextPageToken despite a short page, extracts video channel identity and retains profile evidence', async () => {
+  const {db,sync,state,network} = await setup({existing:false});
+  state.searchPage = requestUrl => {
+    const type=requestUrl.searchParams.get('type');
+    if (requestUrl.searchParams.get('q') !== 'Thai VTuber') return {items:[]};
+    if (type==='video') return {items:[{id:{videoId:'abcdefghijk'},snippet:{channelId:id('u'),channelTitle:'Hint'}}]};
+    return requestUrl.searchParams.has('pageToken') ? {items:[{id:{channelId:id('i')}}]} : {items:[],nextPageToken:'next-short-page'};
+  };
+  expect(await sync()).toMatchObject({status:'succeeded',channelsAdded:0,candidatesNew:2,sweep:{completed:true}});
+  expect(network.mock.calls.some(([request])=>new URL(request.url).searchParams.get('pageToken')==='next-short-page')).toBe(true);
+  const row=await db.prepare('SELECT evidence_json,status FROM directory_candidates WHERE channel_id=?').bind(id('u')).first();
+  expect(row.status).toBe('pending');
+  expect(JSON.parse(row.evidence_json)).toContainEqual({kind:'search-hint',query:'Thai VTuber',type:'video',source:'https://www.youtube.com/watch?v=abcdefghijk'});
+  expect(JSON.parse(row.evidence_json)).toContainEqual({kind:'youtube-profile',source:url('u'),description:'Games and entertainment'});
+},30_000);

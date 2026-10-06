@@ -69,7 +69,7 @@ describe('admin channels CRUD', () => {
   it('creates a channel with valid data', async () => {
     const { response } = await authedRequest('/vtubers', {
       responses: [{ meta: { last_row_id: 5 } }, {}],
-      init: post({ name: 'Aiko', slug: 'aiko' }),
+      init: post({ name: 'Aiko', slug: 'aiko', platform: 'twitch' }),
     });
 
     expect(response.status).toBe(201);
@@ -214,6 +214,7 @@ describe('admin youtube import', () => {
     id: 'UCabcdefghij1234567890AB',
     snippet: {
       title: 'Aiko Channel',
+      customUrl: '@aiko',
       description: 'Test channel',
       thumbnails: { medium: { url: 'https://img.example/a.jpg' } },
     },
@@ -268,16 +269,13 @@ describe('admin youtube import', () => {
     youtubeOk();
     const { calls, response } = await authedRequest('/youtube/import', {
       env: key,
-      responses: [null, null, { meta: { last_row_id: 9, changes: 1 } }, {}, {}, {}, { results: [{ id: 9, slug: 'aiko-channel' }] }],
+      responses: [null, null, null, {}, {}, {}, {}],
       init: post({ input: '@aiko' }),
     });
 
-    expect(response.status).toBe(201);
-    await expect(response.json()).resolves.toMatchObject({
-      ok: true, id: 9, name: 'Aiko Channel', slug: 'aiko-channel',
-      followers: 1000, total_views: 5000, video_count: 50,
-    });
-    expect(calls[0].values).toEqual(['https://www.youtube.com/channel/UCabcdefghij1234567890AB', 'https://www.youtube.com/channel/UCabcdefghij1234567890AB']);
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, queued: true, channel_id: item.id, name: 'Aiko Channel' });
+    expect(calls[0].values).toEqual(['https://www.youtube.com/channel/UCabcdefghij1234567890AB', 'https://www.youtube.com/@aiko']);
   });
 
   it('updates an existing channel instead of duplicating', async () => {

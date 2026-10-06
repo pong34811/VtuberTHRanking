@@ -67,16 +67,16 @@ it('keeps a newly imported long description equal to its source baseline for lat
     statistics: { subscriberCount: '100', viewCount: '1000', videoCount: '10' },
   }] })));
   const result = await mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
-  expect(result.status).toBe(201);
-  expect(store.sql.prepare('SELECT name,bio FROM vtubers').get()).toEqual({ name: 'Long description', bio: description });
-  const baseline = JSON.parse(store.sql.prepare('SELECT profile_json FROM youtube_profile_state').get().profile_json);
+  expect(result.status).toBe(202);
+  expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers').get().n).toBe(0);
+  const baseline = JSON.parse(store.sql.prepare('SELECT profile_json FROM directory_candidates').get().profile_json);
   expect(baseline).toMatchObject({ name: 'Long description', bio: description });
 });
 
 describe('atomic admin writes with dependent IDs', () => {
   it.each([
     ['/admin/agencies', { name: 'Created Agency' }, 'agencies'],
-    ['/admin/vtubers', { name: 'Created Channel', slug: 'created-channel' }, 'vtubers'],
+    ['/admin/vtubers', { name: 'Created Channel', slug: 'created-channel', platform: 'twitch' }, 'vtubers'],
     ['/admin/youtube/import', { input: '@imported' }, 'vtubers'],
     ['/admin/agencies/youtube/import', { input: '@imported' }, 'agencies'],
   ])('rolls back the primary record when the audit fails on %s', async (path, payload, table) => {
@@ -110,13 +110,13 @@ describe('atomic admin writes with dependent IDs', () => {
     expect((await request()).status).toBe(500);
     store.control.fail = null;
     const retry = await request();
-    expect(retry.status).toBe(201);
+    expect(retry.status).toBe(202);
     const refresh = await request();
-    expect(refresh.status).toBe(200);
-    expect(refresh.body.id).toBe(retry.body.id);
-    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers').get().n).toBe(1);
-    expect(store.sql.prepare('SELECT DISTINCT vtuber_id FROM stats_snapshots').all()).toEqual([{ vtuber_id: retry.body.id }]);
-    expect(store.sql.prepare('SELECT DISTINCT target_id FROM audit_logs').all()).toEqual([{ target_id: String(retry.body.id) }]);
+    expect(refresh.status).toBe(202);
+    expect(refresh.body.channel_id).toBe(retry.body.channel_id);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers').get().n).toBe(0);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM directory_candidates').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT DISTINCT target_id FROM audit_logs').all()).toEqual([{ target_id: youtubeId }]);
   });
 
   it('rechecks the import natural key inside the same batch when another request wins allocation', async () => {
@@ -126,33 +126,33 @@ describe('atomic admin writes with dependent IDs', () => {
       store.sql.prepare("INSERT INTO vtubers(id,name,slug,channel_url,youtube_url) VALUES (71,'Concurrent','concurrent',?,?)").run(youtubeUrl, youtubeUrl);
     };
     const result = await mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
-    expect(result.status).toBe(200);
-    expect(result.body.id).toBe(71);
-    expect(result.body.updated).toBe(true);
+    expect(result.status).toBe(409);
     expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers').get().n).toBe(1);
-    expect(store.sql.prepare('SELECT vtuber_id FROM stats_snapshots').get().vtuber_id).toBe(71);
-    expect(store.sql.prepare('SELECT target_id FROM audit_logs').get().target_id).toBe('71');
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM stats_snapshots').get().n).toBe(0);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM audit_logs').get().n).toBe(0);
   });
 });
 
 describe('mounted import resource and protocol boundaries', () => {
   it.each(['subscriberCount', 'viewCount', 'videoCount'])('returns 502 for a malformed JSON counter in %s without persistence', async field => {
-    const store = database(); seedUser(store);
+    const store = database(); seedUser(store); seedChannel(store);
+    store.sql.prepare('UPDATE vtubers SET channel_url=?,youtube_url=? WHERE id=1').run(youtubeUrl, youtubeUrl);
     vi.spyOn(console, 'error').mockImplementation(() => {});
     youtubeFixture({ subscriberCount: '100', viewCount: '1000', videoCount: '10', [field]: { toString: 'bad' } });
     const result = await mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
     expect(result.status).toBe(502);
     expect(result.body.message).toBe('YouTube returned invalid statistics');
-    for (const table of ['vtubers', 'stats_snapshots', 'audit_logs']) {
+    for (const table of ['stats_snapshots', 'audit_logs']) {
       expect(store.sql.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n).toBe(0);
     }
   });
 
   it.each([0, '0'])('persists genuine zero counters from YouTube (%j)', async zero => {
-    const store = database(); seedUser(store);
+    const store = database(); seedUser(store); seedChannel(store);
+    store.sql.prepare('UPDATE vtubers SET channel_url=?,youtube_url=? WHERE id=1').run(youtubeUrl, youtubeUrl);
     youtubeFixture({ hiddenSubscriberCount: false, subscriberCount: zero, viewCount: zero, videoCount: zero });
     const result = await mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
-    expect(result.status).toBe(201);
+    expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ followers: 0, total_views: 0, video_count: 0 });
     expect(store.sql.prepare('SELECT followers,total_views,video_count FROM stats_snapshots').get()).toEqual({ followers: 0, total_views: 0, video_count: 0 });
   });
@@ -179,11 +179,11 @@ describe('mounted import resource and protocol boundaries', () => {
     const before = store.sql.prepare('SELECT * FROM vtubers').all();
     youtubeFixture({ hiddenSubscriberCount: true, subscriberCount: '100', viewCount: '1000', videoCount: '10' });
     const result = await mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
-    expect(result.status).toBe(502);
-    expect(result.body.message).toBe('YouTube subscriber count is hidden');
+    expect(result.status).toBe(existing ? 502 : 202);
+    if (existing) expect(result.body.message).toBe('YouTube subscriber count is hidden');
     expect(store.sql.prepare('SELECT * FROM vtubers').all()).toEqual(before);
     expect(store.sql.prepare('SELECT COUNT(*) AS n FROM stats_snapshots').get().n).toBe(0);
-    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM audit_logs').get().n).toBe(0);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM audit_logs').get().n).toBe(existing ? 0 : 1);
   });
 
   it.each(['/admin/youtube/import', '/admin/agencies/youtube/import'])('caps %s at 8192 UTF-8 bytes before outbound fetch', async path => {

@@ -36,6 +36,9 @@ export const youtubeChannelLookup = `WITH source(url,alias) AS (VALUES (?,?)) SE
     AND json_extract(s.reference_json,'$.youtube_url')=COALESCE(v.youtube_url,'')
     AND json_extract(s.reference_json,'$.channel_url')=COALESCE(v.channel_url,'')
   WHERE s.source_url=source.url
-    OR rtrim(replace(replace(replace(v.youtube_url,'http://','https://'),'https://youtube.com/','https://www.youtube.com/'),'https://m.youtube.com/','https://www.youtube.com/'),'/')=source.url
-    OR rtrim(replace(replace(replace(v.channel_url,'http://','https://'),'https://youtube.com/','https://www.youtube.com/'),'https://m.youtube.com/','https://www.youtube.com/'),'/')=source.alias
+    OR rtrim(replace(replace(replace(v.youtube_url,'http://','https://'),'https://youtube.com/','https://www.youtube.com/'),'https://m.youtube.com/','https://www.youtube.com/'),'/') IN (source.url,source.alias)
+    OR rtrim(replace(replace(replace(v.channel_url,'http://','https://'),'https://youtube.com/','https://www.youtube.com/'),'https://m.youtube.com/','https://www.youtube.com/'),'/') IN (source.url,source.alias)
+    OR (instr(source.alias,'/@')>0 AND (
+      lower(rtrim(replace(replace(replace(v.youtube_url,'http://','https://'),'https://youtube.com/','https://www.youtube.com/'),'https://m.youtube.com/','https://www.youtube.com/'),'/'))=lower(source.alias)
+      OR lower(rtrim(replace(replace(replace(v.channel_url,'http://','https://'),'https://youtube.com/','https://www.youtube.com/'),'https://m.youtube.com/','https://www.youtube.com/'),'/'))=lower(source.alias)))
   ORDER BY v.id LIMIT 1`;

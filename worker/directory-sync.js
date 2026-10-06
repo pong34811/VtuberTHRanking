@@ -1,32 +1,13 @@
 import { readYouTubeStatistics } from '../shared/youtube-statistics.js';
-import { youtubeReference, readYouTubeProfile, isIndependentThaiVTuber, youtubeChannelLookup as lookup } from '../shared/youtube-profile.js';
+import { candidateUpsert, canonicalYouTubeUrl } from '../shared/directory-candidates.js';
+import { youtubeReference, readYouTubeProfile, youtubeChannelLookup as lookup } from '../shared/youtube-profile.js';
 
-export const PIXELA_ROSTER = 'https://www.pixela.me/virtual-influencers';
-const agencyName = 'Pixela Project';
-const canonicalUrl = id => `https://www.youtube.com/channel/${id}`;
-
-export async function readPixelaRoster(response) {
-  const cards = [];
-  let card;
-  const html = await new HTMLRewriter().on('.wixui-repeater__item', {
-    element(element) {
-      card = { references: [], text: '' }; cards.push(card);
-      element.onEndTag(() => { card = null; });
-    },
-    text(chunk) { if (card) card.text += chunk.text; },
-  }).on('.wixui-repeater__item a[href]', {
-    element(element) {
-      const url = element.getAttribute('href');
-      if (card && youtubeReference(url)) card.references.push(url);
-    },
-  }).transform(response).text();
-  // ponytail: one verified roster layout; add an adapter when another official roster is verified.
-  if (!cards.length || html.length > 1_000_000 || cards.length > 100) throw new Error('Official roster layout changed');
-  return cards.flatMap(row => [...new Set(row.references)].map(url => ({ url, graduated: /\bgraduated\b/i.test(row.text) })));
-}
+export const DIRECTORY_SEARCHES = ['Thai VTuber', 'VTuber ไทย', 'วีทูบเบอร์ไทย', 'วีทูปเบอร์ไทย', 'Thai VTuber debut', 'VTuber ไทย debut', 'วีทูบเบอร์ไทย เดบิว', 'วีทูปเบอร์ไทย เดบิว'].flatMap(q => ['channel','video'].map(type => ({ q, type })));
+const canonicalUrl = canonicalYouTubeUrl;
 
 async function youtube(env, query, budget, search = false) {
-  if (++budget.requests > 40 || Date.now() >= budget.deadline) throw new Error('Directory request budget exhausted');
+  if (budget.requests >= 40 || Date.now() >= budget.deadline) throw new Error('Directory request budget exhausted');
+  budget.requests++;
   const url = new URL(`https://www.googleapis.com/youtube/v3/${search ? 'search' : 'channels'}`);
   for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
   url.searchParams.set('part', search ? 'snippet' : 'snippet,statistics');
@@ -35,7 +16,8 @@ async function youtube(env, query, budget, search = false) {
   if (!response.ok) throw new Error('YouTube directory request failed');
   const body = await response.json();
   if (!Array.isArray(body?.items) || body.items.length > (search ? 10 : 50)) throw new Error('Invalid YouTube directory response');
-  return body.items;
+  if (search && body.nextPageToken !== undefined && (typeof body.nextPageToken !== 'string' || body.nextPageToken.length > 2048)) throw new Error('Invalid YouTube pagination');
+  return search ? body : body.items;
 }
 
 function profileStatements(db, row, channelId, profile, checkedAt) {
@@ -72,18 +54,24 @@ export async function syncDirectory(env, metadata = {}) {
     ...statements, db.prepare('DELETE FROM ranking_pipeline_assertions'),
   ]);
   let run;
-  const result = { profilesChecked: 0, channelsAdded: 0, candidatesPending: 0 };
+  const result = { profilesChecked: 0, channelsAdded: 0, candidatesPending: 0, candidatesChecked: 0, candidatesNew: 0, candidatesDuplicate: 0, candidatesUnavailable: 0 };
   const errors = [];
   try {
-    const existingRun = await db.prepare('SELECT * FROM directory_sync_runs WHERE day=?').bind(day).first();
+    let checkpoint = await db.prepare('SELECT * FROM directory_search_checkpoint WHERE id=1').first();
+    const sweepDay = checkpoint && !checkpoint.completed ? checkpoint.day : day;
+    const existingRun = await db.prepare('SELECT * FROM directory_sync_runs WHERE day=?').bind(sweepDay).first();
     if (existingRun?.status === 'succeeded') return { ok: true, skipped: 'not due' };
     run = existingRun?.id || owner;
     await batch([
       db.prepare("UPDATE directory_sync_runs SET status='failed',completed_at=?,error_summary='Directory lease expired' WHERE status='running'").bind(startedAt),
       db.prepare(`INSERT INTO directory_sync_runs(id,day,status,started_at) VALUES (?,?,'running',?)
-        ON CONFLICT(day) DO UPDATE SET status='running',started_at=excluded.started_at,completed_at=NULL`).bind(run, day, startedAt),
+        ON CONFLICT(day) DO UPDATE SET status='running',started_at=excluded.started_at,completed_at=NULL`).bind(run, sweepDay, startedAt),
     ]);
     if (!env.YOUTUBE_API_KEY) throw new Error('YouTube API key is not configured');
+    if (!checkpoint || (checkpoint.completed && checkpoint.day !== day)) {
+      await batch([db.prepare(`INSERT INTO directory_search_checkpoint(id,day) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET day=excluded.day,query_index=0,page_token='',items_json='[]',next_page_token='',completed=0`).bind(day)]);
+      checkpoint = { day, query_index: 0, page_token: '', items_json: '[]', next_page_token: '', completed: 0 };
+    }
     const budget = { requests: 0, deadline: Date.now() + 60_000 };
     const { results: channels = [] } = await db.prepare(`SELECT v.id,v.youtube_url,v.channel_url,v.is_active,s.channel_id,s.reference_json FROM vtubers v
       LEFT JOIN youtube_profile_state s ON s.vtuber_id=v.id WHERE v.platform='youtube' OR v.platform IS NULL ORDER BY v.id`).all();
@@ -93,6 +81,7 @@ export async function syncDirectory(env, metadata = {}) {
       if (row.channel_id && ref?.forHandle && row.reference_json === JSON.stringify({ youtube_url: row.youtube_url || '', channel_url: row.channel_url || '' })) ref.id = row.channel_id;
       if (ref?.id) { if (!known.has(ref.id)) known.set(ref.id, []); known.get(ref.id).push(row); }
       else if (ref?.forHandle) {
+        if (budget.requests >= 10) { errors.push('Existing handle refresh deferred'); continue; }
         try {
           const [item] = await youtube(env, ref, budget);
           if (!readYouTubeProfile(item)) throw new Error('Invalid channel profile');
@@ -102,6 +91,7 @@ export async function syncDirectory(env, metadata = {}) {
     }
     const ids = [...known.keys()];
     for (let offset = 0; offset < ids.length; offset += 50) {
+      if (budget.requests >= 20) { errors.push('Existing profile refresh deferred to preserve discovery budget'); break; }
       const requested = ids.slice(offset, offset + 50);
       try {
         const items = await youtube(env, { id: requested.join(',') }, budget);
@@ -115,73 +105,75 @@ export async function syncDirectory(env, metadata = {}) {
         }
       } catch { errors.push('Existing channel profiles could not be refreshed'); }
     }
-    const candidates = [];
-    try {
-      if (Date.now() >= budget.deadline) throw new Error('Directory time budget exhausted');
-      const response = await fetch(PIXELA_ROSTER, { redirect: 'manual', signal: AbortSignal.timeout(Math.min(8000, budget.deadline - Date.now())) });
-      if (!response.ok || !response.headers.get('content-type')?.includes('text/html')) throw new Error('Official roster unavailable');
-      const rows = await readPixelaRoster(response);
-      if (!rows.length) throw new Error('Official roster has no channel references');
-      candidates.push(...rows.map(row => ({ ...row, source: PIXELA_ROSTER, agency: true })));
-    } catch { errors.push('Pixela official roster could not be checked'); }
-    try {
-      const items = await youtube(env, { q: 'Thai VTuber', type: 'channel', order: 'date', relevanceLanguage: 'th', maxResults: '10' }, budget, true);
-      candidates.push(...items.filter(item => /^UC[A-Za-z0-9_-]{22}$/.test(item.id?.channelId || ''))
-        .map(item => ({ url: canonicalUrl(item.id.channelId), source: canonicalUrl(item.id.channelId), agency: false })));
-    } catch { errors.push('Independent channel search failed'); }
-    const seen = new Set();
-    for (const candidate of candidates) {
-      const ref = youtubeReference(candidate.url);
-      const key = ref?.id || ref?.forHandle?.toLowerCase();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      try {
-        const savedReference = await db.prepare("SELECT status FROM directory_candidates WHERE reference_url=? AND status IN ('imported','ignored')").bind(candidate.url).first();
-        if (savedReference) continue;
-        const [item] = await youtube(env, ref, budget);
-        const profile = readYouTubeProfile(item);
-        if (!profile || (ref.id && ref.id !== item.id)) throw new Error('Invalid candidate profile');
-        if (known.has(item.id)) {
-          await batch([db.prepare(`INSERT INTO directory_candidates(channel_id,name,source_url,reference_url,reason,status,vtuber_id,checked_at)
-            VALUES (?,?,?,?,'Already registered','imported',?,?) ON CONFLICT(channel_id) DO NOTHING`)
-            .bind(item.id, profile.name, candidate.source, candidate.url, known.get(item.id)[0].id, startedAt)]);
-          continue;
-        }
-        const previous = await db.prepare('SELECT status FROM directory_candidates WHERE channel_id=?').bind(item.id).first();
-        if (previous && previous.status !== 'pending') continue;
-        const statistics = readYouTubeStatistics(item.statistics);
-        const verified = !candidate.graduated && (candidate.agency || isIndependentThaiVTuber(profile));
-        const reason = candidate.graduated ? 'Official roster marks this creator graduated'
-          : !verified ? 'Thai VTuber / independent affiliation needs primary evidence'
-            : !statistics.ok ? statistics.reason : 'Verified primary source';
-        const url = canonicalUrl(item.id);
-        await batch([db.prepare(`INSERT INTO directory_candidates(channel_id,name,source_url,reference_url,reason,status,checked_at)
-          VALUES (?,?,?,?,?,'pending',?) ON CONFLICT(channel_id) DO UPDATE SET name=excluded.name,source_url=excluded.source_url,reference_url=excluded.reference_url,reason=excluded.reason,checked_at=excluded.checked_at
-          WHERE directory_candidates.status='pending'`).bind(item.id, profile.name, candidate.source, candidate.url, reason, startedAt)]);
-        if (!verified || !statistics.ok) { result.candidatesPending++; continue; }
-        if (candidate.agency) await batch([db.prepare('INSERT OR IGNORE INTO agencies(name,contact) VALUES (?,?)').bind(agencyName, 'https://www.pixela.me/')]);
-        const saved = await batch([
-          db.prepare(`INSERT INTO vtubers(name,slug,bio,avatar,channel_url,youtube_url,platform,country,affiliation,agency_id,agency_name)
-            SELECT ?,?,?,?,?,?,'youtube','Thailand',?,${candidate.agency ? '(SELECT id FROM agencies WHERE name=?)' : 'NULL'},?
-            WHERE NOT EXISTS (${lookup}) AND EXISTS (SELECT 1 FROM directory_candidates WHERE channel_id=? AND status='pending')`)
-            .bind(profile.name, `youtube-${Array.from(new TextEncoder().encode(item.id), byte => byte.toString(16).padStart(2, '0')).join('')}`, profile.bio, profile.avatar, url, url,
-              candidate.agency ? 'agency' : 'indie', ...(candidate.agency ? [agencyName] : []), candidate.agency ? agencyName : '', url, url, item.id),
-          db.prepare(`UPDATE directory_candidates SET status='imported',vtuber_id=(${lookup}) WHERE channel_id=? AND status='pending' AND EXISTS (${lookup})`)
-            .bind(url, url, item.id, url, url),
-        ]);
-        const inserted = saved[1].meta.changes;
-        result.channelsAdded += inserted;
-        const row = await db.prepare(lookup).bind(url, url).first();
-        if (row) {
-          known.set(item.id, [row]);
-          const current = await db.prepare('SELECT id,youtube_url,channel_url FROM vtubers WHERE id=?').bind(row.id).first();
-          if (current) await batch(profileStatements(db, current, item.id, profile, startedAt));
-        }
-      } catch { errors.push('Candidate channel could not be verified or saved'); }
+    const seenCandidates = new Set();
+    while (!checkpoint.completed && budget.requests < 40 && Date.now() < budget.deadline) {
+      let items = JSON.parse(checkpoint.items_json);
+      const search = DIRECTORY_SEARCHES[checkpoint.query_index];
+      if (!items.length) {
+        try {
+          const page = await youtube(env, { ...search, order: 'date', relevanceLanguage: 'th', maxResults: '10', ...(checkpoint.page_token && { pageToken: checkpoint.page_token }) }, budget, true);
+          items = page.items;
+          checkpoint.items_json = JSON.stringify(items);
+          checkpoint.next_page_token = page.nextPageToken || '';
+          // Persist the whole page before fetching profiles; a quota/time interruption resumes its unprocessed tail.
+          await batch([db.prepare('UPDATE directory_search_checkpoint SET items_json=?,next_page_token=? WHERE id=1').bind(checkpoint.items_json, checkpoint.next_page_token)]);
+        } catch { errors.push('YouTube candidate search failed; sweep will resume'); break; }
+      }
+      let interrupted = false;
+      while (items.length) {
+        if (budget.requests >= 40 || Date.now() >= budget.deadline) { interrupted = true; break; }
+        const hint = items[0];
+        const channelId = search.type === 'video' ? hint.snippet?.channelId : hint.id?.channelId;
+        const statements = [];
+        let candidateWrite = false;
+        try {
+          if (/^UC[A-Za-z0-9_-]{22}$/.test(channelId || '')) {
+            result.candidatesChecked++;
+            const url = canonicalYouTubeUrl(channelId);
+            const registered = known.has(channelId) || await db.prepare(lookup).bind(url, url).first();
+            const previous = await db.prepare('SELECT status FROM directory_candidates WHERE channel_id=?').bind(channelId).first();
+            if (registered || previous) result.candidatesDuplicate++;
+            if (!registered && !seenCandidates.has(channelId) && (!previous || previous.status === 'pending')) {
+              const [item] = await youtube(env, { id: channelId }, budget);
+              const profile = item?.id === channelId ? readYouTubeProfile(item) : null;
+              if (!profile) { result.candidatesUnavailable++; errors.push('Candidate channel profile unavailable'); }
+              const evidence = [{ kind: 'search-hint', query: search.q, type: search.type,
+                source: search.type === 'video' && /^[A-Za-z0-9_-]{11}$/.test(hint.id?.videoId || '') ? `https://www.youtube.com/watch?v=${hint.id.videoId}` : url },
+                ...(profile ? [{ kind: 'youtube-profile', source: url, description: profile.bio }] : [])];
+              candidateWrite = true;
+              statements.push(db.prepare('SELECT status FROM directory_candidates WHERE channel_id=?').bind(channelId));
+              statements.push(db.prepare(candidateUpsert).bind(channelId, profile?.name || String(hint.snippet?.channelTitle || hint.snippet?.title || channelId).slice(0,100),
+                url, url, profile ? (readYouTubeStatistics(item.statistics).ok ? 'Manager review required; search is only a hint' : readYouTubeStatistics(item.statistics).reason) : 'YouTube channel profile unavailable; manager review required',
+                startedAt, JSON.stringify(profile || {}), JSON.stringify(evidence), '{}'));
+
+            }
+          } else result.candidatesUnavailable++;
+          const remaining = items.slice(1);
+          statements.push(db.prepare('UPDATE directory_search_checkpoint SET items_json=? WHERE id=1').bind(JSON.stringify(remaining)));
+          const saved = await batch(statements);
+          if (candidateWrite) {
+            seenCandidates.add(channelId);
+            if (!saved[1].results.length && saved[2].meta.changes) result.candidatesNew++;
+          }
+          items = remaining;
+          checkpoint.items_json = JSON.stringify(items);
+        } catch { errors.push('Candidate profile lookup failed; sweep will resume'); interrupted = true; break; }
+      }
+      if (interrupted) break;
+      if (checkpoint.next_page_token) checkpoint.page_token = checkpoint.next_page_token;
+      else { checkpoint.query_index++; checkpoint.page_token = ''; }
+      checkpoint.next_page_token = '';
+      checkpoint.completed = Number(checkpoint.query_index >= DIRECTORY_SEARCHES.length);
+      await batch([db.prepare(`UPDATE directory_search_checkpoint SET query_index=?,page_token=?,items_json='[]',next_page_token='',completed=? WHERE id=1`)
+        .bind(checkpoint.query_index, checkpoint.page_token, checkpoint.completed)]);
     }
+    result.sweep = { day: checkpoint.day, queryIndex: checkpoint.query_index, queryTotal: DIRECTORY_SEARCHES.length,
+      remainingItems: JSON.parse(checkpoint.items_json).length, completed: Boolean(checkpoint.completed) };
+    if (!checkpoint.completed) errors.push('Search sweep incomplete; resumes next hourly invocation');
+    result.candidatesPending = (await db.prepare("SELECT COUNT(*) AS n FROM directory_candidates WHERE status='pending'").first()).n;
     const status = errors.length ? 'partial' : 'succeeded';
-    await batch([db.prepare(`UPDATE directory_sync_runs SET status=?,completed_at=?,profiles_checked=?,channels_added=?,candidates_pending=?,error_summary=? WHERE id=?`)
-      .bind(status, new Date().toISOString(), result.profilesChecked, result.channelsAdded, result.candidatesPending, [...new Set(errors)].join('; ').slice(0, 2000), run)]);
+    await batch([db.prepare(`UPDATE directory_sync_runs SET status=?,completed_at=?,profiles_checked=?,channels_added=?,candidates_pending=?,candidates_checked=candidates_checked+?,candidates_new=candidates_new+?,candidates_duplicate=candidates_duplicate+?,candidates_unavailable=candidates_unavailable+?,error_summary=? WHERE id=?`)
+      .bind(status, new Date().toISOString(), result.profilesChecked, result.channelsAdded, result.candidatesPending, result.candidatesChecked, result.candidatesNew, result.candidatesDuplicate, result.candidatesUnavailable, [...new Set(errors)].join('; ').slice(0, 2000), run)]);
     return { ok: !errors.length, status, ...result };
   } catch {
     if (run) await batch([db.prepare("UPDATE directory_sync_runs SET status='failed',completed_at=?,error_summary='Directory sync failed; check configuration and retry' WHERE id=?").bind(new Date().toISOString(), run)]);

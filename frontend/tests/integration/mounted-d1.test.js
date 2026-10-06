@@ -49,7 +49,7 @@ it('rolls back the entire mutation class and resolves correct audit IDs on actua
   await store.db.prepare("CREATE TRIGGER reject_audit BEFORE INSERT ON audit_logs BEGIN SELECT RAISE(ABORT,'injected audit failure'); END").run();
   for (const [path, payload, table] of [
     ['/admin/agencies', { name: 'Agency' }, 'agencies'],
-    ['/admin/vtubers', { name: 'Creator', slug: 'creator' }, 'vtubers'],
+    ['/admin/vtubers', { name: 'Creator', slug: 'creator', platform: 'twitch' }, 'vtubers'],
     ['/admin/agencies/youtube/import', { input: '@imported' }, 'agencies'],
     ['/admin/youtube/import', { input: '@imported' }, 'vtubers'],
   ]) {
@@ -62,7 +62,7 @@ it('rolls back the entire mutation class and resolves correct audit IDs on actua
   await store.db.prepare('DROP TRIGGER reject_audit').run();
   for (const [path, payload, table, type] of [
     ['/admin/agencies', { name: 'Agency' }, 'agencies', 'agency'],
-    ['/admin/vtubers', { name: 'Creator', slug: 'creator' }, 'vtubers', 'vtuber'],
+    ['/admin/vtubers', { name: 'Creator', slug: 'creator', platform: 'twitch' }, 'vtubers', 'vtuber'],
   ]) {
     const result = await mountedRequest(store, path, { method: 'POST', authenticated: true, payload });
     expect(result.status).toBe(201);
@@ -75,11 +75,17 @@ it('serializes concurrent natural-key imports without duplicate channels on actu
   const store = await database(); youtubeFixture();
   const request = () => mountedRequest(store, '/admin/youtube/import', { method: 'POST', authenticated: true, payload: { input: '@imported' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
   const responses = await Promise.all([request(), request()]);
-  expect(responses.map(row => row.status).sort()).toEqual([200, 201]);
-  expect(responses[0].body.id).toBe(responses[1].body.id);
+  expect(responses.map(row => row.status).sort()).toEqual([202, 202]);
+  expect(responses[0].body.channel_id).toBe(responses[1].body.channel_id);
+  expect(await store.db.prepare('SELECT COUNT(*) AS n FROM vtubers').first()).toEqual({ n: 0 });
+  expect(await store.db.prepare('SELECT COUNT(*) AS n FROM directory_candidates').first()).toEqual({ n: 1 });
+  const approve = () => mountedRequest(store, `/admin/directory-candidates/${youtubeId}/approve`, { method: 'POST', authenticated: true,
+    payload: { name: 'Reviewed', slug: 'reviewed', affiliation: 'indie' }, env: { YOUTUBE_API_KEY: 'fixture-only' } });
+  const approved = await Promise.all([approve(), approve()]);
+  expect(approved.map(row => row.status).sort()).toEqual([201,409]);
   expect(await store.db.prepare('SELECT COUNT(*) AS n FROM vtubers').first()).toEqual({ n: 1 });
-  expect((await store.db.prepare('SELECT DISTINCT vtuber_id FROM stats_snapshots').all()).results).toEqual([{ vtuber_id: responses[0].body.id }]);
-  expect((await store.db.prepare('SELECT DISTINCT target_id FROM audit_logs').all()).results).toEqual([{ target_id: String(responses[0].body.id) }]);
+  expect(await store.db.prepare('SELECT COUNT(*) AS n FROM stats_snapshots').first()).toEqual({ n: 1 });
+  expect(await store.db.prepare("SELECT COUNT(*) AS n FROM audit_logs WHERE action='candidate.approve'").first()).toEqual({ n: 1 });
   expect((await store.db.prepare('PRAGMA foreign_key_check').all()).results).toEqual([]);
 }, 30_000);
 
