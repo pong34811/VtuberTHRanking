@@ -47,9 +47,10 @@ function reviewValue(row) {
     .filter(key => Object.hasOwn(draft || {}, key))
     .map(key => [key, draft[key]]));
   const canonical = `https://www.youtube.com/channel/${row.channel_id}`;
+  const slugId = Array.from(row.channel_id, char => char.charCodeAt(0).toString(16).padStart(2, "0")).join("");
   return {
     ...blank, name: profile?.name || row.name || "", avatar: profile?.avatar || "", bio: profile?.bio || "",
-    slug: `youtube-${row.channel_id.toLowerCase()}`, ...editable,
+    slug: `youtube-${slugId}`, ...editable,
     affiliation: "", platform: "youtube", youtube_url: canonical, channel_url: canonical,
   };
 }

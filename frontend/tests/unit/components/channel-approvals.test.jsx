@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ChannelApprovalsTab } from '@/admin/tabs/ChannelApprovalsTab';
-const id = `UC${'a'.repeat(22)}`;
+const id = `UC${'a'.repeat(21)}_`;
 const row = { channel_id: id, name: 'Synthetic creator', checked_at: '2026-10-05 00:00:00', profile_json: JSON.stringify({name:'Synthetic creator',bio:'An uncertain debut statement'}), review_json: JSON.stringify({ affiliation:'indie', notes:'Reviewed draft' }), evidence_json: JSON.stringify([{kind:'youtube-profile',source:`https://www.youtube.com/channel/${id}`,description:'Primary text'}, {kind:'search-hint',source:'javascript:alert(1)',query:'Thai VTuber'}]) };
 afterEach(() => vi.unstubAllGlobals());
 function stub(handler) { vi.stubGlobal('fetch', vi.fn(async (url, options = {}) => {
@@ -40,6 +40,7 @@ it('requires explicit affiliation, locks identity and approves metadata without 
   expect(url).toContain(`/directory-candidates/${id}/approve`);
   expect(options.headers['X-CSRF-Token'] || options.headers['x-csrf-token']).toBe('fixture');
   expect(JSON.parse(options.body)).toMatchObject({affiliation:'agency',agency_id:7,platform:'youtube',youtube_url:`https://www.youtube.com/channel/${id}`,notes:'Reviewed draft'});
+  expect(JSON.parse(options.body).slug).toBe(`youtube-${Array.from(id, char => char.charCodeAt(0).toString(16).padStart(2, '0')).join('')}`);
   await screen.findByText('ไม่พบช่องรออนุมัติ');
 });
 it('retains stale ignore errors without false success and retries failed lists', async () => {
