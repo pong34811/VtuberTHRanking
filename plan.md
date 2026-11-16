@@ -276,3 +276,31 @@ YouTube discovery first completed against isolated local D1 on 6 October 2026. I
 After the owner explicitly authorized production continuation in chat on 6 October, `main` through `f47aae7` was pushed. Remote D1 migrations `0011_channel_approvals.sql` and `0012_directory_profile_cursor.sql` applied successfully. Worker `vtuberthai-updater` deployed as version `1751dbe8-11ee-4a04-87be-ffdcacf37f45` with schedule `0 * * * *`; Pages deployed as `https://1d9496ee.vtuberthai-ranking.pages.dev` (28 files uploaded, 12 reused). The isolated candidate set was imported idempotently: 415 rows added, 19 omitted because a queue identity or registered-channel identity already existed. Production now has 445 candidate rows (430 pending, 15 imported, 0 ignored) and 43 registered rows. Public directory remains 42 active channels. Smoke checks returned 200 for the site, Admin route, homepage config and public directory; admin settings and candidate API returned 401 without authentication. No production channel was approved or published. Issue #12 remains open for review/closure approval.
 
 Candidate evidence remains available locally in ignored workspace files `.superpowers/sdd/live-discovery/youtube-candidates.md` and `.json`; its checkpoint is `state.json`. The source sweep is not guaranteed exhaustive and production channels continue to require individual manager approval.
+
+
+## 13. เพิ่มระบบลบช่อง VTuber บนหน้าจัดการช่อง — Issue #14
+
+เจ้าของขอเพิ่มระบบให้หน้าจัดการช่อง (`/admin/channels`) สามารถลบข้อมูลช่องได้ และอนุมัติเริ่มดำเนินการในแชตวันที่ 16 พฤศจิกายน 2026 ตาม Issue #14 โดยระบุเงื่อนไข: ลบถาวร (Hard delete พร้อม Cascade), จำกัดสิทธิ์เฉพาะ Manager, แสดงกล่องข้อความยืนยันชื่อช่องก่อนลบ และมีบันทึก Audit log
+
+- Frontend (`frontend/src/admin/ChannelsTab.jsx`):
+  - เพิ่มปุ่ม "ลบ" ในตารางจัดการช่อง แสดงเฉพาะผู้ใช้งานระดับ Manager (`isManager`)
+  - มี Dialog ยืนยันระบุชื่อช่อง พร้อมจัดการสถานะกำลังลบ (in-flight state) และป้องกันการปิด dialog ระหว่างส่งคำขอ
+  - ส่งคำขอ `DELETE /api/admin/vtubers/:id` พร้อม CSRF token และรีเฟรชตารางช่องทันทีผ่าน `load()`
+- Backend (`frontend/server/admin.js`):
+  - เพิ่ม `DELETE /api/admin/vtubers/:id` กำกับสิทธิ์ด้วย `requireManager(c)` (คืนค่า 403 สำหรับ Staff, 401 เมื่อไม่มี Auth)
+  - ตรวจสอบ ID (`numericId`) และสถานะช่อง (404 Not Found)
+  - ลบช่องในตาราง `vtubers` พร้อม cascade ลบ `stats_snapshots` และ `rankings` อย่างปลอดภัย
+  - บันทึกประวัติการลบใน `audit_logs` ผ่าน `audit(c, 'delete', 'vtuber', id, { name, slug })`
+- Updater (`worker/updater.js`):
+  - ปรับปรุง `observedAt` ใน `updateAll` ให้ใช้ `capturedAt` จาก `metadata.scheduledTime` เมื่อมีการระบุ เพื่อให้การคำนวณอันดับตรงตามช่วงเวลาที่กำหนดอย่างแม่นยำ
+- การทดสอบและการตรวจสอบ (Verification):
+  - Vitest: 51 files / 599 tests ผ่านครบถ้วน
+  - Cypress E2E: 5/5 journeys ผ่านครบถ้วน รวมถึงสิทธิ์การซ่อนปุ่มของ Staff และการลบช่องของ Manager
+  - Production build: `npm run build` ผ่านสมบูรณ์
+  - GitHub Actions CI บน commit `c403138`: ผ่าน 100% (Run ID 43815803453)
+- การ Deploy:
+  - Push commit `c403138` ขึ้น `origin/main`
+  - Deploy Worker `vtuberthai-updater` version `5817cc2a-ec41-4102-9d47-307d90c00cf6` ที่ `https://vtuberthai-updater.datainformation.workers.dev` (cron: `0 * * * *`)
+  - Remote D1: `npx wrangler d1 migrations apply vtuberthai-db --remote` ตรวจสอบแล้วไม่มี migration คงค้าง
+  - Deploy Pages `vtuberthai-ranking` ที่ `https://56891d24.vtuberthai-ranking.pages.dev` (และ `https://vtuberthai-ranking.pages.dev`)
+  - Smoke tests production: `intro-homepage-config/` → 200, `directory/` → 200, `admin/channels` → 200, และ `DELETE /vtubers/:id` ไม่ส่ง auth → 401 ตาม contract ครบถ้วน
