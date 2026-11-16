@@ -9,6 +9,7 @@ function adminRequest(path, init = {}) {
 }
 
 const staff = { id: 'u1', role: 'staff', status: 'active' };
+const manager = { id: 'u1', role: 'manager', status: 'active' };
 
 async function authedRequest(path, { user = staff, responses = [], init = {}, env = {} } = {}) {
   const { calls, db } = createD1Stub(responses);
@@ -45,6 +46,12 @@ describe('admin API authentication', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'Test', slug: 'test' }),
     });
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ message: 'Authentication required' });
+  });
+
+  it('rejects an unauthenticated delete request', async () => {
+    const response = await adminRequest('/vtubers/1', { method: 'DELETE' });
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ message: 'Authentication required' });
   });
@@ -122,6 +129,62 @@ describe('admin channels CRUD', () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ message: 'Unknown field' });
+  });
+
+  it('deletes an existing channel when called by manager', async () => {
+    const { calls, response } = await authedRequest('/vtubers/1', {
+      user: manager,
+      responses: [{ id: 1, name: 'Aiko', slug: 'aiko' }, {}, {}, {}, {}],
+      init: { method: 'DELETE' },
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(calls.some(call => /DELETE FROM vtubers WHERE id=\?/.test(call.sql))).toBe(true);
+    expect(calls.some(call => /DELETE FROM stats_snapshots WHERE vtuber_id=\?/.test(call.sql))).toBe(true);
+    expect(calls.some(call => /DELETE FROM rankings WHERE vtuber_id=\?/.test(call.sql))).toBe(true);
+    expect(calls.some(call => /INSERT INTO audit_logs/.test(call.sql))).toBe(true);
+  });
+
+  it('rejects channel deletion with 403 when called by a non-manager admin', async () => {
+    const { response } = await authedRequest('/vtubers/1', {
+      user: staff,
+      init: { method: 'DELETE' },
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ message: 'Manager access required' });
+  });
+
+  it('returns 404 when deleting a missing channel', async () => {
+    const { response } = await authedRequest('/vtubers/99', {
+      user: manager,
+      responses: [null],
+      init: { method: 'DELETE' },
+    });
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ message: 'Record not found' });
+  });
+
+  it('rejects deleting with non-numeric id', async () => {
+    const { response } = await authedRequest('/vtubers/abc', {
+      user: manager,
+      init: { method: 'DELETE' },
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ message: 'Invalid ID' });
+  });
+
+  it('rejects deleting with non-positive id', async () => {
+    const { response } = await authedRequest('/vtubers/0', {
+      user: manager,
+      init: { method: 'DELETE' },
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ message: 'Invalid ID' });
   });
 });
 

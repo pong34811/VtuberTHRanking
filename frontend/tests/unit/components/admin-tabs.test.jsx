@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { CategoriesTab } from '@/admin/tabs/CategoriesTab.jsx';
 import { ReportsTab } from '@/admin/tabs/ReportsTab.jsx';
@@ -180,6 +180,92 @@ it('lists channels with their platform labels', async () => {
 
   expect(await screen.findByText('Aiko')).toBeInTheDocument();
   expect(await screen.findByText('YouTube')).toBeInTheDocument();
+});
+
+it('only renders the delete action for managers and manages confirmation modal lifecycle', async () => {
+  let channels = [{ id: 1, name: 'Aiko', slug: 'aiko', agency_name: 'Indie', platform: 'youtube', is_active: 1 }];
+  let resolveDelete;
+  let fetchMock = vi.fn().mockImplementation((url, options) => {
+    if (options?.method === 'DELETE') {
+      return new Promise(resolve => {
+        resolveDelete = () => {
+          channels = [];
+          resolve(Response.json({ ok: true }));
+        };
+      });
+    }
+    return Promise.resolve(Response.json({ results: channels }));
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  const { unmount } = render(<ChannelsTab csrfToken="test-csrf" isManager={false} />);
+  expect(await screen.findByText('Aiko')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'ลบ Aiko' })).not.toBeInTheDocument();
+  unmount();
+
+  render(<ChannelsTab csrfToken="test-csrf" isManager={true} />);
+  expect(await screen.findByText('Aiko')).toBeInTheDocument();
+  const deleteBtn = screen.getByRole('button', { name: 'ลบ Aiko' });
+  expect(deleteBtn).toBeInTheDocument();
+
+  fireEvent.click(deleteBtn);
+  const dialog = screen.getByRole('dialog', { name: 'ลบช่อง' });
+  expect(dialog).toBeInTheDocument();
+  expect(within(dialog).getByText(/Aiko/)).toBeInTheDocument();
+
+  fireEvent.click(within(dialog).getByRole('button', { name: 'ยกเลิก' }));
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'ลบช่อง' })).not.toBeInTheDocument());
+  expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(false);
+
+  fireEvent.click(screen.getByRole('button', { name: 'ลบ Aiko' }));
+  const dialog2 = screen.getByRole('dialog', { name: 'ลบช่อง' });
+  const confirmBtn = within(dialog2).getByRole('button', { name: 'ลบช่อง' });
+  const cancelBtn = within(dialog2).getByRole('button', { name: 'ยกเลิก' });
+  fireEvent.click(confirmBtn);
+
+  expect(confirmBtn).toBeDisabled();
+  expect(confirmBtn).toHaveTextContent('กำลังลบ…');
+  expect(cancelBtn).toBeDisabled();
+
+  await act(async () => {
+    resolveDelete();
+  });
+
+  await waitFor(() => {
+    const deleteCall = fetchMock.mock.calls.find(([, options]) => options?.method === 'DELETE');
+    expect(deleteCall).toBeDefined();
+    expect(String(deleteCall[0])).toContain('/vtubers/1');
+    expect(deleteCall[1].headers['X-CSRF-Token']).toBe('test-csrf');
+  });
+
+  expect(await screen.findByText(/ลบช่อง “Aiko” เรียบร้อยแล้ว/)).toBeInTheDocument();
+  expect(screen.queryByRole('dialog', { name: 'ลบช่อง' })).not.toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.queryByText('Aiko')).not.toBeInTheDocument();
+  });
+});
+
+it('displays error alert inside dialog when channel deletion fails', async () => {
+  const channel = { id: 1, name: 'Aiko', slug: 'aiko', agency_name: 'Indie', platform: 'youtube', is_active: 1 };
+  vi.stubGlobal('fetch', vi.fn().mockImplementation((url, options) => {
+    if (options?.method === 'DELETE') {
+      return Promise.resolve(new Response(JSON.stringify({ message: 'Manager access required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    }
+    return Promise.resolve(Response.json({ results: [channel] }));
+  }));
+
+  render(<ChannelsTab csrfToken="test-csrf" isManager={true} />);
+  expect(await screen.findByText('Aiko')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'ลบ Aiko' }));
+  const dialog = screen.getByRole('dialog', { name: 'ลบช่อง' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'ลบช่อง' }));
+
+  expect(await within(dialog).findByText('Manager access required')).toBeInTheDocument();
+  expect(screen.getByRole('dialog', { name: 'ลบช่อง' })).toBeInTheDocument();
 });
 
 it('submits only channel contract fields when editing', async () => {

@@ -165,7 +165,7 @@ export async function updateAll(env, force = false, metadata = {}) {
       id: existing?.id || crypto.randomUUID(), triggerSource, frequency, fence: lease.fence,
       slotKey, slotAt, startedAt: existing?.started_at || capturedAt,
       targetMonth: existing?.target_month || targetMonth,
-      observedAt: existing?.stage_ready ? existing.observed_at : new Date(Date.now()).toISOString(),
+      observedAt: existing?.stage_ready ? existing.observed_at : capturedAt,
     };
     const metrics = existing?.stage_ready ? JSON.parse(existing.metrics_json) : await enabledMetrics(db);
     await db.batch([db.prepare(`INSERT INTO ranking_pipeline_runs

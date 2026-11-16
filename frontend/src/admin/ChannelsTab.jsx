@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { adminApi } from "./api";
 import { useList } from "./tabs/useList";
+import { useSubmit } from "./ui";
 import { blank, platforms } from "./channels/options";
 import { ChannelForm } from "./channels/ChannelForm";
 import { YouTubeImport } from "./channels/YouTubeImport";
@@ -8,7 +10,7 @@ import { Button } from "./components/ui/button";
 import { Badge } from "./components/ui/badge";
 import { Card, CardActions, CardContent } from "./components/ui/card";
 import { Dialog } from "./components/ui/dialog";
-import { Alert, Input, Select } from "./components/ui/field";
+import { Alert, FormActions, Input, Select } from "./components/ui/field";
 import { TD, TH, THead, TR, Table, TableWrap } from "./components/ui/table";
 import { Avatar, EmptyState, SkeletonRows } from "./components/ui/feedback";
 
@@ -16,12 +18,23 @@ export default function ChannelsTab({ csrfToken, isManager }) {
   const { rows, loading, error, load } = useList("/vtubers");
   const [editing, setEditing] = useState(null),
     [snapshots, setSnapshots] = useState(null),
-    [ytOpen, setYtOpen] = useState(false);
+    [ytOpen, setYtOpen] = useState(false),
+    [deleting, setDeleting] = useState(null);
   const [saved, setSaved] = useState(null);
   const onSaved = result => {
     setEditing(null); setYtOpen(false); setSaved(result);
     if (!result.queued) load();
   };
+  const remove = useSubmit(
+    () => adminApi(`/vtubers/${deleting?.id}`, { method: "DELETE", csrfToken }),
+    () => {
+      const name = deleting?.name;
+      setDeleting(null);
+      setSaved({ message: `ลบช่อง “${name}” เรียบร้อยแล้ว` });
+      load();
+    },
+    deleting?.id,
+  );
   const [query, setQuery] = useState(""),
     [status, setStatus] = useState("all");
 
@@ -53,9 +66,12 @@ export default function ChannelsTab({ csrfToken, isManager }) {
           </Button>
         </CardActions>
       </div>
-      {saved && <Alert tone="success">{saved.queued ? "ส่งช่องเข้าคิวรอผู้จัดการอนุมัติแล้ว ยังไม่แสดงบนเว็บไซต์" : "บันทึกข้อมูลช่องแล้ว"}
-        {saved.queued && isManager && <> · <a href="/admin/channel-approvals">ไปที่ช่องรออนุมัติ</a></>}
-      </Alert>}
+      {saved && (
+        <Alert tone="success">
+          {saved.message || (saved.queued ? "ส่งช่องเข้าคิวรอผู้จัดการอนุมัติแล้ว ยังไม่แสดงบนเว็บไซต์" : "บันทึกข้อมูลช่องแล้ว")}
+          {saved.queued && isManager && <> · <a href="/admin/channel-approvals">ไปที่ช่องรออนุมัติ</a></>}
+        </Alert>
+      )}
       <div className="channel-metrics" aria-label="ภาพรวมช่อง">
         <button
           onClick={() => setStatus("all")}
@@ -190,6 +206,20 @@ export default function ChannelsTab({ csrfToken, isManager }) {
                         >
                           แก้ไข
                         </Button>
+                        {isManager && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`ลบ ${row.name}`}
+                            onClick={() => {
+                              setSaved(null);
+                              remove.setError("");
+                              setDeleting(row);
+                            }}
+                          >
+                            ลบ
+                          </Button>
+                        )}
                       </TD>
                     </TR>
                   ))}
@@ -253,6 +283,44 @@ export default function ChannelsTab({ csrfToken, isManager }) {
           wide
         >
           {snapshots && <Snapshots key={snapshots.id} channel={snapshots} csrfToken={csrfToken} />}
+        </Dialog>
+        <Dialog
+          open={!!deleting}
+          onClose={() => {
+            if (remove.busy) return;
+            remove.setError("");
+            setDeleting(null);
+          }}
+          title="ลบช่อง"
+          description="การดำเนินการนี้จะลบข้อมูลสถิติและอันดับที่เกี่ยวข้องทั้งหมด"
+        >
+          {deleting && (
+            <div className="grid gap-4">
+              <p>
+                ต้องการลบช่อง “{deleting.name}” หรือไม่? การดำเนินการนี้จะลบข้อมูลสถิติและอันดับที่เกี่ยวข้องทั้งหมด
+              </p>
+              <Alert>{remove.error}</Alert>
+              <FormActions>
+                <Button
+                  variant="ghost"
+                  disabled={remove.busy}
+                  onClick={() => {
+                    remove.setError("");
+                    setDeleting(null);
+                  }}
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={remove.busy}
+                  onClick={remove.submit}
+                >
+                  {remove.busy ? "กำลังลบ…" : "ลบช่อง"}
+                </Button>
+              </FormActions>
+            </div>
+          )}
         </Dialog>
       </Card>
     </div>

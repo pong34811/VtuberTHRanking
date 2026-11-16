@@ -152,3 +152,35 @@ it('persists introduction configuration and audits it through mounted APIs on ac
   expect(await store.db.prepare("SELECT setting_value FROM settings WHERE setting_key='intro_homepage_template'").first()).toEqual({ setting_value: 'neon-portal-3d' });
   expect(await store.db.prepare("SELECT target_id FROM audit_logs WHERE target_id='intro_homepage_template'").first()).toEqual({ target_id: 'intro_homepage_template' });
 }, 30_000);
+
+it('deletes channels with cascade cleanup and records audit log on actual D1', async () => {
+  const store = await database();
+  await store.db.batch([
+    store.db.prepare("INSERT INTO vtubers(id,name,slug,channel_url) VALUES (1,'Alpha','alpha','https://youtube.com/@alpha')"),
+    store.db.prepare("INSERT INTO vtubers(id,name,slug,channel_url) VALUES (2,'Beta','beta','https://youtube.com/@beta')"),
+    store.db.prepare("INSERT INTO stats_snapshots(vtuber_id,followers,recorded_at) VALUES (1,100,'2026-09-01T16:00:00Z')"),
+    store.db.prepare("INSERT INTO stats_snapshots(vtuber_id,followers,recorded_at) VALUES (1,150,'2026-09-02T16:00:00Z')"),
+    store.db.prepare("INSERT INTO stats_snapshots(vtuber_id,followers,recorded_at) VALUES (2,200,'2026-09-01T16:00:00Z')"),
+    store.db.prepare("INSERT INTO rankings(vtuber_id,period,category,rank,score,month) VALUES (1,'alltime','followers',1,150,NULL)"),
+    store.db.prepare("INSERT INTO rankings(vtuber_id,period,category,rank,score,month) VALUES (2,'alltime','followers',2,200,NULL)"),
+  ]);
+
+  const result = await mountedRequest(store, '/admin/vtubers/1', { method: 'DELETE', authenticated: true });
+  expect(result.status).toBe(200);
+  expect(result.body).toEqual({ ok: true });
+
+  expect(await store.db.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE id=1').first()).toEqual({ n: 0 });
+  expect(await store.db.prepare('SELECT COUNT(*) AS n FROM stats_snapshots WHERE vtuber_id=1').first()).toEqual({ n: 0 });
+  expect(await store.db.prepare('SELECT COUNT(*) AS n FROM rankings WHERE vtuber_id=1').first()).toEqual({ n: 0 });
+
+  expect(await store.db.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE id=2').first()).toEqual({ n: 1 });
+  expect(await store.db.prepare('SELECT COUNT(*) AS n FROM stats_snapshots WHERE vtuber_id=2').first()).toEqual({ n: 1 });
+  expect(await store.db.prepare('SELECT COUNT(*) AS n FROM rankings WHERE vtuber_id=2').first()).toEqual({ n: 1 });
+
+  const audit = await store.db.prepare("SELECT * FROM audit_logs WHERE target_type='vtuber' AND target_id='1'").first();
+  expect(audit).toBeDefined();
+  expect(audit.action).toBe('delete');
+  expect(JSON.parse(audit.details)).toEqual({ name: 'Alpha', slug: 'alpha' });
+  expect((await store.db.prepare('PRAGMA foreign_key_check').all()).results).toEqual([]);
+}, 30_000);
+

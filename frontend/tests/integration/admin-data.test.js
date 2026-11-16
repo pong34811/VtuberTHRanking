@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { backendDatabase, mountedRequest, seedChannel, seedUser, staffToken } from '../helpers/backend-sqlite.js';
+import { addSnapshot, backendDatabase, mountedRequest, seedChannel, seedUser, staffToken } from '../helpers/backend-sqlite.js';
 
 const stores = [];
 const database = () => { const store = backendDatabase(); stores.push(store); return store; };
@@ -212,5 +212,121 @@ describe('mounted import resource and protocol boundaries', () => {
     expect(logged).not.toContain('private-key');
     expect(logged).not.toContain('secret-body');
     expect(JSON.stringify(result.body)).not.toContain('private-key');
+  });
+
+  it('deletes vtuber by manager with cascade cleanup of snapshots and rankings and records audit log', async () => {
+    const store = database(); seedUser(store);
+    seedChannel(store, 1, 'Alpha');
+    seedChannel(store, 2, 'Beta');
+    addSnapshot(store, 1, 100, '2026-01-01T00:00:00Z');
+    addSnapshot(store, 2, 200, '2026-01-01T00:00:00Z');
+    store.sql.prepare("INSERT INTO rankings (vtuber_id, period, category, rank, score, month) VALUES (1, 'alltime', 'followers', 1, 100, NULL)").run();
+    store.sql.prepare("INSERT INTO rankings (vtuber_id, period, category, rank, score, month) VALUES (2, 'alltime', 'followers', 2, 200, NULL)").run();
+
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE id=1').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM stats_snapshots WHERE vtuber_id=1').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM rankings WHERE vtuber_id=1').get().n).toBe(1);
+
+    const result = await mountedRequest(store, '/admin/vtubers/1', { method: 'DELETE', authenticated: true });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true });
+
+    // Deleted channel records are removed
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE id=1').get().n).toBe(0);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM stats_snapshots WHERE vtuber_id=1').get().n).toBe(0);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM rankings WHERE vtuber_id=1').get().n).toBe(0);
+
+    // Other channel records remain completely untouched
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE id=2').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM stats_snapshots WHERE vtuber_id=2').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM rankings WHERE vtuber_id=2').get().n).toBe(1);
+
+    expect(store.sql.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+
+    const log = store.sql.prepare("SELECT * FROM audit_logs WHERE target_type='vtuber' AND target_id='1'").get();
+    expect(log).toBeDefined();
+    expect(log.action).toBe('delete');
+    expect(log.user_id).toBe('manager');
+    const details = JSON.parse(log.details);
+    expect(details).toEqual({ name: 'Alpha', slug: 'alpha' });
+  });
+
+  it('rejects unauthenticated channel deletion with 401 and leaves data untouched', async () => {
+    const store = database(); seedUser(store); seedChannel(store, 1, 'Alpha');
+    addSnapshot(store, 1, 100, '2026-01-01T00:00:00Z');
+
+    const result = await mountedRequest(store, '/admin/vtubers/1', { method: 'DELETE', authenticated: false });
+    expect(result.status).toBe(401);
+    expect(result.body.message).toBe('กรุณาเข้าสู่ระบบ');
+
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE id=1').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM stats_snapshots WHERE vtuber_id=1').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM audit_logs').get().n).toBe(0);
+  });
+
+  it('rejects channel deletion with 403 when requested by staff and leaves data untouched', async () => {
+    const store = database(); seedUser(store); seedUser(store, { id: 'staff', role: 'staff', token: staffToken });
+    seedChannel(store, 1, 'Alpha');
+    addSnapshot(store, 1, 100, '2026-01-01T00:00:00Z');
+
+    const result = await mountedRequest(store, '/admin/vtubers/1', { method: 'DELETE', authenticated: true, token: staffToken });
+    expect(result.status).toBe(403);
+    expect(result.body.message).toContain('Manager access required');
+
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE id=1').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM stats_snapshots WHERE vtuber_id=1').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM audit_logs').get().n).toBe(0);
+  });
+
+  it('rejects channel deletion when CSRF token is invalid', async () => {
+    const store = database(); seedUser(store); seedChannel(store, 1, 'Alpha');
+    addSnapshot(store, 1, 100, '2026-01-01T00:00:00Z');
+
+    const result = await mountedRequest(store, '/admin/vtubers/1', {
+      method: 'DELETE',
+      authenticated: true,
+      headers: { 'X-CSRF-Token': 'wrong-csrf-token' },
+    });
+    expect(result.status).toBe(403);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE id=1').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM stats_snapshots WHERE vtuber_id=1').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM audit_logs').get().n).toBe(0);
+  });
+
+  it('cascades channel deletion to directory candidates and youtube profile state', async () => {
+    const store = database(); seedUser(store); seedChannel(store, 1, 'Alpha');
+    addSnapshot(store, 1, 100, '2026-01-01T00:00:00Z');
+    store.sql.prepare("INSERT INTO youtube_profile_state(vtuber_id, channel_id, profile_json, reference_json, source_url, checked_at) VALUES (1, 'UC123', '{}', '{}', 'https://youtube.com', '2026-01-01')").run();
+    store.sql.prepare("INSERT INTO directory_candidates(channel_id, name, source_url, reference_url, reason, status, vtuber_id, checked_at) VALUES ('UC123', 'Alpha', 'http://a', 'http://b', 'test', 'imported', 1, '2026-01-01')").run();
+
+    const result = await mountedRequest(store, '/admin/vtubers/1', { method: 'DELETE', authenticated: true });
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ ok: true });
+
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE id=1').get().n).toBe(0);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM youtube_profile_state WHERE vtuber_id=1').get().n).toBe(0);
+    expect(store.sql.prepare("SELECT vtuber_id FROM directory_candidates WHERE channel_id='UC123'").get().vtuber_id).toBeNull();
+    expect(store.sql.prepare('PRAGMA foreign_key_check').all()).toEqual([]);
+  });
+
+  it('returns 404 when deleting a non-existent channel', async () => {
+    const store = database(); seedUser(store);
+    const result = await mountedRequest(store, '/admin/vtubers/999', { method: 'DELETE', authenticated: true });
+    expect(result.status).toBe(404);
+    expect(result.body.message).toContain('Record not found');
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM audit_logs').get().n).toBe(0);
+  });
+
+  it('rolls back channel deletion and cascade if audit logging fails', async () => {
+    const store = database(); seedUser(store); seedChannel(store, 1, 'Alpha');
+    addSnapshot(store, 1, 100, '2026-01-01T00:00:00Z');
+    store.control.fail = sql => /INSERT INTO audit_logs/.test(sql);
+
+    const result = await mountedRequest(store, '/admin/vtubers/1', { method: 'DELETE', authenticated: true });
+    expect(result.status).toBe(500);
+
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM vtubers WHERE id=1').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM stats_snapshots WHERE vtuber_id=1').get().n).toBe(1);
+    expect(store.sql.prepare('SELECT COUNT(*) AS n FROM audit_logs').get().n).toBe(0);
   });
 });

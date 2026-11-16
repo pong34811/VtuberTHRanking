@@ -17,6 +17,7 @@ const userFields = 'id,username,display_name,email,role,status,created_at,update
 const stmt = (c, sql, ...values) => c.env.DB.prepare(sql).bind(...values);
 const list = async (c, sql, ...values) => c.json(await stmt(c, sql, ...values).all().then(({ results }) => ({ results })));
 const manager = c => { if (c.get('user')?.role !== 'manager') fail('Manager access required', 403); };
+const requireManager = manager;
 const numericId = c => { const id = Number(c.req.param('id')); if (!Number.isSafeInteger(id) || id < 1) fail('Invalid ID'); return id; };
 const audit = (c, action, target, id, details = {}) => stmt(c, 'INSERT INTO audit_logs (id,user_id,action,target_type,target_id,details) VALUES (?,?,?,?,?,?)', crypto.randomUUID(), c.get('user').id, action, target, String(id), JSON.stringify(details));
 // Lookups below are fixed SQL/natural keys, resolved inside the same batch.
@@ -76,6 +77,18 @@ app.put('/vtubers/:id', async c => {
   }
   await c.env.DB.batch([stmt(c, `UPDATE vtubers SET ${Object.keys(data).map(key => `${key}=?`).join(',')},updated_at=datetime('now') WHERE id=?`, ...Object.values(data), id), audit(c, 'update', 'vtuber', id, { fields: Object.keys(data) })]);
   return c.json({ ok: true, id });
+});
+app.delete('/vtubers/:id', async c => {
+  requireManager(c);
+  const id = numericId(c);
+  const old = await exists(c, 'vtubers', id);
+  await c.env.DB.batch([
+    stmt(c, 'DELETE FROM stats_snapshots WHERE vtuber_id=?', id),
+    stmt(c, 'DELETE FROM rankings WHERE vtuber_id=?', id),
+    stmt(c, 'DELETE FROM vtubers WHERE id=?', id),
+    audit(c, 'delete', 'vtuber', id, { name: old.name, slug: old.slug }),
+  ]);
+  return c.json({ ok: true });
 });
 
 const agencyFields = ['name','description','image_url','contact'];
