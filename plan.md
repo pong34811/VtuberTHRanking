@@ -304,3 +304,18 @@ Candidate evidence remains available locally in ignored workspace files `.superp
   - Remote D1: `npx wrangler d1 migrations apply vtuberthai-db --remote` ตรวจสอบแล้วไม่มี migration คงค้าง
   - Deploy Pages `vtuberthai-ranking` ที่ `https://56891d24.vtuberthai-ranking.pages.dev` (และ `https://vtuberthai-ranking.pages.dev`)
   - Smoke tests production: `intro-homepage-config/` → 200, `directory/` → 200, `admin/channels` → 200, และ `DELETE /vtubers/:id` ไม่ส่ง auth → 401 ตาม contract ครบถ้วน
+
+## 14. แก้เลย์เอาต์หน้าจัดการช่องหลังข้อความสำเร็จ — Issue #15
+
+เจ้าของรายงานว่าหลังลบช่องสำเร็จหน้า `/admin/channels` เลย์เอาต์เพี้ยน: แถบข้อความสำเร็จทำให้ metrics ถูบีบไปซ้าย การ์ดตารางไหลไปขวา ชื่อสังกัดถูกตัด และส่วนขวาของการ์ดล้นจอ เปิด Issue #15 และอนุมัติแก้ในแชท
+
+- ตนเหตุที่ยืนยัน: `Alert` กลาง (`frontend/src/admin/components/ui/field.jsx`) ติด class `sm:col-span-2` ไว้ ขณะที่ `.channel-console` เป็น grid ที่ไม่ได้กำหนด `grid-template-columns` span 2 จึงสร้าง implicit column ที่สอง องค์ประกอบถัดไปถูก auto-place ข้าง ๆ กัน การเพิ่ม explicit column เดียวแก้ไม่ได้ (ทดสอบใน browser harness ด้วย CSS จริงจาก build)
+- แก้โดยย้าย span ออกจาก component กลาง และส่ง `className="sm:col-span-2"` เฉพาะ `Snapshots.jsx` ที่เป็น grid สองคอลัมน์จริง พร้อม regression ใน Cypress ตรวจ bounding box ว่า metrics กับการ์ดตารางยังกว้างเท่ากันและเรียงก้นหลังกัน
+- การตรวจสอบ: Vitest 51 files / 599 tests ผ่าน; production build ผ่าน; Cypress ครบ 11 specs / 42 journeys ผ่าน; harness เทียบก่อน/หลังที่ desktop 1280px และ mobile 390px
+- การเผยแพร่:
+  - Push commit `0afc2d3` ขึ้น `origin/main`
+  - GitHub Actions CI ผ่าน 100% (Run ID 43827026359)
+  - Deploy Pages `vtuberthai-ranking` ที่ `https://36ec2f69.vtuberthai-ranking.pages.dev` (production `https://vtuberthai-ranking.pages.dev`)
+  - Smoke production: `/` → 200, `admin/channels` → 200, `intro-homepage-config/` → 200, `directory/?limit=1` → 200 (39 ช่อง), `DELETE /api/v1/admin/vtubers/1` ไม่ส่ง auth → 401 ตาม contract
+  - ยังไม่ได้ตรวจ UI จริงบน production เพราะต้องล็อกอินด้วยบัญชีจริง; หลักฐาน UI อยู่ที่ Cypress geometry assertion และ browser harness
+- Issue #15 ยังเปิดสถานะ **รอตรวจรับ** รอเจ้าของโครงการอนุมัติปิดแยกต่างหาก
