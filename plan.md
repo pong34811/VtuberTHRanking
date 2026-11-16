@@ -319,3 +319,19 @@ Candidate evidence remains available locally in ignored workspace files `.superp
   - Smoke production: `/` → 200, `admin/channels` → 200, `intro-homepage-config/` → 200, `directory/?limit=1` → 200 (39 ช่อง), `DELETE /api/v1/admin/vtubers/1` ไม่ส่ง auth → 401 ตาม contract
   - ยังไม่ได้ตรวจ UI จริงบน production เพราะต้องล็อกอินด้วยบัญชีจริง; หลักฐาน UI อยู่ที่ Cypress geometry assertion และ browser harness
 - Issue #15 ยังเปิดสถานะ **รอตรวจรับ** รอเจ้าของโครงการอนุมัติปิดแยกต่างหาก
+
+## 15. ปรับหน้าค้นหา /discover เป็นแบบมินิมอล — Issue #17
+
+เจ้าของต้องการปรับ UI/UX หน้าค้นหาให้มินิมอล อ่านง่าย เน้นรายชื่อ VTuber มากกว่าการตกแต่ง และอนุมัติเริ่มดำเนินการในแชตวันที่ 16 พฤศจิกายน 2026 ตาม Issue #17
+
+- ต้นเหตุ: การตกแต่งซ้อนจากธีม Sculpture Index ของ #7 — header เป็นแผ่นกรอบ+เงาแข็ง `0 6px 0` พร้อมรูปปั้น `Sculpture` ในหัวข้อ, การ์ด/หมวด/ช่องค้นหามีเงาแข็ง `0 3px 0`/`0 6px 0`, หมายเหตุมีเส้นขอบบน-ล่าง 2 แถบ, และลิงก์ "ดูรายชื่อทั้งหมด" ซ้ำใน newest-first (override สโคป `.discovery-home` ใน `public-3d.css`, `.discovery-date-note` ใน `discovery.css`, บรรทัด 134 ของ `DiscoveryHome.jsx`)
+- แก้โดยการลบเป็นหลัก: ตัด override 3D ของ discovery ทั้งหมดใน `public-3d.css` (คงเฉพาะ padding header 24px/18px ตามข้อจำกัดเทสต์ inset ของ #7 และค่าสี accent), ลบ `Sculpture`/`discovery-hero-art` และลิงก์ซ้ำออกจาก `DiscoveryHome.jsx`, ถอดเส้นขอบหมายเหตุกับ selector `.discovery-search-all` ที่ตายแล้ว และเพิ่ม gap เลย์เอาต์/การ์ดเล็กน้อย; คงทั้ง 3 เทมเพลต, ค้นหา/ฟิลเตอร์, pagination, loading/error/empty, light/dark, focus-visible, reduced-motion ไม่แตะ API/schema/dependency
+- Regression test ใหม่: newest-first ไม่มี `.discovery-hero-art` และมีลิงก์ "ดูรายชื่อทั้งหมด" จุดเดียว (`frontend/tests/unit/components/discovery-home.test.jsx`)
+- การตรวจสอบ: Vitest **51 files / 600 tests ผ่าน** บน Node 24; production build ผ่าน; Cypress ครบ **11 specs / 42 journeys ผ่าน** รวมเทสต์ header inset ≥18px ทุก template/viewport/ธีมของ #7; ภาพก่อน/หลัง light ที่ 1280/390px ครบ 3 เทมเพลตอยู่ใน `frontend/cypress/screenshots/issue17-before/` และ `issue17-after/` (gitignored ตาม convention)
+- การเผยแพร่:
+  - Push commit `f0af6e5` ขึ้น `origin/main`
+  - GitHub Actions CI ผ่าน 100% (Run ID 43849226756)
+  - Deploy Pages `vtuberthai-ranking` ที่ `https://f9223297.vtuberthai-ranking.pages.dev` (production `https://vtuberthai-ranking.pages.dev`); production ก่อน deploy อยู่ที่ `0afc2d3` จึงมีเฉพาะงาน #17 ออกไป ไม่มีงานค้างที่ยังไม่อนุมัติปน
+  - Smoke production: `/discover` → 200 และ HTML ไม่มี `discovery-hero-art`; `index-BMMP70Sh.css` มี rule ใหม่ `.public-site .discovery-home .discovery-header{padding:24px}` และไม่มีเงา `0 6px 0`/`discovery-search-all`; `HomePage-CTUa4mMg.js` ไม่มี `Sculpture`/`discovery-hero-art` แต่ยังมีข้อความหมายเหตุครบ; `directory/?limit=1` → 200 (27 ช่อง ณ เวลาตรวจ)
+  - ยังไม่ได้ตรวจ UI จริงบน production ด้วยบัญชีผู้ดูแล; หลักฐานภาพเป็น Cypress stub และการยืนยัน bundle ดังกล่าว
+- Issue #17 ยังเปิดสถานะ **รอตรวจรับ** รอเจ้าของโครงการอนุมัติปิดแยกต่างหาก
