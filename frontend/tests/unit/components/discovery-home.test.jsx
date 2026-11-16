@@ -61,6 +61,13 @@ describe('Discovery home renderer', () => {
     expect(screen.getByText(directoryAddedDate(aiko.created_at).label)).toHaveAttribute('datetime', '2026-09-01T00:00:00.000Z');
   });
 
+  it('renders a flat header without sculpture and one all-directory link in newest mode', async () => {
+    const { container } = render(<MemoryRouter><DiscoveryHome templateId="newest-first" /></MemoryRouter>);
+    await screen.findByRole('link', { name: /Aiko/ });
+    expect(container.querySelector('.discovery-hero-art')).toBeNull();
+    expect(screen.getAllByRole('link', { name: /ดูรายชื่อทั้งหมด/ })).toHaveLength(1);
+  });
+
   it('requests each nonempty category independently of the first result page', async () => {
     directoryAPI.getList.mockImplementation(params => Promise.resolve({ data: params.category
       ? { total: 1, count: 1, results: [{ id: 2, name: 'Biko', slug: 'biko', category: params.category, affiliation: 'indie', avatar: '', created_at: null }], category_counts: [] }

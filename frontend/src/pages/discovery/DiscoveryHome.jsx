@@ -7,7 +7,6 @@ import { directorySearchHref, readDirectorySearch } from '../searchParams';
 import CreatorCard from './CreatorCard';
 import useDiscoveryData from './useDiscoveryData';
 import './discovery.css';
-import { Sculpture } from '../IntroPage';
 
 const templates = {
   'search-first': { title: 'ค้นหา VTuber ไทย', description: 'สำรวจภาพและโปรไฟล์ VTuber ไทย แล้วเลือกค้นหาต่อจากชื่อ หมวด หรือสังกัด' },
@@ -78,7 +77,6 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
         <div className="discovery-heading">
           <h1>{template.title}</h1>
           <p>{template.description}</p>
-          <div className="discovery-hero-art"><Sculpture compact /></div>
         </div>
         <div className="discovery-header-tools">
           <form className="discovery-search" role="search" onSubmit={submitSearch}>
@@ -129,10 +127,7 @@ export default function DiscoveryHome({ templateId = 'search-first', previewMode
         </div>
       </section>}
 
-      {templateId === 'newest-first' && <>
-        <div className="discovery-date-note">วันที่แสดงคือวันที่เพิ่มช่องเข้าทำเนียบ</div>
-        <Link className="discovery-search-all" to="/discover?view=all">ดูรายชื่อทั้งหมด <ArrowUpRight aria-hidden="true" /></Link>
-      </>}
+      {templateId === 'newest-first' && <div className="discovery-date-note">วันที่แสดงคือวันที่เพิ่มช่องเข้าทำเนียบ</div>}
 
       <section className="discovery-content" aria-label="รายชื่อ VTuber" aria-busy={loading}>
         {hasFilters && <div className="discovery-content-heading">

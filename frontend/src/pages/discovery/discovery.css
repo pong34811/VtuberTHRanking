@@ -14,7 +14,7 @@
   font-family: "Noto Sans Thai", sans-serif;
 }
 
-.discovery-layout { display: grid; gap: 24px 30px; min-width: 0; }
+.discovery-layout { display: grid; gap: 28px 30px; min-width: 0; }
 .discovery-home:not([data-template="newest-first"]) .discovery-layout {
   grid-template-columns: 172px minmax(0, 1fr);
   grid-template-areas: "index header" "index content";
@@ -78,8 +78,7 @@
 .discovery-home .discovery-header-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .discovery-home .discovery-header--search-first .discovery-header-tools { grid-template-columns: minmax(0, 1fr) auto; gap: 20px; }
 .discovery-home .discovery-header--search-first .discovery-header-meta { flex-direction: column-reverse; align-items: flex-end; justify-content: center; gap: 4px; }
-.discovery-home .discovery-stats-link,
-.discovery-home .discovery-search-all {
+.discovery-home .discovery-stats-link {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -90,10 +89,8 @@
   text-underline-offset: 4px;
   white-space: nowrap;
 }
-.discovery-home .discovery-stats-link:hover,
-.discovery-home .discovery-search-all:hover { text-decoration-line: underline; }
-.discovery-home .discovery-stats-link svg,
-.discovery-home .discovery-search-all svg { width: 16px; height: 16px; }
+.discovery-home .discovery-stats-link:hover { text-decoration-line: underline; }
+.discovery-home .discovery-stats-link svg { width: 16px; height: 16px; }
 .discovery-home .discovery-count-stamp {
   color: var(--discovery-muted);
   font-size: 0.78rem;
@@ -271,7 +268,7 @@
 .discovery-home .discovery-group-heading > a:hover { text-decoration-line: underline; }
 .discovery-home .discovery-content-heading svg,
 .discovery-home .discovery-group-heading svg { width: 15px; height: 15px; }
-.discovery-home .discovery-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 26px 16px; }
+.discovery-home .discovery-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px 18px; }
 .discovery-home .discovery-group .discovery-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 .discovery-home .discovery-card {
@@ -368,12 +365,9 @@
 .discovery-home .discovery-group-heading > div > span { color: var(--discovery-muted); font-size: 0.85rem; }
 .discovery-home .discovery-date-note {
   padding: 11px 0;
-  border-top: 1px solid var(--discovery-rule);
-  border-bottom: 1px solid var(--discovery-rule);
   color: var(--discovery-muted);
   font-size: 0.86rem;
 }
-.discovery-home .discovery-search-all { justify-self: start; }
 .discovery-home .discovery-status,
 .discovery-home .discovery-group-empty { padding: 16px 0; color: var(--discovery-muted); }
 .discovery-home .discovery-empty,
