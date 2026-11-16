@@ -68,7 +68,7 @@ export function Snapshots({ channel, csrfToken }) {
         className="grid gap-3 rounded-lg border border-border p-4 sm:grid-cols-2"
       >
         <p className="text-sm font-medium sm:col-span-2">บันทึกสถิติใหม่</p>
-        <Alert>{error}</Alert>
+        <Alert className="sm:col-span-2">{error}</Alert>
         <Field label="ผู้ติดตาม">
           <Input
             type="number"

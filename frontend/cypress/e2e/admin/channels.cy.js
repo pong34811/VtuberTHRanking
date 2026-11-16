@@ -61,6 +61,17 @@ describe('Admin channels manager journey', () => {
     cy.contains('ลบช่อง “Aiko” เรียบร้อยแล้ว').should('exist');
     cy.get('table').contains('Aiko').should('not.exist');
     cy.get('table').contains('Biko').should('exist');
+
+    // Regression: the success alert must stay a single-column block so the
+    // metrics strip and the channel card keep stacking full width.
+    cy.get('.channel-metrics').then(($metrics) => {
+      cy.get('.channel-table-card').then(($card) => {
+        const metrics = $metrics[0].getBoundingClientRect();
+        const card = $card[0].getBoundingClientRect();
+        expect(Math.abs(metrics.width - card.width)).to.be.lessThan(8);
+        expect(card.top).to.be.at.least(metrics.bottom - 1);
+      });
+    });
   });
 
   it('displays error alert when deletion fails and keeps dialog open', () => {

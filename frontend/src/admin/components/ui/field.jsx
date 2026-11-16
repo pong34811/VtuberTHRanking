@@ -79,16 +79,17 @@ export function FormActions({ className, ...props }) {
   );
 }
 
-export function Alert({ tone = "error", children }) {
+export function Alert({ tone = "error", className, children }) {
   if (!children) return null;
   return (
     <div
       role={tone === "error" ? "alert" : "status"}
       className={cn(
-        "rounded-lg border px-3.5 py-2.5 text-sm sm:col-span-2",
+        "rounded-lg border px-3.5 py-2.5 text-sm",
         tone === "error"
           ? "border-red/30 bg-card text-red"
           : "border-green/30 bg-card text-green",
+        className,
       )}
     >
       {children}
